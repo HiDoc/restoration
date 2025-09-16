@@ -1,0 +1,89 @@
+/* EcoSim-inspired dark nature theme
+   Enable by adding class="theme-eco" to a top-level container. */
+
+@reference "tailwindcss";
+@reference './components.css';
+@reference './game-components.css';
+
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Canvas / background */
+  .theme-eco {
+    @apply bg-neutral-950 text-neutral-100 antialiased;
+    background-image: radial-gradient(1200px 800px at 10% 10%, rgb(16 185 129 / 5%), transparent),
+      radial-gradient(1000px 700px at 90% 20%, rgb(59 130 246 / 4%), transparent),
+      radial-gradient(900px 600px at 50% 100%, rgb(34 197 94 / 6%), transparent);
+  }
+
+  /* Panels & cards: glassy forest panels */
+  .theme-eco .sci-panel {
+    @apply bg-neutral-900/70 backdrop-blur-md border border-emerald-900/40 rounded-xl shadow-soft;
+  }
+  .theme-eco .sci-panel-elevated { @apply border-emerald-600/60 shadow-soft; }
+  .theme-eco .sci-card { @apply bg-neutral-900/70 backdrop-blur-md border border-neutral-800 rounded-xl shadow-soft; }
+  .theme-eco .sci-card-header { @apply bg-neutral-900/60 border-neutral-800; }
+  .theme-eco .sci-card-body { @apply bg-transparent; }
+
+  /* Headers */
+  .theme-eco .sci-header { @apply border-neutral-800; }
+  .theme-eco .sci-header-title { @apply text-emerald-300; }
+  .theme-eco .sci-header-subtitle { @apply text-neutral-400; }
+
+  /* Buttons: primary=emerald, secondary=sky */
+  .theme-eco .sci-btn { @apply border-neutral-700 bg-neutral-800 text-neutral-100 hover:bg-neutral-700 hover:border-neutral-600; }
+  .theme-eco .sci-btn-primary { @apply bg-emerald-600 border-emerald-600 hover:bg-emerald-500 hover:border-emerald-500 text-neutral-50; }
+  .theme-eco .sci-btn-secondary { @apply bg-sky-600 border-sky-600 hover:bg-sky-500 hover:border-sky-500 text-neutral-50; }
+  .theme-eco .sci-btn-outline { @apply bg-transparent border-neutral-700 text-neutral-300 hover:bg-neutral-800; }
+  .theme-eco .sci-btn-ghost { @apply border-transparent bg-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50; }
+
+  /* Inputs */
+  .theme-eco .sci-input { @apply bg-neutral-900/80 border-neutral-700 text-neutral-100 placeholder-neutral-500 focus:ring-emerald-500 focus:border-emerald-500; }
+
+  /* Badges */
+  .theme-eco .sci-badge-primary { @apply bg-emerald-900/60 text-emerald-200; }
+  .theme-eco .sci-badge-secondary { @apply bg-sky-900/60 text-sky-200; }
+  .theme-eco .sci-badge-success { @apply bg-green-900/60 text-green-200; }
+  .theme-eco .sci-badge-warning { @apply bg-amber-900/60 text-amber-200; }
+  .theme-eco .sci-badge-danger { @apply bg-red-900/60 text-red-200; }
+  .theme-eco .sci-badge-outline { @apply border-neutral-700 text-neutral-300; }
+
+  /* Progress bars themed by metric */
+  .theme-eco .sci-progress { @apply bg-neutral-800; }
+  .theme-eco .sci-progress-bar { @apply bg-emerald-500; }
+  .theme-eco .sci-progress-bar-secondary { @apply bg-sky-500; }
+  .theme-eco .sci-progress-bar-danger { @apply bg-red-500; }
+
+  .theme-eco .eco-bar-vitality { @apply bg-gradient-to-r from-emerald-600 to-green-500; }
+  .theme-eco .eco-bar-moisture { @apply bg-gradient-to-r from-sky-500 to-cyan-400; }
+  .theme-eco .eco-bar-pollution { @apply bg-gradient-to-r from-red-600 to-orange-500; }
+
+  /* Health chips */
+  .theme-eco .eco-health-excellent { @apply bg-emerald-900/50 border-emerald-500/60 text-emerald-200; }
+  .theme-eco .eco-health-good { @apply bg-green-900/50 border-green-500/60 text-green-200; }
+  .theme-eco .eco-health-moderate { @apply bg-amber-900/50 border-amber-500/60 text-amber-200; }
+  .theme-eco .eco-health-poor { @apply bg-orange-900/50 border-orange-500/60 text-orange-200; }
+  .theme-eco .eco-health-critical { @apply bg-red-900/50 border-red-500/60 text-red-200; }
+
+  /* Modals & overlays */
+  .theme-eco .sci-modal { @apply bg-neutral-900/80 backdrop-blur-md border border-neutral-700 rounded-2xl shadow-soft; }
+  .theme-eco .sci-modal-title { @apply text-neutral-100; }
+  .theme-eco .sci-modal-overlay { @apply bg-black/80; }
+
+  /* Notifications */
+  .theme-eco .notification { @apply bg-neutral-900/80 border-neutral-700 text-neutral-100; }
+  .theme-eco .notification-info { @apply border-sky-500/60; }
+  .theme-eco .notification-success { @apply border-emerald-500/60; }
+  .theme-eco .notification-warning { @apply border-amber-500/60; }
+  .theme-eco .notification-danger { @apply border-red-500/60; }
+
+  /* Tables */
+  .theme-eco .sci-table-header { @apply bg-neutral-900/70; }
+  .theme-eco .sci-table-body { @apply bg-transparent divide-neutral-800; }
+  .theme-eco .sci-table-body tr:hover { @apply bg-neutral-800/60; }
+  .theme-eco .sci-table-body td { @apply text-neutral-200; }
+
+  /* Dividers */
+  .theme-eco .sci-divider-r { @apply border-neutral-800; }
+}

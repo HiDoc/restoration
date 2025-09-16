@@ -25,6 +25,7 @@ export enum EventType {
   CHUNK_UPDATE = 'chunk_update',
   SPECIES_SPAWN = 'species_spawn',
   SPECIES_DIE = 'species_die',
+  SEED_SELECTION = 'seed_selection',
   POLLINATOR_MOVE = 'pollinator_move',
   HYBRID_CREATED = 'hybrid_created',
   
@@ -33,7 +34,9 @@ export enum EventType {
   SIM_PAUSE = 'sim_pause',
   SIM_RESUME = 'sim_resume',
   SIM_RESET = 'sim_reset',
-  TICK_ADVANCE = 'tick_advance'
+  TICK_ADVANCE = 'tick_advance',
+  YEAR_END = 'year_end',
+  YEAR_START = 'year_start'
 }
 
 export class EventJournal {

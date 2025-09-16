@@ -1,0 +1,23 @@
+@reference "tailwindcss";
+@import "tailwindcss/preflight";
+@import './styles/components.css';
+@import './styles/game-components.css';
+@import './styles/theme-air.css';
+@import './styles/theme-eco.css';
+
+@tailwind utilities;
+
+body {
+  margin: 0;
+  padding: 0;
+  /* Background is theme-controlled (theme-eco/theme-air) */
+  font-family: 'Courier New', monospace;
+}
+
+#game-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

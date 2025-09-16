@@ -1,0 +1,466 @@
+/* Scientific Game UI Component Library */
+@reference "tailwindcss";
+
+@tailwind utilities;
+
+/* Promote reusable component classes to utilities so they can be used with @apply. */
+@utility sci-panel { @apply bg-gray-900 border-2 border-gray-600 rounded-lg p-4 shadow-lg backdrop-blur-sm; }
+@utility sci-panel-elevated { @apply sci-panel border-green-400 shadow-glow; }
+@utility sci-btn { @apply inline-flex items-center justify-center px-4 py-2 border font-medium rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility sci-btn-sm { @apply px-2.5 py-1.5 text-xs; }
+@utility sci-input { @apply block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm; }
+@utility sci-badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+@utility sci-badge-primary { @apply sci-badge bg-green-900 text-green-200; }
+@utility sci-badge-secondary { @apply sci-badge bg-yellow-900 text-yellow-200; }
+@utility sci-badge-success { @apply sci-badge bg-green-900 text-green-200; }
+@utility sci-badge-warning { @apply sci-badge bg-yellow-900 text-yellow-200; }
+@utility sci-badge-danger { @apply sci-badge bg-red-900 text-red-200; }
+@utility sci-badge-outline { @apply sci-badge bg-transparent border border-gray-500 text-gray-400; }
+@utility sci-grid { @apply grid gap-4; }
+@utility sci-stat-change { @apply text-xs mt-1 flex items-center; }
+@utility shadow-glow { box-shadow: 0 0 20px rgba(74, 222, 128, 0.3); }
+@utility shadow-soft { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 1px rgb(0 0 0 / 0.04); }
+@utility animate-in { animation-duration: 200ms; animation-timing-function: ease-out; animation-fill-mode: both; }
+@utility fade-in { animation-name: fade-in; }
+@utility slide-in-from-bottom-4 { animation-name: slide-in-from-bottom-4; }
+@utility sci-alert { @apply rounded-md p-4 border-l-4; }
+@utility sci-nav-item { @apply py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-400 hover:text-gray-300 hover:border-gray-400 transition-colors; }
+@utility sci-progress { @apply w-full bg-gray-600 rounded-full h-2 overflow-hidden; }
+@utility sci-collapse-toggle { @apply inline-block w-5 text-center border rounded font-bold opacity-70 transition-colors; }
+@utility sci-divider-r { @apply border-r border-neutral-800; }
+
+
+@layer components {
+  /* Base Containers */
+  .sci-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .sci-panel {
+    @apply bg-gray-900 border-2 border-gray-600 rounded-lg p-4 shadow-lg backdrop-blur-sm;
+  }
+  
+  .sci-panel-elevated {
+    @apply sci-panel border-green-400 shadow-glow;
+  }
+  
+  .sci-panel-warning {
+    @apply sci-panel border-yellow-400 bg-yellow-950;
+  }
+  
+  .sci-panel-danger {
+    @apply sci-panel border-red-400 bg-red-950;
+  }
+
+  /* Scientific Headers */
+  .sci-header {
+    @apply border-b border-gray-600 pb-3 mb-4;
+  }
+  
+  .sci-header-title {
+    @apply text-xl font-bold text-green-400 flex items-center gap-2;
+  }
+  
+  .sci-header-subtitle {
+    @apply text-sm text-gray-400 mt-1;
+  }
+  
+  .sci-header-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200;
+  }
+
+  /* Button System */
+  .sci-btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border font-medium rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .sci-btn-primary {
+    @apply sci-btn border-green-600 bg-green-600 text-white hover:bg-green-700 hover:border-green-700 focus:ring-green-500;
+  }
+  
+  .sci-btn-secondary {
+    @apply sci-btn border-yellow-600 bg-yellow-600 text-gray-900 hover:bg-yellow-700 hover:border-yellow-700 focus:ring-yellow-500;
+  }
+  
+  .sci-btn-outline {
+    @apply sci-btn border-gray-500 bg-transparent text-gray-300 hover:bg-gray-700 hover:border-gray-400 focus:ring-gray-500;
+  }
+  
+  .sci-btn-ghost {
+    @apply sci-btn border-transparent bg-transparent text-gray-400 hover:bg-gray-800 hover:text-gray-300 focus:ring-gray-500;
+  }
+  
+  .sci-btn-danger {
+    @apply sci-btn border-red-600 bg-red-600 text-white hover:bg-red-700 hover:border-red-700 focus:ring-red-500;
+  }
+  
+  .sci-btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+  
+  .sci-btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+  
+  .sci-btn-xl {
+    @apply px-8 py-4 text-lg;
+  }
+
+  /* Form Controls */
+  .sci-input {
+    @apply block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm;
+  }
+  
+  .sci-select {
+    @apply sci-input cursor-pointer;
+  }
+  
+  .sci-textarea {
+    @apply sci-input resize-y;
+  }
+  
+  .sci-checkbox {
+    @apply h-4 w-4 text-green-600 focus:ring-green-500 border-gray-500 rounded bg-gray-800;
+  }
+  
+  .sci-radio {
+    @apply h-4 w-4 text-green-600 focus:ring-green-500 border-gray-500 bg-gray-800;
+  }
+  
+  .sci-label {
+    @apply block text-sm font-medium text-gray-300 mb-1;
+  }
+  
+  .sci-help-text {
+    @apply mt-1 text-xs text-gray-500;
+  }
+  
+  .sci-error-text {
+    @apply mt-1 text-xs text-red-400;
+  }
+
+  /* Scientific Cards */
+  .sci-card {
+    @apply sci-panel overflow-hidden;
+  }
+  
+  .sci-card-header {
+    @apply px-6 py-4 border-b border-gray-600 bg-gray-800;
+  }
+  
+  .sci-card-body {
+    @apply px-6 py-4;
+  }
+  
+  .sci-card-footer {
+    @apply px-6 py-4 border-t border-gray-600 bg-gray-800;
+  }
+  
+  .sci-card-compact {
+    @apply p-3;
+  }
+  
+  .sci-card-compact .sci-card-header {
+    @apply px-3 py-2;
+  }
+  
+  .sci-card-compact .sci-card-body {
+    @apply px-3 py-2;
+  }
+
+  /* Data Display */
+  .sci-stat {
+    @apply flex flex-col;
+  }
+  
+  .sci-stat-label {
+    @apply text-xs text-gray-500 uppercase tracking-wide font-medium;
+  }
+  
+  .sci-stat-value {
+    @apply text-2xl font-bold text-green-400 mt-1;
+  }
+  
+  .sci-stat-change {
+    @apply text-xs mt-1 flex items-center;
+  }
+  
+  .sci-stat-change-positive {
+    @apply sci-stat-change text-green-400;
+  }
+  
+  .sci-stat-change-negative {
+    @apply sci-stat-change text-red-400;
+  }
+  
+  .sci-progress {
+    @apply w-full bg-gray-600 rounded-full h-2 overflow-hidden;
+  }
+  
+  .sci-progress-bar {
+    @apply h-full bg-green-500 transition-all duration-300;
+  }
+  
+  .sci-progress-bar-secondary {
+    @apply bg-yellow-500;
+  }
+  
+  .sci-progress-bar-danger {
+    @apply bg-red-500;
+  }
+
+  /* Scientific Badges & Tags */
+  .sci-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .sci-badge-primary {
+    @apply sci-badge bg-green-900 text-green-200;
+  }
+  
+  .sci-badge-secondary {
+    @apply sci-badge bg-yellow-900 text-yellow-200;
+  }
+  
+  .sci-badge-success {
+    @apply sci-badge bg-green-900 text-green-200;
+  }
+  
+  .sci-badge-warning {
+    @apply sci-badge bg-yellow-900 text-yellow-200;
+  }
+  
+  .sci-badge-danger {
+    @apply sci-badge bg-red-900 text-red-200;
+  }
+  
+  .sci-badge-outline {
+    @apply sci-badge bg-transparent border border-gray-500 text-gray-400;
+  }
+
+  /* Scientific Tables */
+  .sci-table {
+    @apply w-full divide-y divide-gray-600;
+  }
+  
+  .sci-table-header {
+    @apply bg-gray-800;
+  }
+  
+  .sci-table-header th {
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider;
+  }
+  
+  .sci-table-body {
+    @apply bg-gray-900 divide-y divide-gray-700;
+  }
+  
+  .sci-table-body tr:hover {
+    @apply bg-gray-800;
+  }
+  
+  .sci-table-body td {
+    @apply px-6 py-4 whitespace-nowrap text-sm text-gray-300;
+  }
+  
+  .sci-table-compact th {
+    @apply px-3 py-2;
+  }
+  
+  .sci-table-compact td {
+    @apply px-3 py-2;
+  }
+
+  /* Scientific Alerts */
+  
+  .sci-alert-info {
+    @apply sci-alert bg-blue-950 border-blue-400 text-blue-100;
+  }
+  
+  .sci-alert-success {
+    @apply sci-alert bg-green-950 border-green-400 text-green-100;
+  }
+  
+  .sci-alert-warning {
+    @apply sci-alert bg-yellow-950 border-yellow-400 text-yellow-100;
+  }
+  
+  .sci-alert-danger {
+    @apply sci-alert bg-red-950 border-red-400 text-red-100;
+  }
+  
+  .sci-alert-title {
+    @apply font-medium mb-1;
+  }
+  
+  .sci-alert-description {
+    @apply text-sm opacity-90;
+  }
+
+  /* Scientific Navigation */
+  .sci-nav {
+    @apply flex space-x-8 border-b border-gray-600;
+  }
+  
+  .sci-nav-item-active {
+    @apply sci-nav-item border-green-400 text-green-400;
+  }
+  
+  .sci-breadcrumb {
+    @apply flex items-center space-x-2 text-sm text-gray-400;
+  }
+  
+  .sci-breadcrumb-item {
+    @apply hover:text-gray-300 transition-colors;
+  }
+  
+  .sci-breadcrumb-separator {
+    @apply text-gray-600;
+  }
+
+  /* Scientific Modals */
+  .sci-modal-overlay {
+    /* Tailwind v4: use slashed opacity format instead of bg-opacity-75 */
+    @apply fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4;
+  }
+  
+  .sci-modal {
+    @apply bg-gray-900 border-2 border-green-400 rounded-xl shadow-glow max-w-md w-full max-h-screen overflow-y-auto;
+  }
+  
+  .sci-modal-lg {
+    @apply max-w-lg;
+  }
+  
+  .sci-modal-xl {
+    @apply max-w-4xl;
+  }
+  
+  .sci-modal-header {
+    @apply px-6 py-4 border-b border-gray-600;
+  }
+  
+  .sci-modal-title {
+    @apply text-lg font-semibold text-green-400;
+  }
+  
+  .sci-modal-body {
+    @apply px-6 py-4;
+  }
+  
+  .sci-modal-footer {
+    @apply px-6 py-4 border-t border-gray-600 flex justify-end space-x-3;
+  }
+
+  /* Scientific Tooltips */
+  .sci-tooltip {
+    @apply relative;
+  }
+  
+  .sci-tooltip:hover .sci-tooltip-content {
+    @apply opacity-100 visible;
+  }
+  
+  .sci-tooltip-content {
+    @apply absolute z-50 px-3 py-2 text-sm text-white bg-gray-700 rounded-md shadow-lg opacity-0 invisible transition-all duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap;
+  }
+  
+  .sci-tooltip-content::after {
+    content: "";
+    @apply absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-700;
+  }
+
+  /* Scientific Grid System */
+  .sci-grid {
+    @apply grid gap-4;
+  }
+  
+  .sci-grid-2 {
+    @apply sci-grid grid-cols-1 md:grid-cols-2;
+  }
+  
+  .sci-grid-3 {
+    @apply sci-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3;
+  }
+  
+  .sci-grid-4 {
+    @apply sci-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4;
+  }
+  
+  .sci-grid-auto {
+    @apply sci-grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5;
+  }
+
+  /* Scientific Animations */
+  .sci-fade-in {
+    @apply animate-in fade-in duration-200;
+  }
+  
+  .sci-slide-in {
+    @apply animate-in slide-in-from-bottom-4 duration-300;
+  }
+  
+  .sci-pulse {
+    @apply animate-pulse;
+  }
+  
+  .sci-bounce {
+    @apply animate-bounce;
+  }
+  
+  .sci-spin {
+    @apply animate-spin;
+  }
+
+  /* Scientific Loading States */
+  .sci-loading {
+    @apply relative overflow-hidden;
+  }
+  
+  .sci-loading::after {
+    content: "";
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-pulse;
+  }
+  
+  .sci-skeleton {
+    @apply bg-gray-600 rounded animate-pulse;
+  }
+  
+  .sci-spinner {
+    @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-r-transparent;
+  }
+  
+  .sci-spinner-lg {
+    @apply h-8 w-8 border-4;
+  }
+}
+
+/* Custom Animations */
+@keyframes animate-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-bottom-4 {
+  from {
+    transform: translateY(1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

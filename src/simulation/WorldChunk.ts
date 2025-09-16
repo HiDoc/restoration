@@ -3,6 +3,7 @@
  */
 
 import { SeededRNG } from './SeededRNG';
+import { EventType } from './EventJournal';
 
 /**
  * Biome state vector - core properties of each chunk
@@ -237,6 +238,22 @@ export class WorldChunk {
       
       // Death check
       if (instance.health <= 0 || instance.age > 10000) {
+        // Best-effort cause for internal model
+        const cause = (instance.age > 10000)
+          ? CauseOfDeath.NATURAL_AGING
+          : CauseOfDeath.ENVIRONMENTAL_STRESS
+        ;(instance as any).causeOfDeath = cause
+        // Emit event if engine provided a hook
+        try {
+          const emit = (this as any).__emitEvent as ((t: EventType, d: any) => void) | undefined
+          emit?.(EventType.SPECIES_DIE, {
+            speciesId: instance.speciesId,
+            cause,
+            age: instance.age,
+            biomass: instance.biomass,
+            health: instance.health,
+          })
+        } catch {}
         toRemove.push(id);
         return;
       }

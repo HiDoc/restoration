@@ -104,7 +104,7 @@ export class GeneticSystem {
   /**
    * Initialize genetic profile for a new species instance
    */
-  initializeGenetics(speciesId: string, speciesDef: SpeciesDefinition): GeneticProfile {
+  initializeGenetics(speciesDef: SpeciesDefinition): GeneticProfile {
     const traits = new Map<string, GeneticTrait>()
 
     // Initialize base genetic traits from species definition
@@ -139,8 +139,13 @@ export class GeneticSystem {
     environmentalStress: number,
     generation: number
   ): { genetics: GeneticProfile; mutations: MutationEvent[] } {
+    // Deep-copy traits so child mutations don't affect parent
+    const copiedTraits = new Map<string, GeneticTrait>()
+    parentGenetics.traits.forEach((t, id) => {
+      copiedTraits.set(id, { ...t })
+    })
     const newGenetics: GeneticProfile = {
-      traits: new Map(parentGenetics.traits),
+      traits: copiedTraits,
       generation: generation,
       mutations: [...parentGenetics.mutations],
       adaptationScore: parentGenetics.adaptationScore
@@ -151,7 +156,7 @@ export class GeneticSystem {
     // Environmental stress increases mutation rate
     const stressMultiplier = 1 + environmentalStress * 2
 
-    for (const [traitId, trait] of newGenetics.traits) {
+    for (const trait of newGenetics.traits.values()) {
       const effectiveMutationRate = trait.mutationRate * stressMultiplier
       
       if (this.rng.next() < effectiveMutationRate) {

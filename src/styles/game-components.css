@@ -1,0 +1,439 @@
+/* Game-Specific Scientific Components */
+@reference "tailwindcss";
+@reference './components.css';
+
+@tailwind components;
+
+/* Promote base component tokens to utilities so they can be composed via @apply (Tailwind v4). */
+@utility eco-health-indicator { @apply flex items-center space-x-2 p-3 rounded-lg border-2; }
+@utility species-trait { @apply bg-gray-600 rounded px-2 py-1 text-xs text-center; }
+@utility genetic-trait-fill { @apply h-full transition-all duration-500; }
+@utility sim-speed-btn { @apply sci-btn-sm border-gray-500 bg-gray-700 text-gray-300 hover:bg-gray-600; }
+@utility notification { @apply max-w-sm w-full bg-gray-900 border-l-4 rounded-lg shadow-lg p-4 transition-all duration-300 transform; }
+@utility intervention-tool { @apply p-2 bg-gray-700 text-gray-400 border border-gray-600 rounded hover:bg-gray-600 hover:text-gray-300 cursor-pointer transition-colors; }
+@utility tool-button { @apply aspect-square flex flex-col items-center justify-center p-3 bg-gray-700 border border-gray-600 rounded-lg hover:bg-gray-600 cursor-pointer transition-all; }
+@utility sci-card { @apply sci-panel overflow-hidden; }
+@utility sci-card-header { @apply px-6 py-4 border-b border-gray-600 bg-gray-800; }
+@utility sci-card-body { @apply px-6 py-4; }
+
+@layer components {
+  /* Ecosystem Health Indicators */
+  .eco-health-indicator { @apply eco-health-indicator; }
+  
+  .eco-health-excellent {
+    @apply eco-health-indicator bg-green-950 border-green-400 text-green-100;
+  }
+  
+  .eco-health-good {
+    @apply eco-health-indicator bg-green-950 border-green-400 text-green-100;
+  }
+  
+  .eco-health-moderate {
+    @apply eco-health-indicator bg-yellow-950 border-yellow-400 text-yellow-100;
+  }
+  
+  .eco-health-poor {
+    @apply eco-health-indicator bg-orange-950 border-orange-400 text-orange-100;
+  }
+  
+  .eco-health-critical {
+    @apply eco-health-indicator bg-red-950 border-red-400 text-red-100;
+  }
+
+  /* Species Cards */
+  .species-card {
+    @apply sci-card hover:border-green-400 transition-all cursor-pointer;
+  }
+  
+  .species-card-header {
+    @apply sci-card-header flex items-center justify-between;
+  }
+  
+  .species-card-name {
+    @apply font-bold text-green-400 text-lg;
+  }
+  
+  .species-card-id {
+    @apply text-xs text-gray-500 font-mono;
+  }
+  
+  .species-card-stats {
+    @apply sci-card-body space-y-3;
+  }
+  
+  .species-stat {
+    @apply flex justify-between items-center;
+  }
+  
+  .species-stat-label {
+    @apply text-sm text-gray-400;
+  }
+  
+  .species-stat-value {
+    @apply text-sm font-semibold;
+  }
+  
+  .species-trait-grid {
+    @apply grid grid-cols-2 gap-2 mt-3;
+  }
+  
+  .species-trait { @apply species-trait; }
+  
+  .species-trait-high {
+    @apply species-trait bg-green-900 text-green-200;
+  }
+  
+  .species-trait-medium {
+    @apply species-trait bg-yellow-900 text-yellow-200;
+  }
+  
+  .species-trait-low {
+    @apply species-trait bg-red-900 text-red-200;
+  }
+
+  /* Genetic Trait Bars */
+  .genetic-trait {
+    @apply flex items-center space-x-3 py-2;
+  }
+  
+  .genetic-trait-label {
+    @apply text-sm text-gray-300 w-24 flex-shrink-0;
+  }
+  
+  .genetic-trait-bar {
+    @apply flex-1 bg-gray-600 rounded-full h-2 overflow-hidden;
+  }
+  
+  .genetic-trait-fill { @apply genetic-trait-fill; }
+  
+  .genetic-trait-fill-low {
+    @apply genetic-trait-fill bg-gradient-to-r from-red-600 to-red-500;
+  }
+  
+  .genetic-trait-fill-medium {
+    @apply genetic-trait-fill bg-gradient-to-r from-yellow-600 to-yellow-500;
+  }
+  
+  .genetic-trait-fill-high {
+    @apply genetic-trait-fill bg-gradient-to-r from-green-600 to-green-500;
+  }
+  
+  .genetic-trait-value {
+    @apply text-xs text-gray-400 w-12 text-right;
+  }
+
+  /* Scientific Simulation Controls */
+  .sim-control-panel {
+    @apply sci-panel space-y-4;
+  }
+  
+  .sim-control-group {
+    @apply border border-gray-600 rounded-lg p-3;
+  }
+  
+  .sim-control-title {
+    @apply text-sm font-semibold text-gray-300 mb-2 flex items-center space-x-2;
+  }
+  
+  .sim-control-title-icon {
+    @apply w-4 h-4 text-green-400;
+  }
+  
+  .sim-speed-controls {
+    @apply flex space-x-2;
+  }
+  
+  .sim-speed-btn { @apply sim-speed-btn; }
+  
+  .sim-speed-btn-active {
+    @apply sim-speed-btn border-green-400 bg-green-900 text-green-300;
+  }
+  
+  .sim-progress-indicator {
+    @apply bg-gray-700 rounded-lg p-3 border border-gray-500;
+  }
+  
+  .sim-time-display {
+    @apply font-mono text-lg font-bold text-yellow-400;
+  }
+  
+  .sim-stats-grid {
+    @apply grid grid-cols-2 gap-3 mt-3;
+  }
+
+  /* Ecological Charts & Graphs */
+  .eco-chart-container {
+    @apply sci-panel bg-gray-900 border border-gray-600;
+  }
+  
+  .eco-chart-header {
+    @apply flex items-center justify-between p-4 border-b border-gray-600;
+  }
+  
+  .eco-chart-title {
+    @apply text-lg font-semibold text-green-400;
+  }
+  
+  .eco-chart-controls {
+    @apply flex space-x-2;
+  }
+  
+  .eco-legend {
+    @apply flex flex-wrap gap-4 p-3 bg-gray-800 rounded-lg;
+  }
+  
+  .eco-legend-item {
+    @apply flex items-center space-x-2;
+  }
+  
+  .eco-legend-color {
+    @apply w-3 h-3 rounded-full;
+  }
+  
+  .eco-legend-label {
+    @apply text-xs text-gray-400;
+  }
+
+  /* Research Lab Interface */
+  .research-station {
+    @apply sci-panel-elevated p-6 space-y-6;
+  }
+  
+  .research-header {
+    @apply flex items-center space-x-4;
+  }
+  
+  .research-icon {
+    @apply w-12 h-12 p-2 bg-green-900 text-green-300 rounded-lg;
+  }
+  
+  .research-title {
+    @apply text-xl font-bold text-green-400;
+  }
+  
+  .research-subtitle {
+    @apply text-gray-400;
+  }
+  
+  .research-progress {
+    @apply space-y-2;
+  }
+  
+  .research-progress-label {
+    @apply flex justify-between text-sm;
+  }
+  
+  .research-progress-bar {
+    @apply sci-progress h-3;
+  }
+  
+  .experiment-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4;
+  }
+  
+  .experiment-card {
+    @apply sci-card hover:border-yellow-400 transition-colors cursor-pointer;
+  }
+  
+  .experiment-status {
+    @apply absolute top-2 right-2;
+  }
+  
+  .experiment-status-running {
+    @apply sci-badge-primary animate-pulse;
+  }
+  
+  .experiment-status-complete {
+    @apply sci-badge-success;
+  }
+  
+  .experiment-status-pending {
+    @apply sci-badge-outline;
+  }
+
+  /* Intervention Tools */
+  .intervention-toolbar {
+    @apply flex items-center space-x-2 p-3 bg-gray-800 border border-gray-600 rounded-lg;
+  }
+  
+  .intervention-tool {
+    @apply p-2 bg-gray-700 text-gray-400 border border-gray-600 rounded hover:bg-gray-600 hover:text-gray-300 cursor-pointer transition-colors;
+  }
+  
+  .intervention-tool-active {
+    @apply intervention-tool bg-green-900 text-green-300 border-green-600;
+  }
+  
+  .intervention-tool-disabled {
+    @apply intervention-tool opacity-50 cursor-not-allowed hover:bg-gray-700 hover:text-gray-400;
+  }
+  
+  .tool-palette {
+    @apply grid grid-cols-4 gap-2 p-3;
+  }
+  
+  .tool-button {
+    @apply aspect-square flex flex-col items-center justify-center p-3 bg-gray-700 border border-gray-600 rounded-lg hover:bg-gray-600 cursor-pointer transition-all;
+  }
+  
+  .tool-button-selected {
+    @apply tool-button bg-green-900 border-green-600 text-green-300;
+  }
+  
+  .tool-icon {
+    @apply w-6 h-6 mb-1;
+  }
+  
+  .tool-label {
+    @apply text-xs text-center;
+  }
+
+  /* Notification System */
+  .notification-container {
+    @apply fixed top-4 right-4 space-y-3 z-50;
+  }
+  
+  .notification {
+    @apply max-w-sm w-full bg-gray-900 border-l-4 rounded-lg shadow-lg p-4 transition-all duration-300 transform;
+  }
+  
+  .notification-enter {
+    @apply translate-x-full opacity-0;
+  }
+  
+  .notification-enter-active {
+    @apply translate-x-0 opacity-100;
+  }
+  
+  .notification-exit {
+    @apply translate-x-0 opacity-100;
+  }
+  
+  .notification-exit-active {
+    @apply translate-x-full opacity-0;
+  }
+  
+  .notification-info {
+    @apply notification border-blue-400;
+  }
+  
+  .notification-success {
+    @apply notification border-green-400;
+  }
+  
+  .notification-warning {
+    @apply notification border-yellow-400;
+  }
+  
+  .notification-error {
+    @apply notification border-red-400;
+  }
+  
+  .notification-header {
+    @apply flex items-center justify-between;
+  }
+  
+  .notification-title {
+    @apply font-semibold text-gray-300;
+  }
+  
+  .notification-close {
+    @apply text-gray-500 hover:text-gray-300 cursor-pointer;
+  }
+  
+  .notification-body {
+    @apply text-sm text-gray-400 mt-1;
+  }
+
+  /* Data Visualization Enhancements */
+  .data-point {
+    @apply relative;
+  }
+  
+  .data-tooltip {
+    @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 transition-opacity pointer-events-none whitespace-nowrap;
+  }
+  .data-point:hover .data-tooltip { @apply opacity-100; }
+  
+  .population-trend-up {
+    @apply text-green-400;
+  }
+  
+  .population-trend-down {
+    @apply text-red-400;
+  }
+  
+  .population-trend-stable {
+    @apply text-gray-400;
+  }
+  
+  .diversity-index {
+    @apply flex items-center space-x-2;
+  }
+  
+  .diversity-bar {
+    @apply flex-1 h-2 bg-gray-600 rounded-full overflow-hidden;
+  }
+  
+  .diversity-segment {
+    @apply h-full;
+  }
+
+  /* Responsive Adaptations */
+  @screen sm {
+    .sim-stats-grid {
+      @apply grid-cols-3;
+    }
+    
+    .tool-palette {
+      @apply grid-cols-6;
+    }
+  }
+  
+  @screen md {
+    .sim-stats-grid {
+      @apply grid-cols-4;
+    }
+    
+    .tool-palette {
+      @apply grid-cols-8;
+    }
+  }
+  
+  @screen lg {
+    .experiment-grid {
+      @apply grid-cols-4;
+    }
+  }
+}
+
+/* Scientific Animation Sequences */
+@keyframes data-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes genetic-flow {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.genetic-animation {
+  background: linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.3), transparent);
+  background-size: 200% 100%;
+  animation: genetic-flow 2s linear infinite;
+}
+
+.data-update {
+  animation: data-pulse 0.6s ease-in-out;
+}

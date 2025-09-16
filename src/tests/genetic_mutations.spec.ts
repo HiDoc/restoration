@@ -82,7 +82,7 @@ describe('Genetic System', () => {
 
   describe('Genetic Profile Initialization', () => {
     it('should initialize genetic profile with base traits', () => {
-      const genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const genetics = geneticSystem.initializeGenetics(speciesDef)
       
       expect(genetics.generation).toBe(0)
       expect(genetics.mutations).toEqual([])
@@ -97,7 +97,7 @@ describe('Genetic System', () => {
     })
 
     it('should set trait values based on species characteristics', () => {
-      const genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const genetics = geneticSystem.initializeGenetics(speciesDef)
       
       const droughtTolerance = genetics.traits.get('drought_tolerance')
       expect(droughtTolerance).toBeDefined()
@@ -111,7 +111,7 @@ describe('Genetic System', () => {
 
   describe('Mutation System', () => {
     it('should apply mutations based on environmental stress', () => {
-      const baseGenetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const baseGenetics = geneticSystem.initializeGenetics(speciesDef)
       const highStress = 0.8
       const generation = 1
       
@@ -127,7 +127,7 @@ describe('Genetic System', () => {
     })
 
     it('should preserve trait bounds during mutation', () => {
-      const baseGenetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const baseGenetics = geneticSystem.initializeGenetics(speciesDef)
       const result = geneticSystem.applyMutations(baseGenetics, 1.0, 1)
       
       // All trait values should remain within [0, 1]
@@ -138,7 +138,7 @@ describe('Genetic System', () => {
     })
 
     it('should track mutation history', () => {
-      const baseGenetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const baseGenetics = geneticSystem.initializeGenetics(speciesDef)
       
       // Apply mutations multiple times
       let currentGenetics = baseGenetics
@@ -156,7 +156,7 @@ describe('Genetic System', () => {
   describe('Genetic Effects on Performance', () => {
     it('should apply genetic modifiers to species performance', () => {
       const species = makeTestSpecies()
-      species.genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      species.genetics = geneticSystem.initializeGenetics(speciesDef)
       
       const effects = geneticSystem.applyGeneticEffects(
         species,
@@ -184,7 +184,7 @@ describe('Genetic System', () => {
 
     it('should respond to environmental stress conditions', () => {
       const species = makeTestSpecies()
-      species.genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      species.genetics = geneticSystem.initializeGenetics(speciesDef)
       
       // Test drought conditions
       const droughtEffects = geneticSystem.applyGeneticEffects(
@@ -221,7 +221,7 @@ describe('Genetic System', () => {
 
   describe('Adaptation Score Calculation', () => {
     it('should calculate adaptation scores based on environment', () => {
-      const genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+      const genetics = geneticSystem.initializeGenetics(speciesDef)
       
       const optimalScore = geneticSystem.calculateAdaptationScore(genetics, {
         temperature: 20,
@@ -257,7 +257,7 @@ describe('Genetic System', () => {
       for (let i = 0; i < 5; i++) {
         const individual = makeTestSpecies()
         individual.id = `individual_${i}`
-        individual.genetics = geneticSystem.initializeGenetics('common_grass', speciesDef)
+        individual.genetics = geneticSystem.initializeGenetics(speciesDef)
         
         // Apply different levels of mutations
         const mutationResult = geneticSystem.applyMutations(

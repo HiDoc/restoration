@@ -9,12 +9,12 @@ A sophisticated ecological simulation game with Pokémon-inspired mechanics, fea
 npm install
 
 # Initialize species database
-npm run setup-db
+npm run init-db
 
 # Start development server
 npm run dev
 
-# Run tests
+# Run tests (Vitest)
 npm test
 
 # Build for production
@@ -31,19 +31,27 @@ npm run typecheck
 
 ```
 /src
-  /simulation     # Core ecological simulation engine
-    - VegetationSystem.ts    # Species growth and reproduction
-    - SpeciesRegistry.ts     # Species definitions and traits
-    - WorldChunk.ts          # Environmental simulation units
-    - SimulationEngine.ts    # Main simulation coordinator
-  /database       # SQLite species database
-    - SpeciesDatabase.ts     # Database management
-    - schema.sql             # Database schema
-    - init-species-data.sql  # Species data
-  /views          # Vue.js components
-    - EcoSimGameView.vue     # Main game interface
-    - SimulationView.vue     # Simulation controls
-  /tests          # Comprehensive test suite
+  /simulation      # Ecological simulation engine (orchestrator + systems)
+    - SimulationEngine.ts     # Master orchestrator
+    - WorldChunk.ts           # Spatial world units
+    - SpeciesRegistry.ts      # Species definitions
+    - VegetationSystem.ts     # Growth, reproduction, mortality
+    - WeatherSystem.ts        # Seasonal weather + events
+    - HydrologySystem.ts      # Water flow and moisture
+    - CanopySystem.ts         # Light attenuation and canopy
+    - PollinatorSystem.ts     # Pollinator density field
+    - BirdsSystem.ts          # Seed dispersal, pest control, migration
+  /database        # SQLite species database
+    - SpeciesDatabase.ts      # Database adapter
+    - schema.sql              # Database schema
+    - init-species-data.sql   # Seed data
+  /core            # Game scaffolding (engine shell, camera, input)
+  /world           # Tile map, layers, loaders
+  /render          # Sprite loader/manager
+  /components      # Vue components
+  /views           # Routed screens (UI layer)
+  /utils           # Helpers
+  /tests           # Vitest suites (src/**/*.spec.ts)
 ```
 
 ## Key Features
@@ -69,9 +77,9 @@ npm run typecheck
 ## Tech Stack
 
 - **Vue 3** - Reactive UI framework with Composition API
-- **TypeScript** - Type-safe development
+- **TypeScript** - Strict, type-safe development
 - **SQLite** - Species database management
-- **Vite** - Fast development server and bundler
+- **Vite** - Fast dev server and bundler (port 3000)
 - **Vitest** - Unit testing framework
 - **ESLint** - Code quality enforcement
 
@@ -97,23 +105,26 @@ npm run typecheck
 
 ## Testing
 
-The project includes comprehensive test coverage:
+The project includes a growing Vitest suite:
 
-- **36 tests** across 15 test files
-- **Reproduction system tests** - Species breeding mechanics
-- **Environmental system tests** - Climate and habitat simulation
-- **Species behavior tests** - Growth, survival, and adaptation
-- **Database integration tests** - Species data management
+- 60+ tests across 17 test files
+- Reproduction system tests — species breeding mechanics
+- Environmental system tests — climate and habitat simulation
+- Species behavior tests — growth, survival, adaptation
+- Database integration tests — species data management
 
 ```bash
 # Run all tests
 npm test
 
-# Run specific test suite
+# Watch mode
+npm run test:watch
+
+# Run a specific test file
 npm test src/tests/reproduction.spec.ts
 
-# Run tests with coverage
-npm run test:coverage
+# Coverage (if needed)
+npx vitest run --coverage
 ```
 
 ## Database Setup
@@ -122,10 +133,10 @@ The game uses SQLite to manage species data:
 
 ```bash
 # Initialize database with schema and species data
-npm run setup-db
+npm run init-db
 
-# Reset database to defaults
-npm run reset-db
+# Verify database and print examples
+npm run test-db
 ```
 
 The database includes:
@@ -149,7 +160,7 @@ This project follows **minimal, high-impact code** principles:
    git clone <repository>
    cd pokemon-vibe-game
    npm install
-   npm run setup-db
+   npm run init-db
    ```
 
 2. **Start Development**:
@@ -157,7 +168,7 @@ This project follows **minimal, high-impact code** principles:
    npm run dev
    ```
 
-3. **Open the Game**: Navigate to `http://localhost:5173` and explore the ecological simulation
+3. **Open the Game**: Navigate to `http://localhost:3000` and explore the ecological simulation
 
 4. **Run Tests**: Ensure everything works with `npm test`
 

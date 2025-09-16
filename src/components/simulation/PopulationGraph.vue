@@ -1,26 +1,26 @@
 <template>
-  <div class="population-graph">
-    <div class="graph-header">
-      <h3>Species Population Over Time</h3>
-      <div class="graph-controls">
+  <div class="sci-panel p-4 mb-3">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="m-0 text-white text-base">Species Population Over Time</h3>
+      <div class="flex gap-2">
         <button 
-          class="btn btn-small" 
+          class="sci-btn text-xs px-2 py-1" 
           @click="clearHistory"
           title="Clear population history"
         >
           🗑️ Clear
         </button>
         <button 
-          class="btn btn-small" 
-          :class="{ active: isPaused }"
+          class="sci-btn text-xs px-2 py-1" 
+          :class="{ 'outline outline-2 outline-primary-400 outline-offset-[-2px]': isPaused }"
           @click="togglePause"
           title="Pause/resume tracking"
         >
           {{ isPaused ? '▶️' : '⏸️' }} {{ isPaused ? 'Resume' : 'Pause' }}
         </button>
         <button 
-          class="btn btn-small" 
-          :class="{ active: showEnvironmental }"
+          class="sci-btn text-xs px-2 py-1" 
+          :class="{ 'outline outline-2 outline-primary-400 outline-offset-[-2px]': showEnvironmental }"
           @click="toggleEnvironmentalView"
           title="Toggle environmental data view"
         >
@@ -29,8 +29,9 @@
       </div>
     </div>
     
-    <div class="graph-container" ref="graphContainer">
+    <div class="relative w-full mb-3" ref="graphContainer">
       <canvas 
+        class="w-full h-[300px] sci-panel cursor-crosshair"
         ref="canvas" 
         :width="canvasWidth" 
         :height="canvasHeight"
@@ -40,66 +41,66 @@
       
       <div 
         v-if="tooltipData" 
-        class="tooltip"
+        class="absolute sci-panel px-2 py-2 text-xs pointer-events-none z-10 max-w-[200px]"
         :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
       >
-        <div class="tooltip-header">Tick {{ tooltipData.tick }}</div>
+        <div class="font-bold mb-1 text-primary-400">Tick {{ tooltipData.tick }}</div>
         
         <div v-if="!showEnvironmental">
           <div v-for="(count, species) in tooltipData.populations" :key="species" class="tooltip-row">
-            <span class="species-dot" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
+            <span class="w-2 h-2 rounded-full inline-block" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
             {{ getSpeciesName(species) }}: {{ count }}
           </div>
-          <div class="tooltip-total">Total: {{ tooltipData.total }}</div>
+          <div class="mt-1 pt-1 border-t border-dark-500 font-bold">Total: {{ tooltipData.total }}</div>
         </div>
         
-        <div v-else class="environmental-tooltip">
-          <div class="tooltip-row">
-            <span class="species-dot" :style="{ backgroundColor: '#fff' }"></span>
+        <div v-else>
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <span class="w-2 h-2 rounded-full inline-block" :style="{ backgroundColor: '#fff' }"></span>
             Population: {{ tooltipData.total }}
           </div>
           <div v-for="(metric, key) in environmentalMetrics" :key="key" class="tooltip-row">
-            <span class="species-dot" :style="{ backgroundColor: metric.color }"></span>
+            <span class="w-2 h-2 rounded-full inline-block" :style="{ backgroundColor: metric.color }"></span>
             {{ metric.name }}: {{ formatEnvironmentalValue(tooltipData.environment[key as keyof typeof tooltipData.environment], metric) }}
           </div>
         </div>
       </div>
     </div>
     
-    <div class="graph-legend">
+    <div class="flex flex-wrap gap-3 mb-3 p-2 sci-panel">
       <div v-if="!showEnvironmental">
-        <div v-for="species in visibleSpecies" :key="species" class="legend-item">
-          <span class="legend-dot" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
-          <span class="legend-label">{{ getSpeciesName(species) }}</span>
-          <span class="legend-count">({{ getCurrentCount(species) }})</span>
+        <div v-for="species in visibleSpecies" :key="species" class="flex items-center gap-1.5 text-xs">
+          <span class="w-2.5 h-2.5 rounded-full inline-block" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
+          <span>{{ getSpeciesName(species) }}</span>
+          <span class="opacity-70">({{ getCurrentCount(species) }})</span>
         </div>
-        <div class="legend-item">
-          <span class="legend-dot dashed" :style="{ backgroundColor: '#fff' }"></span>
-          <span class="legend-label">Total Population</span>
+        <div class="flex items-center gap-1.5 text-xs">
+          <span class="w-2.5 h-2.5 rounded-full inline-block border-2 border-dashed bg-transparent"></span>
+          <span>Total Population</span>
         </div>
       </div>
       
-      <div v-else class="environmental-legend">
-        <div class="legend-item">
-          <span class="legend-dot" :style="{ backgroundColor: '#fff' }"></span>
-          <span class="legend-label">Population (normalized)</span>
+      <div v-else class="max-h-30 overflow-y-auto">
+        <div class="flex items-center gap-1.5 text-xs">
+          <span class="w-2.5 h-2.5 rounded-full inline-block" :style="{ backgroundColor: '#fff' }"></span>
+          <span>Population (normalized)</span>
         </div>
-        <div v-for="(metric, key) in environmentalMetrics" :key="key" class="legend-item clickable" @click="toggleEnvironmentalMetric(key)">
-          <span class="legend-dot dashed" :style="{ backgroundColor: metric.color, opacity: selectedMetrics.has(key) ? 1 : 0.3 }"></span>
-          <span class="legend-label" :class="{ active: selectedMetrics.has(key) }">{{ metric.name }}</span>
-          <span class="legend-range">({{ metric.scale[0] }}-{{ metric.scale[1] }})</span>
+        <div v-for="(metric, key) in environmentalMetrics" :key="key" class="flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary-400" @click="toggleEnvironmentalMetric(key)">
+          <span class="w-2.5 h-2.5 rounded-full inline-block border-2 border-dashed bg-transparent" :style="{ borderColor: metric.color, opacity: selectedMetrics.has(key) ? 1 : 0.3 }"></span>
+          <span :class="{ 'font-bold': selectedMetrics.has(key) }">{{ metric.name }}</span>
+          <span class="opacity-70 text-[10px]">({{ metric.scale[0] }}-{{ metric.scale[1] }})</span>
         </div>
       </div>
     </div>
     
-    <div class="graph-stats">
-      <div class="stat">
-        <span class="label">Max Population:</span>
-        <span class="value">{{ maxPopulation }}</span>
+    <div class="flex gap-6 text-xs opacity-80">
+      <div class="flex gap-1.5">
+        <span class="opacity-70">Max Population:</span>
+        <span class="font-bold">{{ maxPopulation }}</span>
       </div>
-      <div class="stat">
-        <span class="label">Time Range:</span>
-        <span class="value">{{ timeRange }} ticks</span>
+      <div class="flex gap-1.5">
+        <span class="opacity-70">Time Range:</span>
+        <span class="font-bold">{{ timeRange }} ticks</span>
       </div>
     </div>
   </div>
@@ -584,189 +585,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
-.population-graph {
-  background: #1f1f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.graph-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.graph-header h3 {
-  margin: 0;
-  color: white;
-  font-size: 16px;
-}
-
-.graph-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-small {
-  background: #2f2f2f;
-  color: #eaeaea;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-small:hover {
-  background: #3a3a3a;
-}
-
-.btn-small.active {
-  outline: 2px solid #4ade80;
-  outline-offset: -2px;
-}
-
-.graph-container {
-  position: relative;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-canvas {
-  width: 100%;
-  height: 300px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: crosshair;
-}
-
-.tooltip {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.9);
-  border: 1px solid #666;
-  border-radius: 4px;
-  padding: 8px;
-  font-size: 12px;
-  color: white;
-  pointer-events: none;
-  z-index: 10;
-  max-width: 200px;
-}
-
-.tooltip-header {
-  font-weight: bold;
-  margin-bottom: 4px;
-  color: #4ade80;
-}
-
-.tooltip-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
-.tooltip-total {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid #666;
-  font-weight: bold;
-}
-
-.species-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.graph-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: #2a2a2a;
-  border-radius: 4px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.legend-label {
-  color: white;
-}
-
-.legend-count {
-  color: #888;
-}
-
-.legend-range {
-  color: #666;
-  font-size: 10px;
-}
-
-.legend-dot.dashed {
-  border: 2px dashed currentColor;
-  background: transparent !important;
-  border-color: inherit;
-}
-
-.legend-item.clickable {
-  cursor: pointer;
-}
-
-.legend-item.clickable:hover .legend-label {
-  color: #4ade80;
-}
-
-.legend-label.active {
-  color: white;
-  font-weight: bold;
-}
-
-.environmental-tooltip .tooltip-row {
-  margin-bottom: 3px;
-}
-
-.environmental-legend {
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.graph-stats {
-  display: flex;
-  gap: 24px;
-  font-size: 12px;
-  color: #888;
-}
-
-.stat {
-  display: flex;
-  gap: 6px;
-}
-
-.stat .label {
-  color: #aaa;
-}
-
-.stat .value {
-  color: white;
-  font-weight: bold;
-}
-</style>
+<!-- Most styles have been converted to Tailwind CSS classes. Canvas rendering styles remain in JS. -->

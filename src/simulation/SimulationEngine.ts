@@ -7,6 +7,7 @@ import { EventJournal, EventType } from '@/simulation/EventJournal';
 import { WorldChunk, BiomeState, PhenologyStage, SpeciesInstance } from './WorldChunk';
 import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { InteractionsSystem } from './InteractionsSystem';
+import { GeneticSystem, GeneticProfile } from './GeneticSystem';
 
 export interface SimulationConfig {
   worldWidth: number;      // Number of chunks horizontally
@@ -38,6 +39,15 @@ export class SimulationEngine {
   // Interactions system (optional, available when DB adapter is set)
   private interactionsSystem?: InteractionsSystem;
   
+  // Genetics management
+  private geneticSystem: GeneticSystem;
+  private masterGenomes: Map<string, GeneticProfile> = new Map();
+  private pendingMasterGenomes: Map<string, GeneticProfile> = new Map();
+  private selectedSeeds: Map<string, string> = new Map(); // speciesId -> seedId for next year
+  // Seeding controls for center area
+  private readonly centerSeedAreaRadius: number = 1; // 3x3 chunks
+  private readonly centerSeedsPerChunk: number = 3;
+  
   // World state
   private chunks: Map<string, WorldChunk> = new Map();
   private activeChunks: Set<string> = new Set();
@@ -52,6 +62,10 @@ export class SimulationEngine {
   // Simulated time accumulator in days
   private simTimeDays: number = 0;
   private timePerTickMinutes: number = 1440;
+  private yearLengthDays: number;
+  private currentYearIndex: number = 0;
+  private lastYearEndCheck: number = 0; // Track last year we checked for seed selection
+  private yearEndCallbacks: Array<(year: number) => void> = [];
 
   // Performance monitoring
   private updateTimes: number[] = [];
@@ -64,10 +78,12 @@ export class SimulationEngine {
     if (!this.config.seasonLengthTicks) this.config.seasonLengthTicks = 90;
     // Time per tick (minutes); default 1 day
     this.timePerTickMinutes = this.config.timePerTickMinutes ?? 1440;
+    this.yearLengthDays = (this.config.seasonLengthTicks ?? 90) * 4;
     
     // Initialize core systems
     this.rngManager = RNGManager.initialize(config.masterSeed);
     this.eventJournal = new EventJournal();
+    this.geneticSystem = new GeneticSystem(this.rngManager);
     
     // Initialize world chunks
     this.initializeWorld();
@@ -95,6 +111,10 @@ export class SimulationEngine {
         this.chunks.set(chunk.id, chunk);
         // Provide neighbor access hook for seeding between chunks
         (chunk as any).__getChunk = (cx: number, cy: number) => this.getChunk(cx, cy);
+        // Provide event emission hook for systems operating on chunks
+        (chunk as any).__emitEvent = (type: EventType, data: any) => {
+          this.eventJournal.recordEvent(type, data, chunk.id)
+        }
       }
     }
 
@@ -105,6 +125,9 @@ export class SimulationEngine {
 
     // Ensure a baseline of common grass presence across the world
     this.ensureCommonGrassBaseline();
+
+    // Place initial seeds in 3x3 area centered at world start
+    this.seedCenterArea('common_grass', { clearExistingSpeciesSeeds: true, maturityTicks: 2, viability: 0.95, seedsPerChunk: this.centerSeedsPerChunk });
   }
 
   /**
@@ -219,6 +242,13 @@ export class SimulationEngine {
           reproductiveUrge: 0,
           lastReproductionAttempt: 0,
         };
+        // Initialize varied genetics for diversity at start
+        try {
+          const base = this.geneticSystem.initializeGenetics(def)
+          const stress = rng.nextFloat(0, 0.2)
+          const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1)
+          ;(inst as any).genetics = mutated.genetics
+        } catch {}
         chunk.addSpecies(inst);
       }
     });
@@ -249,10 +279,196 @@ export class SimulationEngine {
           reproductiveOutput: 0,
           reproductiveUrge: 0,
           lastReproductionAttempt: 0,
+          genetics: undefined as any
         };
+        // Initialize varied genetics for diversity at start
+        const base = this.geneticSystem.initializeGenetics(grass)
+        const stress = rng.nextFloat(0, 0.2)
+        const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1)
+        inst.genetics = mutated.genetics
         chunk.addSpecies(inst);
       }
     });
+  }
+
+  /**
+   * Clone a genetic profile for sharing between individuals
+   */
+  private cloneGenome(original: GeneticProfile): GeneticProfile {
+    return {
+      traits: new Map(original.traits),
+      generation: original.generation,
+      mutations: [...original.mutations],
+      adaptationScore: original.adaptationScore
+    };
+  }
+
+  /**
+   * Select a seed for the next year cycle from available common_grass individuals
+   */
+  selectSeedForNextYear(speciesId: string, seedInstanceId: string): boolean {
+    // Find the instance to use as seed
+    let seedInstance: SpeciesInstance | null = null;
+    for (const chunk of this.chunks.values()) {
+      const instance = Array.from(chunk.species.values()).find(s => s.id === seedInstanceId && s.speciesId === speciesId);
+      if (instance) {
+        seedInstance = instance;
+        break;
+      }
+    }
+
+    if (!seedInstance) {
+      return false;
+    }
+
+    // Determine genome to set: use seed genetics if present; otherwise initialize from species def
+    let genome: GeneticProfile | undefined = seedInstance.genetics
+    if (!genome) {
+      try {
+        const def = SpeciesRegistry.getInstance().getSpecies(speciesId as any)
+        if (def) {
+          const base = this.geneticSystem.initializeGenetics(def)
+          const mutated = this.geneticSystem.applyMutations(base, 0.1, base.generation + 1)
+          genome = mutated.genetics
+        }
+      } catch {}
+    }
+    if (!genome) return false
+
+    // Store pending master genome to apply at year boundary
+    this.pendingMasterGenomes.set(speciesId, this.cloneGenome(genome));
+    this.selectedSeeds.set(speciesId, seedInstanceId);
+
+    // Record the selection event
+    this.eventJournal.recordEvent(EventType.SEED_SELECTION, {
+      type: 'seed_selection',
+      speciesId,
+      seedInstanceId,
+      genetics: seedInstance.genetics,
+      tick: this.currentTick
+    });
+
+    return true;
+  }
+
+  /** Apply pending master genomes at year boundary and clear selections. */
+  private applyPendingSelectionsAtYearBoundary(newYearIndex: number): void {
+    // YEAR_END event for previous year
+    this.eventJournal.recordEvent(EventType.YEAR_END, { yearIndex: this.currentYearIndex });
+    // Apply pending genomes
+    const toSeed: string[] = []
+    this.pendingMasterGenomes.forEach((profile, speciesId) => {
+      this.masterGenomes.set(speciesId, this.cloneGenome(profile))
+      toSeed.push(speciesId)
+    })
+    // Replace seeds in center 3x3 area for each selected species
+    toSeed.forEach((speciesId) => {
+      this.seedCenterArea(speciesId, { clearExistingSpeciesSeeds: true, maturityTicks: 1, viability: 1.0, seedsPerChunk: this.centerSeedsPerChunk, applyMasterToExisting: true })
+    })
+    this.pendingMasterGenomes.clear()
+    this.selectedSeeds.clear()
+    // YEAR_START event for new year
+    this.eventJournal.recordEvent(EventType.YEAR_START, { yearIndex: newYearIndex });
+  }
+
+  /**
+   * Get all available common_grass instances for seed selection
+   */
+  getAvailableSeeds(speciesId: string): Array<{
+    instance: SpeciesInstance;
+    chunkId: string;
+    adaptationScore: number;
+  }> {
+    const candidates: Array<{
+      instance: SpeciesInstance;
+      chunkId: string;
+      adaptationScore: number;
+    }> = [];
+
+    for (const chunk of this.chunks.values()) {
+      chunk.species.forEach(instance => {
+        if (instance.speciesId === speciesId && instance.genetics) {
+          candidates.push({
+            instance,
+            chunkId: chunk.id,
+            adaptationScore: instance.genetics.adaptationScore
+          });
+        }
+      });
+    }
+
+    // Sort by adaptation score (best first)
+    return candidates.sort((a, b) => b.adaptationScore - a.adaptationScore);
+  }
+
+  /**
+   * Get the current master genome for a species
+   */
+  getMasterGenome(speciesId: string): GeneticProfile | undefined {
+    return this.masterGenomes.get(speciesId);
+  }
+
+  /**
+   * Get information about currently selected seeds
+   */
+  getSelectedSeeds(): Map<string, string> {
+    return new Map(this.selectedSeeds);
+  }
+
+  /**
+   * Check if a year has ended and trigger callbacks
+   */
+  private checkYearEnd(): void {
+    const yearLen = this.yearLengthDays > 0 ? this.yearLengthDays : 365
+    const currentYear = Math.floor(this.simTimeDays / yearLen);
+    if (currentYear > this.lastYearEndCheck) {
+      this.lastYearEndCheck = currentYear;
+      
+      // Record year-end event
+      this.eventJournal.recordEvent(EventType.YEAR_END, { yearIndex: currentYear });
+
+      // Trigger all year-end callbacks
+      this.yearEndCallbacks.forEach(callback => {
+        try {
+          callback(currentYear);
+        } catch (error) {
+          console.error('Error in year-end callback:', error);
+        }
+      });
+    }
+  }
+
+  /**
+   * Register a callback to be called at the end of each year
+   */
+  onYearEnd(callback: (year: number) => void): void {
+    this.yearEndCallbacks.push(callback);
+  }
+
+  /**
+   * Remove a year-end callback
+   */
+  removeYearEndCallback(callback: (year: number) => void): void {
+    const index = this.yearEndCallbacks.indexOf(callback);
+    if (index > -1) {
+      this.yearEndCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
+   * Get current simulation year
+   */
+  getCurrentYear(): number {
+    const yearLen = this.yearLengthDays > 0 ? this.yearLengthDays : 365
+    return Math.floor(this.simTimeDays / yearLen);
+  }
+
+  /**
+   * Get progress through current year (0-1)
+   */
+  getYearProgress(): number {
+    const yearLen = this.yearLengthDays > 0 ? this.yearLengthDays : 365
+    return (this.simTimeDays % yearLen) / yearLen;
   }
 
   /**
@@ -318,8 +534,20 @@ export class SimulationEngine {
     
     // Advance tick
     this.currentTick++;
+    const prevYearIndex = this.currentYearIndex
     this.simTimeDays += deltaDays;
     this.eventJournal.setCurrentTick(this.currentTick);
+    // Detect year boundary based on configured season length
+    if (this.yearLengthDays > 0) {
+      const newYearIndex = Math.floor(this.simTimeDays / this.yearLengthDays)
+      if (newYearIndex > prevYearIndex) {
+        this.applyPendingSelectionsAtYearBoundary(newYearIndex)
+        this.currentYearIndex = newYearIndex
+      }
+    }
+    
+    // Check for year-end (365 days)
+    this.checkYearEnd();
     
     // Update active chunks only (for performance)
     this.updateActiveChunks(deltaDays);
@@ -430,6 +658,59 @@ export class SimulationEngine {
     });
     
     return neighbors;
+  }
+
+  /** Get chunks in a square radius around world center, clamped within bounds */
+  private getCenterAreaChunks(radius: number = 1): WorldChunk[] {
+    const cx = Math.floor(this.config.worldWidth / 2)
+    const cy = Math.floor(this.config.worldHeight / 2)
+    const chunks: WorldChunk[] = []
+    for (let x = cx - radius; x <= cx + radius; x++) {
+      for (let y = cy - radius; y <= cy + radius; y++) {
+        if (x < 0 || x >= this.config.worldWidth || y < 0 || y >= this.config.worldHeight) continue
+        const ch = this.getChunk(x, y)
+        if (ch) chunks.push(ch)
+      }
+    }
+    return chunks
+  }
+
+  /** Seed center 3x3 area with seeds of a species */
+  private seedCenterArea(
+    speciesId: string,
+    opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number; applyMasterToExisting?: boolean }
+  ): void {
+    const chunks = this.getCenterAreaChunks(this.centerSeedAreaRadius)
+    const seedsPerChunk = Math.max(1, opts?.seedsPerChunk ?? 3)
+    const maturity = Math.max(1, Math.floor(opts?.maturityTicks ?? 2))
+    const viability = Math.min(1, Math.max(0.1, opts?.viability ?? 0.9))
+    const rng = this.rngManager.getRNG('center_seeding')
+    chunks.forEach((chunk) => {
+      if (opts?.clearExistingSpeciesSeeds) {
+        const bank = (chunk as any).seedBank || []
+        ;(chunk as any).seedBank = bank.filter((s: any) => s.speciesId !== speciesId)
+      }
+      // Optionally align existing individuals with master genome in this area
+      if (opts?.applyMasterToExisting) {
+        const master = this.getMasterGenome(speciesId)
+        if (master) {
+          chunk.species.forEach((inst) => {
+            if (inst.speciesId === speciesId) {
+              ;(inst as any).genetics = this.cloneGenome(master)
+            }
+          })
+        }
+      }
+      for (let i = 0; i < seedsPerChunk; i++) {
+        chunk.addSeed({
+          speciesId,
+          x: rng.nextFloat(0.2, 0.8),
+          y: rng.nextFloat(0.2, 0.8),
+          viability,
+          maturityTicks: maturity,
+        })
+      }
+    })
   }
 
   /**
@@ -677,6 +958,17 @@ export class SimulationEngine {
 
   getActiveChunkIds(): Set<string> {
     return this.activeChunks;
+  }
+
+  // Activate all chunks in the world (used by EcoSim view)
+  activateAllChunks(): void {
+    this.activeChunks.clear()
+    this.chunks.forEach((_chunk, id) => this.activeChunks.add(id))
+  }
+
+  // Emit a simulation event (exposed for systems/UI)
+  emitEvent(type: EventType, data: any, chunkId?: string, playerId?: string): void {
+    this.eventJournal.recordEvent(type, data, chunkId, playerId)
   }
 
   // Allow adjusting tick rate at runtime (affects fixed delta time)

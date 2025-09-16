@@ -1,0 +1,84 @@
+/* Airbnb-inspired light theme skin
+   Apply by adding class="theme-air" to a top-level container (e.g., <body> or #app). */
+
+@reference "tailwindcss";
+@reference './components.css';
+@reference './game-components.css';
+
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Canvas / background */
+  .theme-air {
+    /* Warmer, whitish canvas akin to Airbnb */
+    @apply bg-stone-50 text-neutral-800 antialiased;
+  }
+
+  /* Panels & cards */
+  .theme-air .sci-panel {
+    @apply bg-stone-50 border border-neutral-200 rounded-2xl shadow-soft;
+  }
+  .theme-air .sci-panel-elevated {
+    @apply border-rose-200 shadow-soft;
+  }
+  .theme-air .sci-card { @apply bg-stone-50 border border-neutral-200 rounded-2xl shadow-soft; }
+  .theme-air .sci-card-header { @apply bg-stone-50 border-neutral-200; }
+  .theme-air .sci-card-body { @apply bg-stone-50; }
+
+  /* Headers */
+  .theme-air .sci-header { @apply border-neutral-200; }
+  .theme-air .sci-header-title { @apply text-neutral-900; }
+  .theme-air .sci-header-subtitle { @apply text-neutral-500; }
+
+  /* Buttons */
+  .theme-air .sci-btn { @apply border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 hover:border-neutral-400; }
+  .theme-air .sci-btn-primary { @apply bg-rose-500 border-rose-500 text-white hover:bg-rose-600 hover:border-rose-600; }
+  .theme-air .sci-btn-secondary { @apply bg-neutral-700 border-neutral-700 text-white hover:bg-neutral-800 hover:border-neutral-800; }
+  .theme-air .sci-btn-outline { @apply bg-transparent border-neutral-300 text-neutral-700 hover:bg-neutral-100; }
+  .theme-air .sci-btn-ghost { @apply border-transparent bg-transparent text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800; }
+
+  /* Inputs */
+  .theme-air .sci-input { @apply bg-white border-neutral-300 text-neutral-800 placeholder-neutral-400 focus:ring-rose-500 focus:border-rose-500; }
+
+  /* Badges */
+  .theme-air .sci-badge-primary { @apply bg-rose-50 text-rose-700; }
+  .theme-air .sci-badge-secondary { @apply bg-stone-100 text-neutral-700; }
+  .theme-air .sci-badge-success { @apply bg-emerald-50 text-emerald-700; }
+  .theme-air .sci-badge-warning { @apply bg-amber-50 text-amber-700; }
+  .theme-air .sci-badge-danger { @apply bg-red-50 text-red-700; }
+  .theme-air .sci-badge-outline { @apply border-neutral-300 text-neutral-600; }
+
+  /* Progress */
+  .theme-air .sci-progress { @apply bg-neutral-200; }
+  .theme-air .sci-progress-bar { @apply bg-rose-500; }
+  .theme-air .sci-progress-bar-secondary { @apply bg-teal-500; }
+  .theme-air .sci-progress-bar-danger { @apply bg-red-500; }
+
+  /* Modals */
+  .theme-air .sci-modal { @apply bg-white border-neutral-200 rounded-2xl shadow-soft; }
+  .theme-air .sci-modal-title { @apply text-neutral-900; }
+
+  /* Notifications */
+  .theme-air .notification { @apply bg-stone-50 border-neutral-200 shadow-soft; }
+  .theme-air .notification-info { @apply border-rose-300; }
+  .theme-air .notification-success { @apply border-emerald-300; }
+  .theme-air .notification-warning { @apply border-amber-300; }
+  .theme-air .notification-danger { @apply border-red-300; }
+
+  /* Eco health chips */
+  .theme-air .eco-health-excellent { @apply bg-emerald-50 border-emerald-300 text-emerald-700; }
+  .theme-air .eco-health-good { @apply bg-teal-50 border-teal-300 text-teal-700; }
+  .theme-air .eco-health-moderate { @apply bg-amber-50 border-amber-300 text-amber-700; }
+  .theme-air .eco-health-poor { @apply bg-orange-50 border-orange-300 text-orange-700; }
+  .theme-air .eco-health-critical { @apply bg-red-50 border-red-300 text-red-700; }
+
+  /* Tables */
+  .theme-air .sci-table-header { @apply bg-stone-100; }
+  .theme-air .sci-table-body { @apply bg-stone-50 divide-neutral-200; }
+  .theme-air .sci-table-body tr:hover { @apply bg-stone-100; }
+  .theme-air .sci-table-body td { @apply text-neutral-700; }
+
+  /* Dividers */
+  .theme-air .sci-divider-r { @apply border-neutral-200; }
+}

@@ -6,6 +6,7 @@ import { SeededRNG, RNGManager } from './SeededRNG';
 import { WorldChunk, SpeciesInstance, PhenologyStage, CauseOfDeath } from './WorldChunk';
 import { SpeciesRegistry, SpeciesDefinition } from './SpeciesRegistry';
 import { GeneticSystem } from './GeneticSystem';
+import { EventType } from './EventJournal';
 
 export interface GrowthFactors {
   temperature: number;    // Temperature stress factor [0-1]
@@ -48,6 +49,7 @@ export class VegetationSystem {
   private rng: SeededRNG;
   private speciesRegistry: SpeciesRegistry;
   private geneticSystem: GeneticSystem;
+  private _simulationEngine?: any; // Optional reference to get master genomes
   
   // Growth and mortality parameters
   private readonly COMPETITION_RADIUS = 1.0;
@@ -58,10 +60,11 @@ export class VegetationSystem {
   private mortalityHistory: MortalityRecord[] = [];
   private currentTick = 0;
   
-  constructor() {
+  constructor(simulationEngine?: any) {
     this.rng = RNGManager.getInstance().getRNG('vegetation');
     this.speciesRegistry = SpeciesRegistry.getInstance();
     this.geneticSystem = new GeneticSystem(RNGManager.getInstance());
+    this._simulationEngine = simulationEngine;
   }
 
   /**
@@ -176,7 +179,7 @@ export class VegetationSystem {
 
     // Initialize genetics if not present (for legacy species)
     if (!species.genetics) {
-      species.genetics = this.geneticSystem.initializeGenetics(species.speciesId, speciesDef);
+      species.genetics = this.geneticSystem.initializeGenetics(speciesDef);
     }
 
     // Calculate growth factors
@@ -657,6 +660,14 @@ export class VegetationSystem {
         while (globalY < 0) { globalY += 1; dy -= 1; }
         while (globalY > 1) { globalY -= 1; dy += 1; }
 
+        // Bias: retain a majority of seeds in the source chunk to ensure local recruitment
+        if (this.rng.next() < 0.6) { // 60% local retention
+          dx = 0; dy = 0;
+          // Wrap back into [0,1]
+          globalX = ((globalX % 1) + 1) % 1;
+          globalY = ((globalY % 1) + 1) % 1;
+        }
+
         // Find target chunk
         const targetChunk = this.getNeighborChunk(chunk, dx, dy);
         if (!targetChunk) continue;
@@ -693,12 +704,14 @@ export class VegetationSystem {
    */
   private calculateDispersalDistance(speciesDef: SpeciesDefinition, chunk: WorldChunk, speciesId: string): number {
     // Use exponential distribution for realistic dispersal kernel
-    let meanDistance = speciesDef.dispersalRange * 0.1; // Convert to chunk units
+    let meanDistance = speciesDef.dispersalRange * 0.05; // Smaller default to favor local dispersal
     // Apply DB-driven seed dispersal boost if present
     const dispMap: Map<string, number> | undefined = (chunk as any).__interactionBoost?.seedDispersal
     const boost = dispMap?.get(speciesId) || 0
     meanDistance *= (1 + Math.min(0.75, boost))
-    return -Math.log(this.rng.next()) * meanDistance;
+    const d = -Math.log(this.rng.next()) * meanDistance
+    // Clamp extremely long jumps to keep within neighborhood when most chunks are inactive
+    return Math.min(0.35, d)
   }
 
   // Species-specific seed maturation times (ticks) with defaults
@@ -741,22 +754,32 @@ export class VegetationSystem {
       let shouldDie = false;
       let causeOfDeath = CauseOfDeath.UNKNOWN;
       
-      // Direct health failure (starvation/disease)
+      // Direct health failure (starvation/disease), but prioritize aging when near end-of-life
       if (plant.health <= 0) {
-        shouldDie = true;
-        causeOfDeath = plant.health <= -0.1 ? CauseOfDeath.STARVATION : CauseOfDeath.DISEASE;
+        const ageRatio0 = plant.age / speciesDef.lifespanTicks;
+        if (ageRatio0 > 0.95) {
+          shouldDie = true;
+          causeOfDeath = CauseOfDeath.NATURAL_AGING;
+        } else {
+          shouldDie = true;
+          causeOfDeath = plant.health <= -0.1 ? CauseOfDeath.STARVATION : CauseOfDeath.DISEASE;
+        }
       }
       
       if (!shouldDie) {
         let mortalityRate = this.BASE_MORTALITY_RATE * deltaTime;
         let primaryCause = CauseOfDeath.NATURAL_AGING;
         
-        // Age-based mortality
+        // Age-based mortality (prioritize aging at advanced ages)
         const ageRatio = plant.age / speciesDef.lifespanTicks;
         if (ageRatio > 0.8) {
           const ageMortality = Math.pow(ageRatio - 0.8, 2) * 0.01 * deltaTime;
           mortalityRate += ageMortality;
           primaryCause = CauseOfDeath.NATURAL_AGING;
+          // Strongly prioritize natural aging near end-of-life
+          if (ageRatio > 0.95) {
+            mortalityRate += 0.02 * deltaTime;
+          }
         }
         
         // Environmental stress mortality
@@ -766,19 +789,23 @@ export class VegetationSystem {
         // Temperature stress
         if (temp < speciesDef.temperatureRange.min) {
           const coldStress = (speciesDef.temperatureRange.min - temp) / 10;
-          mortalityRate += coldStress * 0.01 * deltaTime;
+          mortalityRate += coldStress * 0.02 * deltaTime;
           primaryCause = CauseOfDeath.COLD_DAMAGE;
+          if (temp < speciesDef.temperatureRange.min - 5) mortalityRate += 0.05 * deltaTime;
         } else if (temp > speciesDef.temperatureRange.max) {
           const heatStress = (temp - speciesDef.temperatureRange.max) / 10;
-          mortalityRate += heatStress * 0.01 * deltaTime;
+          mortalityRate += heatStress * 0.02 * deltaTime;
           primaryCause = CauseOfDeath.HEAT_STRESS;
+          if (temp > speciesDef.temperatureRange.max + 5) mortalityRate += 0.05 * deltaTime;
         }
         
         // Drought stress
         if (moisture < speciesDef.moistureRange.min) {
-          const droughtStress = (speciesDef.moistureRange.min - moisture) * 0.02 * deltaTime;
+          const droughtStress = (speciesDef.moistureRange.min - moisture) * 0.03 * deltaTime;
           mortalityRate += droughtStress;
           primaryCause = CauseOfDeath.DROUGHT;
+          if (moisture < speciesDef.moistureRange.min - 0.1) mortalityRate += 0.05 * deltaTime;
+          if (moisture < speciesDef.moistureRange.min - 0.2) mortalityRate += 0.1 * deltaTime;
         }
         
         // Pollution mortality
@@ -792,7 +819,8 @@ export class VegetationSystem {
         if (plant.health < 0.5) {
           const healthMortality = (0.5 - plant.health) * 0.002 * deltaTime;
           mortalityRate += healthMortality;
-          primaryCause = CauseOfDeath.ENVIRONMENTAL_STRESS;
+          // Do not override age-related cause if near end-of-life
+          if (ageRatio <= 0.95) primaryCause = CauseOfDeath.ENVIRONMENTAL_STRESS;
         }
         
         // Random catastrophic events (storms, diseases, etc.)
@@ -814,7 +842,18 @@ export class VegetationSystem {
         // Record the death before removal
         plant.causeOfDeath = causeOfDeath;
         plant.deathTick = this.currentTick;
-        
+        // Emit death event with cause, if emitter is available
+        try {
+          const emit = (chunk as any).__emitEvent as ((t: EventType, d: any) => void) | undefined
+          emit?.(EventType.SPECIES_DIE, {
+            speciesId: plant.speciesId,
+            cause: causeOfDeath,
+            age: plant.age,
+            biomass: plant.biomass,
+            health: plant.health,
+          })
+        } catch {}
+
         toRemove.push({ id: plant.id, cause: causeOfDeath, plant });
       }
     });
@@ -886,24 +925,33 @@ export class VegetationSystem {
 
         // Initialize genetics for new seedling
         if (speciesDef) {
-          // Check if this is from reproduction (find parent) or initial spawn
-          const parentSpecies = Array.from(chunk.species.values()).find(s => 
-            s.speciesId === seed.speciesId && 
-            s.phenologyStage === PhenologyStage.FRUITING
-          );
-          
-          if (parentSpecies && parentSpecies.genetics) {
-            // Inherit with possible mutations
-            const environmentalStress = this.calculateEnvironmentalStress(chunk);
-            const mutationResult = this.geneticSystem.applyMutations(
-              parentSpecies.genetics,
-              environmentalStress,
-              parentSpecies.genetics.generation + 1
-            );
-            newSeedling.genetics = mutationResult.genetics;
+          // If a master genome exists for this species (selected seed), use it
+          const masterGenome = this._simulationEngine?.getMasterGenome?.(seed.speciesId)
+          if (masterGenome) {
+            newSeedling.genetics = {
+              traits: new Map(masterGenome.traits),
+              generation: masterGenome.generation,
+              mutations: [...masterGenome.mutations],
+              adaptationScore: masterGenome.adaptationScore
+            }
           } else {
-            // First generation - initialize base genetics
-            newSeedling.genetics = this.geneticSystem.initializeGenetics(seed.speciesId, speciesDef);
+            // Otherwise inherit and possibly mutate from a parent if available
+            const parentSpecies = Array.from(chunk.species.values()).find(s => 
+              s.speciesId === seed.speciesId && 
+              s.phenologyStage === PhenologyStage.FRUITING
+            );
+            if (parentSpecies && parentSpecies.genetics) {
+              const environmentalStress = this.calculateEnvironmentalStress(chunk);
+              const mutationResult = this.geneticSystem.applyMutations(
+                parentSpecies.genetics,
+                environmentalStress,
+                parentSpecies.genetics.generation + 1
+              );
+              newSeedling.genetics = mutationResult.genetics;
+            } else {
+              // First generation - initialize base genetics
+              newSeedling.genetics = this.geneticSystem.initializeGenetics(speciesDef);
+            }
           }
         }
         

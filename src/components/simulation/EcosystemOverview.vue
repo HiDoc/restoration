@@ -22,11 +22,14 @@
         <div v-for="k in kpis" :key="k.title" class="sci-card p-3 text-center">
           <div class="text-xs text-text-secondary mb-2">{{ k.title }}</div>
           <div class="relative mx-auto w-28 h-28 select-none">
-            <div class="absolute inset-0 rounded-full" :style="{ background: `conic-gradient(var(--color-${k.accent}) ${k.angle}deg, var(--color-border) ${k.angle}deg)` }"></div>
+            <div class="absolute inset-0 rounded-full transition-[background] duration-500" :style="{ background: `conic-gradient(var(--color-${k.accent}) ${k.angle}deg, var(--color-border) ${k.angle}deg)` }"></div>
             <div class="absolute inset-2 rounded-full bg-surface flex items-center justify-center border border-border">
-              <div>
+              <div class="leading-tight">
                 <div class="text-2xl font-semibold">{{ k.display }}</div>
-                <div class="text-xs text-text-secondary">{{ k.unit }}</div>
+                <div class="text-[11px] text-text-secondary">{{ k.unit }}</div>
+                <div v-if="k.delta != null" class="text-[11px] mt-0.5" :class="k.deltaClass">
+                  {{ k.delta > 0 ? '↗ +' : k.delta < 0 ? '↘ ' : '→ ' }}{{ formatDelta(k) }}
+                </div>
               </div>
             </div>
           </div>
@@ -68,6 +71,20 @@ const status = computed(() => [
   { icon: '✔', label: 'Canopy', state: 'Balanced' },
 ])
 
+// Simple in-component trend memory
+const last: Record<string, number> = {}
+function pickDeltaClass(title: string, delta: number): string {
+  // For Pollution, up is bad; for others, up is good
+  const goodUp = title !== 'Pollution'
+  const positive = delta > 0
+  const good = (goodUp && positive) || (!goodUp && !positive && delta !== 0)
+  return good ? 'text-success' : (delta === 0 ? 'text-text-secondary' : 'text-danger')
+}
+function formatDelta(k: any): string {
+  if (k.unit === '%') return `${Math.abs(k.delta)}%`
+  return String(Math.abs(k.delta))
+}
+
 const kpis = computed(() => {
   const items = [
     { title: 'Vitality', unit: '%', value: Math.round((stats.avgVitality||0)*100), max: 100, accent: 'accent' },
@@ -77,11 +94,20 @@ const kpis = computed(() => {
     { title: 'Year Progress', unit: '%', value: Math.round((yearProgress||0)*100), max: 100, accent: 'accent' },
     { title: 'Seeds/Day', unit: '', value: seedRate, max: seedMax, accent: 'accent' },
   ]
-  return items.map(i => ({
-    ...i,
-    angle: Math.round(Math.max(0, Math.min(1, i.value / (i.max||1))) * 270),
-    display: i.unit === '%' ? i.value : i.value
-  }))
+  return items.map(i => {
+    const angle = Math.round(Math.max(0, Math.min(1, i.value / (i.max||1))) * 270)
+    const prev = last[i.title]
+    const rawDelta = prev == null ? 0 : i.value - prev
+    last[i.title] = i.value
+    const delta = i.unit === '%' ? Math.round(rawDelta) : rawDelta
+    return {
+      ...i,
+      angle,
+      display: i.value,
+      delta,
+      deltaClass: pickDeltaClass(i.title, delta)
+    }
+  })
 })
 
 const quick = computed(() => [

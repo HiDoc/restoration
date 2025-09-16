@@ -1,17 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import EcoSimGameView from './views/EcoSimGameView.vue'
 import SimulationView from './views/SimulationView.vue'
 import SimulationChunkView from './views/SimulationChunkView.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'EcoSimGame',
-    component: EcoSimGameView
+    name: 'Simulation',
+    component: SimulationView
   },
   {
     path: '/sim',
-    name: 'Simulation',
+    name: 'SimulationAlt',
     component: SimulationView
   },
   {

@@ -2,7 +2,6 @@
 @import "tailwindcss/preflight";
 @import './styles/theme-vars.css';
 @import './styles/components.css';
-@import './styles/game-components.css';
 
 @tailwind utilities;
 

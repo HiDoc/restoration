@@ -4,17 +4,17 @@
 @tailwind utilities;
 
 /* Promote reusable component classes to utilities so they can be used with @apply. */
-@utility sci-panel { @apply bg-gray-900 border-2 border-gray-600 rounded-lg p-4 shadow-lg backdrop-blur-sm; }
-@utility sci-panel-elevated { @apply sci-panel border-green-400 shadow-glow; }
-@utility sci-btn { @apply inline-flex items-center justify-center px-4 py-2 border font-medium rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility sci-panel { @apply bg-surface border-2 border-border text-text-primary rounded-lg p-4 shadow-lg backdrop-blur-sm; }
+@utility sci-panel-elevated { @apply sci-panel border-accent shadow-glow; }
+@utility sci-btn { @apply inline-flex items-center justify-center px-4 py-2 border font-medium rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed; }
 @utility sci-btn-sm { @apply px-2.5 py-1.5 text-xs; }
-@utility sci-input { @apply block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm; }
+@utility sci-input { @apply block w-full px-3 py-2 border border-border rounded-md shadow-sm bg-surface-alt text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent sm:text-sm; }
 @utility sci-badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
-@utility sci-badge-primary { @apply sci-badge bg-green-900 text-green-200; }
-@utility sci-badge-secondary { @apply sci-badge bg-yellow-900 text-yellow-200; }
-@utility sci-badge-success { @apply sci-badge bg-green-900 text-green-200; }
-@utility sci-badge-warning { @apply sci-badge bg-yellow-900 text-yellow-200; }
-@utility sci-badge-danger { @apply sci-badge bg-red-900 text-red-200; }
+@utility sci-badge-primary { @apply sci-badge bg-accent text-accent-fg; }
+@utility sci-badge-secondary { @apply sci-badge bg-surface-alt text-text-secondary; }
+@utility sci-badge-success { @apply sci-badge bg-success/20 text-success; }
+@utility sci-badge-warning { @apply sci-badge bg-warning/20 text-warning; }
+@utility sci-badge-danger { @apply sci-badge bg-danger/20 text-danger; }
 @utility sci-badge-outline { @apply sci-badge bg-transparent border border-gray-500 text-gray-400; }
 @utility sci-grid { @apply grid gap-4; }
 @utility sci-stat-change { @apply text-xs mt-1 flex items-center; }
@@ -36,34 +36,20 @@
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
   
-  .sci-panel {
-    @apply bg-gray-900 border-2 border-gray-600 rounded-lg p-4 shadow-lg backdrop-blur-sm;
-  }
+  .sci-panel { @apply bg-surface border-2 border-border text-text-primary rounded-lg p-4 shadow-lg backdrop-blur-sm; }
   
-  .sci-panel-elevated {
-    @apply sci-panel border-green-400 shadow-glow;
-  }
+  .sci-panel-elevated { @apply sci-panel border-accent shadow-glow; }
   
-  .sci-panel-warning {
-    @apply sci-panel border-yellow-400 bg-yellow-950;
-  }
+  .sci-panel-warning { @apply sci-panel border-warning bg-warning/10; }
   
-  .sci-panel-danger {
-    @apply sci-panel border-red-400 bg-red-950;
-  }
+  .sci-panel-danger { @apply sci-panel border-danger bg-danger/10; }
 
   /* Scientific Headers */
-  .sci-header {
-    @apply border-b border-gray-600 pb-3 mb-4;
-  }
+  .sci-header { @apply border-b border-border pb-3 mb-4; }
   
-  .sci-header-title {
-    @apply text-xl font-bold text-green-400 flex items-center gap-2;
-  }
+  .sci-header-title { @apply text-xl font-bold text-accent flex items-center gap-2; }
   
-  .sci-header-subtitle {
-    @apply text-sm text-gray-400 mt-1;
-  }
+  .sci-header-subtitle { @apply text-sm text-text-secondary mt-1; }
   
   .sci-header-badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200;
@@ -74,25 +60,15 @@
     @apply inline-flex items-center justify-center px-4 py-2 border font-medium rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
   }
   
-  .sci-btn-primary {
-    @apply sci-btn border-green-600 bg-green-600 text-white hover:bg-green-700 hover:border-green-700 focus:ring-green-500;
-  }
+  .sci-btn-primary { @apply sci-btn border-accent bg-accent text-accent-fg hover:bg-accent/90 hover:border-accent/90 focus:ring-accent; }
   
-  .sci-btn-secondary {
-    @apply sci-btn border-yellow-600 bg-yellow-600 text-gray-900 hover:bg-yellow-700 hover:border-yellow-700 focus:ring-yellow-500;
-  }
+  .sci-btn-secondary { @apply sci-btn border-border bg-surface-alt text-text-primary hover:bg-surface/80 hover:border-border focus:ring-border; }
   
-  .sci-btn-outline {
-    @apply sci-btn border-gray-500 bg-transparent text-gray-300 hover:bg-gray-700 hover:border-gray-400 focus:ring-gray-500;
-  }
+  .sci-btn-outline { @apply sci-btn border-border bg-transparent text-text-primary hover:bg-surface-alt hover:border-border/80 focus:ring-border; }
   
-  .sci-btn-ghost {
-    @apply sci-btn border-transparent bg-transparent text-gray-400 hover:bg-gray-800 hover:text-gray-300 focus:ring-gray-500;
-  }
+  .sci-btn-ghost { @apply sci-btn border-transparent bg-transparent text-text-secondary hover:bg-surface-alt hover:text-text-primary focus:ring-border; }
   
-  .sci-btn-danger {
-    @apply sci-btn border-red-600 bg-red-600 text-white hover:bg-red-700 hover:border-red-700 focus:ring-red-500;
-  }
+  .sci-btn-danger { @apply sci-btn border-danger bg-danger text-white hover:bg-danger/90 hover:border-danger/90 focus:ring-danger; }
   
   .sci-btn-sm {
     @apply px-2.5 py-1.5 text-xs;
@@ -107,9 +83,7 @@
   }
 
   /* Form Controls */
-  .sci-input {
-    @apply block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm;
-  }
+  .sci-input { @apply block w-full px-3 py-2 border border-border rounded-md shadow-sm bg-surface-alt text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent sm:text-sm; }
   
   .sci-select {
     @apply sci-input cursor-pointer;
@@ -144,17 +118,13 @@
     @apply sci-panel overflow-hidden;
   }
   
-  .sci-card-header {
-    @apply px-6 py-4 border-b border-gray-600 bg-gray-800;
-  }
+  .sci-card-header { @apply px-6 py-4 border-b border-border bg-surface-alt; }
   
   .sci-card-body {
     @apply px-6 py-4;
   }
   
-  .sci-card-footer {
-    @apply px-6 py-4 border-t border-gray-600 bg-gray-800;
-  }
+  .sci-card-footer { @apply px-6 py-4 border-t border-border bg-surface-alt; }
   
   .sci-card-compact {
     @apply p-3;
@@ -177,9 +147,7 @@
     @apply text-xs text-gray-500 uppercase tracking-wide font-medium;
   }
   
-  .sci-stat-value {
-    @apply text-2xl font-bold text-green-400 mt-1;
-  }
+  .sci-stat-value { @apply text-2xl font-bold text-accent mt-1; }
   
   .sci-stat-change {
     @apply text-xs mt-1 flex items-center;
@@ -361,9 +329,7 @@
     @apply opacity-100 visible;
   }
   
-  .sci-tooltip-content {
-    @apply absolute z-50 px-3 py-2 text-sm text-white bg-gray-700 rounded-md shadow-lg opacity-0 invisible transition-all duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap;
-  }
+  .sci-tooltip-content { @apply absolute z-50 px-3 py-2 text-sm text-text-primary bg-surface-alt rounded-md shadow-lg opacity-0 invisible transition-all duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap border border-border; }
   
   .sci-tooltip-content::after {
     content: "";
@@ -422,13 +388,9 @@
     @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-pulse;
   }
   
-  .sci-skeleton {
-    @apply bg-gray-600 rounded animate-pulse;
-  }
+  .sci-skeleton { @apply bg-border rounded animate-pulse; }
   
-  .sci-spinner {
-    @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-r-transparent;
-  }
+  .sci-spinner { @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-r-transparent; }
   
   .sci-spinner-lg {
     @apply h-8 w-8 border-4;

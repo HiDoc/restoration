@@ -18,6 +18,7 @@ describe('WorldChunk', () => {
     c.addSpecies({
       id: 's1', speciesId: 'oak', x: 0.5, y: 0.5,
       biomass: 1, age: 0, phenologyStage: PhenologyStage.SEED, health: 1, reproductiveOutput: 0,
+      reproductiveUrge: 0, lastReproductionAttempt: 0
     })
     c.update(1, 1/60)
 

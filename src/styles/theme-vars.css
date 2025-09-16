@@ -1,0 +1,33 @@
+/* Theme variables for Eco (dark) and Air (light) skins */
+@layer base {
+  :root {
+    /* Eco (dark) defaults */
+    --surface: #111827;
+    --surface-alt: #1f2937;
+    --border: #4b5563;
+    --text-primary: #e2e8f0;
+    --text-secondary: #9ca3af;
+    --accent: #22c55e;
+    --accent-fg: #ffffff;
+    --success: #22c55e;
+    --warning: #eab308;
+    --danger: #ef4444;
+  }
+
+  .theme-eco {
+    /* same as :root defaults */
+  }
+
+  .theme-air {
+    --surface: #fafaf9;
+    --surface-alt: #ffffff;
+    --border: #e5e7eb;
+    --text-primary: #171717;
+    --text-secondary: #6b7280;
+    --accent: #f43f5e;
+    --accent-fg: #ffffff;
+    --success: #10b981;
+    --warning: #eab308;
+    --danger: #ef4444;
+  }
+}

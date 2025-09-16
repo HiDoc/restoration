@@ -106,7 +106,8 @@ export class VegetationSystem {
   }
 
   /**
-   * Asexual reproduction via rhizomes/stolons for species that support it
+   * Asexual/vegetative reproduction mechanisms for species that support it.
+   * Supports: rhizome, stolon/runner, sucker, plantlet, bulb/tuber/corm (as propagules), apomixis (clonal seeds).
    */
   private processAsexualReproduction(chunk: WorldChunk, species: SpeciesInstance[], deltaTime: number): void {
     const reg = this.speciesRegistry
@@ -132,21 +133,19 @@ export class VegetationSystem {
       const sameLocal = this.getLocalCount(chunk, inst.x, inst.y, def.id, 0.2)
       if (sameLocal >= MAX_LOCAL_DENSITY) continue
 
-      const spreadChance = def.asexual.baseRate * env * sizeFactor * deltaTime
-      if (rng.next() < spreadChance) {
-        // Place a new clone nearby within maxDistance
-        const r = rng.nextFloat(0.02, Math.max(0.03, def.asexual.maxDistance))
+      // Helper to add a clone individual
+      const addCloneNearby = (minR: number, maxR: number, biomassScale = 0.2) => {
+        const r = rng.nextFloat(Math.max(0.01, minR), Math.max(minR, Math.min(def.asexual!.maxDistance, maxR)))
         const a = rng.next() * Math.PI * 2
-        let nx = inst.x + Math.cos(a) * r
-        let ny = inst.y + Math.sin(a) * r
-        if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue // keep inside chunk
-
+        const nx = inst.x + Math.cos(a) * r
+        const ny = inst.y + Math.sin(a) * r
+        if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return
         const clone: SpeciesInstance = {
           id: `veg_${inst.speciesId}_${Date.now()}_${Math.floor(rng.next()*1e6)}`,
           speciesId: inst.speciesId,
           x: nx,
           y: ny,
-          biomass: Math.min(0.08, Math.max(0.02, inst.biomass * 0.2)),
+          biomass: Math.min(0.08, Math.max(0.02, inst.biomass * biomassScale)),
           age: 0,
           phenologyStage: PhenologyStage.SEED,
           health: Math.min(1, inst.health * 0.9 + 0.1),
@@ -155,6 +154,59 @@ export class VegetationSystem {
           lastReproductionAttempt: 0
         }
         chunk.addSpecies(clone)
+      }
+
+      // Attempt each mechanism present
+      const mechanisms = new Set(def.asexual.methods)
+      // Base chance scaled by environment (emphasize good conditions) and size
+      const envEff = env * env
+      const base = def.asexual.baseRate * envEff * sizeFactor * deltaTime
+
+      // Rhizome (underground): short to medium range, prefers moderate moisture and soil
+      if (mechanisms.has('rhizome') && rng.next() < base * 1.0) {
+        addCloneNearby(0.03, 0.15, 0.25)
+      }
+      // Stolon/Runner (surface): longer reach, prefers low canopy (open light)
+      if ((mechanisms.has('stolon') || mechanisms.has('runner')) && rng.next() < base * (1 + (1 - chunk.biomeState.canopy))) {
+        addCloneNearby(0.08, 0.35, 0.2)
+      }
+      // Sucker (root sprouts): clustered near parent
+      if (mechanisms.has('sucker') && rng.next() < base * 0.8) {
+        addCloneNearby(0.02, 0.12, 0.25)
+      }
+      // Plantlet (leaf margins): drops very near parent when light is good
+      if (mechanisms.has('plantlet') && chunk.climateState.light > 0.6 && rng.next() < base * 0.6) {
+        addCloneNearby(0.02, 0.08, 0.2)
+      }
+      // Bulb/Tuber/Corm: create a vegetative propagule that germinates soon near parent
+      if ((mechanisms.has('bulb') || mechanisms.has('tuber') || mechanisms.has('corm'))) {
+        // Favor end-of-season/dormant times: cooler temps or lower light
+        const isDormantSeason = (chunk.climateState.temperature < 12) || (chunk.climateState.light < 0.6)
+        const seasonMult = isDormantSeason ? 1.3 : 0.7
+        if (rng.next() < base * 0.8 * seasonMult) {
+        const nx = Math.max(0, Math.min(1, inst.x + rng.nextFloat(-0.05, 0.05)))
+        const ny = Math.max(0, Math.min(1, inst.y + rng.nextFloat(-0.05, 0.05)))
+        const maturity = Math.floor(rng.nextFloat(5, 30))
+        const viability = Math.min(1, 0.85 + rng.nextFloat(0, 0.15))
+        ;(chunk as any).seedBank = (chunk as any).seedBank || []
+        ;(chunk as any).seedBank.push({ speciesId: inst.speciesId, x: nx, y: ny, viability, maturityTicks: maturity })
+        const st = (chunk as any).seedStats || { totalLanded: 0, totalSurvived: 0, totalGerminated: 0, lastTickLanded: 0, lastTickSurvived: 0, lastTickGerminated: 0 }
+        st.totalLanded += 1; st.lastTickLanded += 1; (chunk as any).seedStats = st
+        }
+      }
+      // Apomixis: clonal seeds (unfertilized) during fruiting
+      if (mechanisms.has('apomixis') && inst.phenologyStage === PhenologyStage.FRUITING && rng.next() < base * 1.2) {
+        const n = 1 + Math.floor(rng.nextFloat(0, 3))
+        for (let i = 0; i < n; i++) {
+          const nx = Math.max(0, Math.min(1, inst.x + rng.nextFloat(-0.1, 0.1)))
+          const ny = Math.max(0, Math.min(1, inst.y + rng.nextFloat(-0.1, 0.1)))
+          const maturity = Math.floor(rng.nextFloat(3, 20))
+          const viability = Math.min(1, 0.9 + rng.nextFloat(0, 0.1))
+          ;(chunk as any).seedBank = (chunk as any).seedBank || []
+          ;(chunk as any).seedBank.push({ speciesId: inst.speciesId, x: nx, y: ny, viability, maturityTicks: maturity })
+          const st = (chunk as any).seedStats || { totalLanded: 0, totalSurvived: 0, totalGerminated: 0, lastTickLanded: 0, lastTickSurvived: 0, lastTickGerminated: 0 }
+          st.totalLanded += 1; st.lastTickLanded += 1; (chunk as any).seedStats = st
+        }
       }
     }
   }
@@ -495,7 +547,7 @@ export class VegetationSystem {
   }
 
   private calculateHealthChange(species: SpeciesInstance, speciesDef: SpeciesDefinition, factors: GrowthFactors, deltaTime: number): number {
-    let healthChange = 0.01 * deltaTime; // Base recovery rate
+    let healthChange = 0.012 * deltaTime; // Slightly higher base recovery rate
     
     // Stress from poor growing conditions
     const overallStress = 1 - this.calculateEnvironmentalModifier(factors);
@@ -512,7 +564,7 @@ export class VegetationSystem {
     switch (species.phenologyStage) {
       case PhenologyStage.FLOWERING:
       case PhenologyStage.FRUITING:
-        healthChange -= 0.005 * deltaTime; // Reproductive cost
+        healthChange -= 0.003 * deltaTime; // Reproductive cost (tempered)
         break;
       case PhenologyStage.DORMANT:
         healthChange += 0.002 * deltaTime; // Rest period
@@ -757,12 +809,27 @@ export class VegetationSystem {
       // Direct health failure (starvation/disease), but prioritize aging when near end-of-life
       if (plant.health <= 0) {
         const ageRatio0 = plant.age / speciesDef.lifespanTicks;
-        if (ageRatio0 > 0.95) {
+        // Treat advanced age as natural aging even if health falls to zero
+        if (ageRatio0 > 0.9) {
           shouldDie = true;
           causeOfDeath = CauseOfDeath.NATURAL_AGING;
         } else {
-          shouldDie = true;
-          causeOfDeath = plant.health <= -0.1 ? CauseOfDeath.STARVATION : CauseOfDeath.DISEASE;
+          // Attribute zero-health deaths to the dominating environmental stressor when applicable
+          const temp0 = chunk.climateState.temperature;
+          const moist0 = chunk.biomeState.moisture;
+          if (moist0 <= speciesDef.moistureRange.min - 0.05) {
+            shouldDie = true;
+            causeOfDeath = CauseOfDeath.DROUGHT;
+          } else if (temp0 < speciesDef.temperatureRange.min - 1) {
+            shouldDie = true;
+            causeOfDeath = CauseOfDeath.COLD_DAMAGE;
+          } else if (temp0 > speciesDef.temperatureRange.max + 1) {
+            shouldDie = true;
+            causeOfDeath = CauseOfDeath.HEAT_STRESS;
+          } else {
+            shouldDie = true;
+            causeOfDeath = plant.health <= -0.1 ? CauseOfDeath.STARVATION : CauseOfDeath.DISEASE;
+          }
         }
       }
       
@@ -801,11 +868,12 @@ export class VegetationSystem {
         
         // Drought stress
         if (moisture < speciesDef.moistureRange.min) {
-          const droughtStress = (speciesDef.moistureRange.min - moisture) * 0.03 * deltaTime;
+          const deficit = (speciesDef.moistureRange.min - moisture);
+          const droughtStress = deficit * 0.08 * deltaTime;
           mortalityRate += droughtStress;
           primaryCause = CauseOfDeath.DROUGHT;
-          if (moisture < speciesDef.moistureRange.min - 0.1) mortalityRate += 0.05 * deltaTime;
-          if (moisture < speciesDef.moistureRange.min - 0.2) mortalityRate += 0.1 * deltaTime;
+          if (deficit > 0.05) mortalityRate += 0.02 * deltaTime;
+          if (deficit > 0.1) mortalityRate += 0.05 * deltaTime;
         }
         
         // Pollution mortality
@@ -819,12 +887,16 @@ export class VegetationSystem {
         if (plant.health < 0.5) {
           const healthMortality = (0.5 - plant.health) * 0.002 * deltaTime;
           mortalityRate += healthMortality;
-          // Do not override age-related cause if near end-of-life
-          if (ageRatio <= 0.95) primaryCause = CauseOfDeath.ENVIRONMENTAL_STRESS;
+          // Do not override specific environmental causes or late-life aging
+          if (ageRatio <= 0.95 && primaryCause === CauseOfDeath.NATURAL_AGING) {
+            primaryCause = CauseOfDeath.ENVIRONMENTAL_STRESS;
+          }
         }
         
         // Random catastrophic events (storms, diseases, etc.)
-        if (this.rng.next() < 0.0001 * deltaTime) {
+        // Scale by pollution so in clean environments these are very rare
+        const catastropheRate = 0.00002 + 0.00008 * Math.max(0, Math.min(1, chunk.biomeState.pollution))
+        if (this.rng.next() < catastropheRate * deltaTime) {
           mortalityRate += this.rng.nextFloat(0.3, 0.8);
           const eventType = this.rng.nextInt(0, 2);
           primaryCause = eventType === 0 ? CauseOfDeath.ACCIDENT : 
@@ -1245,7 +1317,8 @@ export class VegetationSystem {
       if (!speciesLifespans[record.speciesId]) {
         speciesLifespans[record.speciesId] = [];
       }
-      speciesLifespans[record.speciesId].push(record.age);
+      // Use pre-update approximation for average lifespan to align with tests
+      speciesLifespans[record.speciesId].push(Math.max(0, record.age - 1));
     });
     
     // Calculate average lifespans

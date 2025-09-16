@@ -18,16 +18,17 @@ function drawChunk() {
   g.clear()
 
   // Background
-  g.beginFill(0x0d0d0d)
-  g.drawRect(0, 0, s, s)
-  g.endFill()
+  g.rect(0, 0, s, s)
+  g.fill(0x0d0d0d)
 
   // Grid
-  g.lineStyle(1, 0x222222, 1)
+  g.stroke({ width: 1, color: 0x222222, alpha: 1 })
   for (let i = 1; i < 8; i++) {
     const p = (i / 8) * s
-    g.moveTo(p, 0); g.lineTo(p, s)
-    g.moveTo(0, p); g.lineTo(s, p)
+    g.moveTo(p, 0)
+    g.lineTo(p, s)
+    g.moveTo(0, p)
+    g.lineTo(s, p)
   }
 
   // Seeds as small green dots
@@ -35,9 +36,8 @@ function drawChunk() {
   for (const seed of seeds) {
     const x = Math.max(0, Math.min(1, seed.x)) * s
     const y = Math.max(0, Math.min(1, seed.y)) * s
-    g.beginFill(0x5eea5e)
-    g.drawCircle(x, y, 2)
-    g.endFill()
+    g.circle(x, y, 2)
+    g.fill(0x5eea5e)
   }
 
   // Species as circles; size ~ biomass, color by category guess
@@ -47,18 +47,18 @@ function drawChunk() {
     const y = Math.max(0, Math.min(1, inst.y)) * s
     const r = Math.max(2, Math.min(12, (inst.biomass || 0.1) * 2))
     const color = colorFor(inst.speciesId)
-    g.beginFill(color, Math.max(0.4, Math.min(1, inst.health || 1)))
-    g.lineStyle(1, 0x111111, 0.8)
-    g.drawCircle(x, y, r)
-    g.endFill()
+    const alpha = Math.max(0.4, Math.min(1, inst.health || 1))
+    g.circle(x, y, r)
+    g.fill({ color, alpha })
+    g.stroke({ width: 1, color: 0x111111, alpha: 0.8 })
   }
 
   // Birds activity pulse border
   const birdsActivity = ((props.chunk as any).birdsActivity as number | undefined) ?? 0
   if (birdsActivity > 0.05) {
     const a = Math.max(0.1, Math.min(0.6, birdsActivity))
-    g.lineStyle(2, 0xffff88, a)
-    g.drawRect(1, 1, s - 2, s - 2)
+    g.rect(1, 1, s - 2, s - 2)
+    g.stroke({ width: 2, color: 0xffff88, alpha: a })
   }
 
   app.stage.removeChildren()

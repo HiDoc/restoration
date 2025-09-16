@@ -194,6 +194,13 @@ export class SpeciesDataAdapter {
       case 'asexual':
       case 'rhizome':
       case 'stolon':
+      case 'runner':
+      case 'sucker':
+      case 'plantlet':
+      case 'bulb':
+      case 'tuber':
+      case 'corm':
+      case 'apomixis':
       case 'vegetative':
         return PollinationType.SELF
       case 'mixed': return PollinationType.INSECT // Default to insect for mixed

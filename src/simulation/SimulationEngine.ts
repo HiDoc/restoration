@@ -19,6 +19,9 @@ export interface SimulationConfig {
   seasonLengthTicks?: number; // Ticks per season (quarter year)
   // Time scale: minutes of simulated time per engine tick (default 1440 = 1 day)
   timePerTickMinutes?: number;
+  // Optional update budget to cap per-tick work
+  updateBudgetMs?: number;     // Max milliseconds to spend updating chunks each tick (soft limit)
+  chunksPerTick?: number;      // Alternatively, cap number of chunks updated per tick
 }
 
 export interface PlayerIntervention {
@@ -66,10 +69,17 @@ export class SimulationEngine {
   private currentYearIndex: number = 0;
   private lastYearEndCheck: number = 0; // Track last year we checked for seed selection
   private yearEndCallbacks: Array<(year: number) => void> = [];
+  private tickCallbacks: Array<(tick: number) => void> = [];
 
   // Performance monitoring
   private updateTimes: number[] = [];
   private maxUpdateTimeHistory = 60; // Keep 1 second of history at 60fps
+  // Rolling offset so different chunks are updated first each tick when chunk capping is enabled
+  private rollingChunkOffset = 0;
+  // Adaptive scheduling
+  private estimatedChunkMs = 0.1; // EWMA estimate of per-chunk update time (ms)
+  private lastUpdatedChunks = 0;  // How many chunks were updated last tick
+  private scheduledLimit = 0;     // Planned chunks for current tick
 
   constructor(config: SimulationConfig) {
     this.config = config;
@@ -537,6 +547,12 @@ export class SimulationEngine {
     const prevYearIndex = this.currentYearIndex
     this.simTimeDays += deltaDays;
     this.eventJournal.setCurrentTick(this.currentTick);
+    // onTick callbacks
+    if (this.tickCallbacks.length) {
+      this.tickCallbacks.forEach(cb => {
+        try { cb(this.currentTick) } catch { /* ignore */ }
+      })
+    }
     // Detect year boundary based on configured season length
     if (this.yearLengthDays > 0) {
       const newYearIndex = Math.floor(this.simTimeDays / this.yearLengthDays)
@@ -550,7 +566,7 @@ export class SimulationEngine {
     this.checkYearEnd();
     
     // Update active chunks only (for performance)
-    this.updateActiveChunks(deltaDays);
+    this.updateActiveChunks(deltaDays, updateStart);
     
     // Diffusion between neighboring chunks
     this.updateChunkDiffusion();
@@ -571,7 +587,7 @@ export class SimulationEngine {
   /**
    * Update only active chunks for performance
    */
-  private updateActiveChunks(deltaTime: number): void {
+  private updateActiveChunks(deltaTime: number, updateStart?: number): void {
     // If no chunks are active, activate center chunks
     if (this.activeChunks.size === 0) {
       this.activateChunksAroundPoint(
@@ -580,18 +596,40 @@ export class SimulationEngine {
         2
       );
     }
-    
-    this.activeChunks.forEach(chunkId => {
+    const ids = Array.from(this.activeChunks);
+    const count = ids.length;
+    // Determine per-tick budget and limit
+    const defaultBudget = this.targetDeltaTime * 0.5; // Leave time for other systems/UI
+    const budget = this.config.updateBudgetMs ?? defaultBudget;
+    const hardCap = this.config.chunksPerTick ?? count;
+    // Convert soft budget into chunk count using EWMA estimate
+    const byBudget = Math.max(1, Math.floor(budget / Math.max(this.estimatedChunkMs, 0.05)));
+    this.scheduledLimit = Math.max(1, Math.min(count, Math.min(hardCap, byBudget)));
+    let updated = 0;
+
+    for (let i = 0; i < count; i++) {
+      if (updated >= this.scheduledLimit) break;
+      // Respect soft time budget
+      if (updateStart !== undefined && (Date.now() - updateStart) >= budget) break;
+      const idx = (this.rollingChunkOffset + i) % count;
+      const chunkId = ids[idx];
       const chunk = this.chunks.get(chunkId);
-      if (chunk) {
-        (chunk as any).simTimeDays = this.simTimeDays;
-        chunk.update(this.currentTick, deltaTime);
-        // Apply species relationships after per-chunk update
-        if (this.interactionsSystem) {
-          this.interactionsSystem.update(chunk);
-        }
+      if (!chunk) continue;
+      const t0 = Date.now();
+      (chunk as any).simTimeDays = this.simTimeDays;
+      chunk.update(this.currentTick, deltaTime);
+      if (this.interactionsSystem) {
+        this.interactionsSystem.update(chunk);
       }
-    });
+      const sample = Date.now() - t0;
+      // EWMA update; clamp extremes
+      const clamped = Math.max(0.01, Math.min(5.0, sample));
+      this.estimatedChunkMs = this.estimatedChunkMs * 0.9 + clamped * 0.1;
+      updated++;
+    }
+    // Advance offset so a different subset gets priority next tick
+    this.rollingChunkOffset = (this.rollingChunkOffset + updated) % Math.max(1, count);
+    this.lastUpdatedChunks = updated;
   }
 
   /**
@@ -904,7 +942,12 @@ export class SimulationEngine {
       seasonProgress,
       dayFraction,
       simDays: this.simTimeDays,
-      timePerTickMinutes: this.timePerTickMinutes
+      timePerTickMinutes: this.timePerTickMinutes,
+      updateBudgetMs: this.config.updateBudgetMs ?? null,
+      chunksPerTick: this.config.chunksPerTick ?? null,
+      estimatedChunkMs: this.estimatedChunkMs,
+      lastUpdatedChunks: this.lastUpdatedChunks,
+      scheduledLimit: this.scheduledLimit
     };
   }
 
@@ -975,6 +1018,20 @@ export class SimulationEngine {
   setTickRate(ticksPerSecond: number): void {
     if (ticksPerSecond <= 0) return;
     this.targetDeltaTime = 1000 / ticksPerSecond;
+  }
+
+  // Update budgets configuration at runtime
+  setUpdateBudgetMs(ms?: number): void {
+    this.config.updateBudgetMs = typeof ms === 'number' && ms > 0 ? ms : undefined
+  }
+
+  setChunksPerTick(n?: number): void {
+    this.config.chunksPerTick = typeof n === 'number' && n > 0 ? Math.floor(n) : undefined
+  }
+
+  // Register per-tick callback
+  onTick(callback: (tick: number) => void): void {
+    this.tickCallbacks.push(callback)
   }
 
   // Time-scale configuration

@@ -2,13 +2,19 @@
   <div class="grid grid-cols-[1fr_300px] min-h-full max-h-full">
 
 
-    <main class="p-3 flex gap-3 flex-col relative max-h-screen overflow-y-auto">
+    <main class="p-3 pb-20 flex gap-3 flex-col relative max-h-screen overflow-y-auto">
 
+      <div ref="overviewEl">
+        <EcosystemOverview :stats="stats" :year-progress="yearProgress" :seed-rate="derived.seedRate" :seed-max="derived.seedMax" />
+      </div>
+
+      <div ref="speciesEl">
       <PopulationGraph 
         :current-tick="stats.currentTick"
         :total-species="stats.totalSpecies"
         :chunks="engine?.getAllChunks()"
       />
+      </div>
 
       <div class="grid grid-cols-[1fr_280px] gap-3 items-start">
         <ChunkGrid
@@ -24,7 +30,9 @@
         <div v-if="selectedChunk" class="flex flex-col gap-1.5">
           <TileInspector :chunk="selectedChunk" @close="clearSelection" />
         </div>
-        <EventLog v-else :events="events" />
+        <div v-else ref="eventsEl">
+          <EventLog :events="events" />
+        </div>
       </div>
 
       <LegendOverlay
@@ -39,7 +47,7 @@
           <span>Controls</span>
           <span class="sci-collapse-toggle">−</span>
         </div>
-        <div class="mt-1.5">
+        <div ref="interactionsEl" class="mt-1.5">
           <SimulationControls
             :tick-ms="options.tickMs"
             :step-count="options.stepCount"
@@ -63,6 +71,26 @@
             <button class="sci-btn" @click="irrigateCenter" :title="`Add moisture +${options.irrigateAmount.toFixed(2)} at center`">💧 Irrigate Center</button>
             <button class="sci-btn" @click="cleanseCenter" :title="`Reduce pollution -${options.cleanseAmount.toFixed(2)} at center`">🧹 Cleanse Center</button>
           </div>
+        </div>
+      </section>
+
+      <section class="sci-panel p-2.5">
+        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
+          <span>Climate</span>
+          <span class="sci-collapse-toggle">−</span>
+        </div>
+        <div ref="climateEl" class="mt-1.5">
+          <WeatherControls />
+        </div>
+      </section>
+
+      <section class="sci-panel p-2.5">
+        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
+          <span>Pollinators</span>
+          <span class="sci-collapse-toggle">−</span>
+        </div>
+        <div ref="pollinatorsEl" class="mt-1.5">
+          <PollinatorControls />
         </div>
       </section>
 
@@ -179,12 +207,14 @@
           <span>Appearance</span>
           <span class="sci-collapse-toggle">−</span>
         </div>
-        <div class="mt-1.5">
+        <div ref="settingsEl" class="mt-1.5">
           <ThemeSwitcher />
         </div>
       </section>
     </aside>
 
+    <BottomDock :active="activeTab" @select="onDockSelect" />
+  
     <!-- Year-end seed selection modal -->
     <YearEndSeedSelection
       :show="showYearEndModal"
@@ -199,14 +229,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  onMounted,
-  onBeforeUnmount,
-  reactive,
-  ref,
-  computed,
-  watch,
-} from "vue";
+import { onMounted, onBeforeUnmount, reactive, ref, computed, watch, nextTick } from "vue";
 import {
   SimulationEngine,
   type SimulationConfig,
@@ -221,7 +244,8 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 
 // Components
 import SimulationControls from "@/components/simulation/SimulationControls.vue";
-import InterventionControls from "@/components/simulation/InterventionControls.vue";
+import WeatherControls from "@/components/simulation/WeatherControls.vue";
+import PollinatorControls from "@/components/simulation/PollinatorControls.vue";
 import SeedSelection from "@/components/simulation/SeedSelection.vue";
 import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
@@ -230,12 +254,14 @@ import LegendOverlay from "@/components/simulation/LegendOverlay.vue";
 import SimulationPersistence from "@/components/simulation/SimulationPersistence.vue";
 import TileInspector from "@/components/simulation/TileInspector.vue";
 import PopulationGraph from "@/components/simulation/PopulationGraph.vue";
+import EcosystemOverview from "@/components/simulation/EcosystemOverview.vue";
 import ThemeSwitcher from "@/components/simulation/ThemeSwitcher.vue";
+import BottomDock from "@/components/simulation/BottomDock.vue";
 import { SimDB } from "@/persistence/SimDB";
 import { SqliteSimDB } from "@/persistence/SqliteSimDB";
 import { dropdown as vDropdown } from "@/utils/dropdown";
 // Register local directive for collapsible sections
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore - defineOptions macro provided by Vue
 defineOptions({ directives: { dropdown: vDropdown } })
 
@@ -258,6 +284,36 @@ const width = ref(6);
 const height = ref(6);
 const tickHandle = ref<number | null>(null);
 const events = ref<string[]>([]);
+// Dock & derived metrics
+const activeTab = ref('overview')
+const derived = reactive({ seedRate: 0, seedMax: 100 })
+function onDockSelect(v: string) { activeTab.value = v; scrollToSection(v) }
+
+// Section anchors
+const overviewEl = ref<HTMLElement|null>(null)
+const speciesEl = ref<HTMLElement|null>(null)
+const eventsEl = ref<HTMLElement|null>(null)
+const settingsEl = ref<HTMLElement|null>(null)
+const interactionsEl = ref<HTMLElement|null>(null)
+const climateEl = ref<HTMLElement|null>(null)
+const pollinatorsEl = ref<HTMLElement|null>(null)
+
+function scrollToSection(key: string) {
+  const map: Record<string, HTMLElement | null | undefined> = {
+    overview: overviewEl.value,
+    species: speciesEl.value,
+    climate: climateEl.value,
+    hydro: climateEl.value,
+    canopy: interactionsEl.value,
+    pollinators: pollinatorsEl.value,
+    interactions: interactionsEl.value,
+    events: eventsEl.value,
+    settings: settingsEl.value,
+  }
+  nextTick(() => map[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+// Dock & derived metrics
+// (removed duplicate block)
 const selected = ref<{ x: number; y: number } | null>(null);
 
 // Year-end seed selection
@@ -424,6 +480,17 @@ function updateStats() {
   (stats as any).seasonProgress = s.seasonProgress;
   (stats as any).dayFraction = s.dayFraction;
   (stats as any).simDays = (s as any).simDays ?? 0;
+  // Derived: seed rate per day (sum lastTickLanded across chunks / daysPerTick)
+  try {
+    const chunks = engine.value?.getAllChunks() || new Map()
+    let lastTickLanded = 0
+    ;(chunks as Map<string, any>).forEach((ch: any) => {
+      lastTickLanded += ch?.seedStats?.lastTickLanded || 0
+    })
+    const daysPerTick = engine.value?.getDaysPerTick?.() || 1
+    derived.seedRate = Math.round(lastTickLanded / Math.max(1e-6, daysPerTick))
+    derived.seedMax = Math.max(100, derived.seedRate * 2)
+  } catch {}
   
   // Update year progress
   updateYearProgress();

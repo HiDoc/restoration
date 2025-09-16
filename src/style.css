@@ -1,16 +1,29 @@
 @reference "tailwindcss";
 @import "tailwindcss/preflight";
+@import './styles/theme-vars.css';
 @import './styles/components.css';
 @import './styles/game-components.css';
-@import './styles/theme-air.css';
-@import './styles/theme-eco.css';
 
 @tailwind utilities;
+
+/* Map semantic color tokens to Tailwind color names using @theme (Tailwind v4) */
+@theme {
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+}
 
 body {
   margin: 0;
   padding: 0;
-  /* Background is theme-controlled (theme-eco/theme-air) */
+  /* Background is theme-controlled via CSS variables */
   font-family: 'Courier New', monospace;
 }
 

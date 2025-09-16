@@ -57,9 +57,11 @@ export interface SpeciesDefinition {
 
   // Optional asexual (vegetative) reproduction parameters
   asexual?: {
-    methods: Array<'rhizome' | 'stolon'>; // Mechanisms used
-    baseRate: number;                     // Base per-tick chance scaled by environment
-    maxDistance: number;                  // Spread distance within chunk units [0..1]
+    methods: Array<
+      'rhizome' | 'stolon' | 'runner' | 'sucker' | 'plantlet' | 'bulb' | 'tuber' | 'corm' | 'apomixis'
+    >;                                     // Mechanisms used
+    baseRate: number;                      // Base per-tick chance scaled by environment
+    maxDistance: number;                   // Spread distance within chunk units [0..1]
   };
 }
 

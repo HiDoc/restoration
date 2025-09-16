@@ -19,7 +19,6 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { Application, Graphics } from 'pixi.js'
-import { SpriteManager } from '@/render/SpriteManager'
 import { SimulationEngine, type SimulationConfig } from '@/simulation/SimulationEngine'
 import { SpeciesRegistry, SpeciesCategory } from '@/simulation/SpeciesRegistry'
 
@@ -34,19 +33,12 @@ const seasonName = ref('spring')
 const seasonProgress = ref(0)
 
 const size = 512
-const spriteManager = new SpriteManager()
 const speciesSprites = new Map<string, any>()
 const reg = SpeciesRegistry.getInstance()
 
 function toWorld(n: number) { return Math.max(0, Math.min(1, n)) * size }
 
-function pickPlantSprite(speciesId: string) {
-  const def = reg.getSpecies(speciesId)
-  const cat = def?.category
-  if (cat === SpeciesCategory.TREE) return spriteManager.createPlantSprite('large', Math.floor(Math.random()*4))
-  if (cat === SpeciesCategory.SHRUB) return spriteManager.createPlantSprite('medium', Math.floor(Math.random()*4))
-  return spriteManager.createPlantSprite('small', Math.floor(Math.random()*4))
-}
+function pickPlantSprite(_speciesId: string) { return null }
 
 async function initPixi() {
   app = new Application()
@@ -149,7 +141,6 @@ function setScale(scale: 'minute'|'hour'|'day') {
 }
 
 onMounted(async () => {
-  try { await spriteManager.preloadSprites() } catch (e) { console.warn('Sprite preload failed', e) }
   await initPixi()
   await initEngine()
   drawChunk()

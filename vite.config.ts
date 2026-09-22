@@ -19,6 +19,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['./src/tests/setupSimulationRuntime.ts'],
     alias: {
       '@/': './src/'
     },

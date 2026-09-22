@@ -1,7 +1,7 @@
 <template>
   <div class="chunk-sim">
     <div class="toolbar">
-      <button class="btn" @click="start" :disabled="running">▶ Start</button>
+      <button class="btn" @click="start" :disabled="running || !ready">▶ Start</button>
       <button class="btn" @click="pause" :disabled="!running">⏸ Pause</button>
       <span class="label">Scale</span>
       <div class="btn-group">
@@ -12,6 +12,10 @@
       <span class="spacer" />
       <span class="info">Day {{ Math.floor(simDays) }} — {{ seasonName }} ({{ Math.round(seasonProgress*100) }}%)</span>
     </div>
+    <p v-if="initializing" class="status" role="status">Preparing your ecosystem…</p>
+    <p v-else-if="errorMessage" class="status" role="alert">
+      {{ errorMessage }} Reload this page to try again.
+    </p>
     <div ref="root" class="pixi-root" />
   </div>
 </template>
@@ -20,30 +24,38 @@
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { Application, Graphics } from 'pixi.js'
 import { SimulationEngine, type SimulationConfig } from '@/simulation/SimulationEngine'
-import { SpeciesRegistry, SpeciesCategory } from '@/simulation/SpeciesRegistry'
+import { initializeSimulationRuntime } from '@/simulation/rust/SimulationRuntime'
+import { FixedStepLoop } from '@/core/FixedStepLoop'
 
 const root = ref<HTMLElement | null>(null)
 let app: Application | null = null
 let engine: SimulationEngine | null = null
-let tickHandle: number | null = null
+let disposed = false
+let loop: FixedStepLoop | null = null
 const running = ref(false)
+const ready = ref(false)
+const initializing = ref(true)
+const errorMessage = ref('')
 const timeScale = ref<'minute'|'hour'|'day'>('day')
 const simDays = ref(0)
 const seasonName = ref('spring')
 const seasonProgress = ref(0)
 
 const size = 512
-const speciesSprites = new Map<string, any>()
-const reg = SpeciesRegistry.getInstance()
+const speciesSprites = new Map<string, Graphics>()
 
 function toWorld(n: number) { return Math.max(0, Math.min(1, n)) * size }
 
-function pickPlantSprite(_speciesId: string) { return null }
 
 async function initPixi() {
-  app = new Application()
-  await app.init({ width: size, height: size, background: '#0a0a0a', antialias: true })
-  if (root.value) root.value.appendChild((app as any).canvas as HTMLCanvasElement)
+  const application = new Application()
+  await application.init({ width: size, height: size, background: '#0a0a0a', antialias: true })
+  if (disposed) {
+    application.destroy(true)
+    return
+  }
+  app = application
+  if (root.value) root.value.appendChild(app.canvas)
 
   // Background grid
   const g = new Graphics()
@@ -67,27 +79,15 @@ function drawChunk() {
     seen.add(id)
     let s = speciesSprites.get(id)
     if (!s) {
-      const sprite = pickPlantSprite(inst.speciesId)
-      if (sprite) {
-        sprite.anchor.set(0.5)
-        app!.stage.addChild(sprite)
-        speciesSprites.set(id, sprite)
-        s = sprite
-      } else {
-        // Fallback: draw a colored dot if sprites unavailable
-        const dot = new Graphics()
-        dot.beginFill(0x66ccff)
-        dot.drawCircle(0,0,4)
-        dot.endFill()
-        app!.stage.addChild(dot)
-        speciesSprites.set(id, dot)
-        s = dot
-      }
+      const dot = new Graphics().circle(0, 0, 4).fill(0x66ccff)
+      app!.stage.addChild(dot)
+      speciesSprites.set(id, dot)
+      s = dot
     }
     s.x = toWorld(inst.x)
     s.y = toWorld(inst.y)
     const sc = Math.max(0.4, Math.min(2.0, (inst.biomass || 0.2)))
-    if ((s as any).scale) (s as any).scale.set(sc)
+    s.scale.set(sc)
     if ((s as any).alpha !== undefined) (s as any).alpha = Math.max(0.3, Math.min(1.0, inst.health || 1))
   })
 
@@ -101,7 +101,7 @@ function drawChunk() {
   })
 }
 
-async function initEngine() {
+function initEngine() {
   const cfg: SimulationConfig = {
     worldWidth: 1,
     worldHeight: 1,
@@ -126,27 +126,64 @@ function updateOnce() {
 }
 
 function start() {
-  if (tickHandle != null) return
+  if (!ready.value || !loop) return
+  loop.start()
   running.value = true
-  tickHandle = window.setInterval(updateOnce, 100)
 }
 function pause() {
-  if (tickHandle != null) { clearInterval(tickHandle); tickHandle = null }
+  loop?.pause()
   running.value = false
 }
 function setScale(scale: 'minute'|'hour'|'day') {
   timeScale.value = scale
   const minutes = scale === 'minute' ? 1 : scale === 'hour' ? 60 : 1440
-  ;(engine as any)?.setTimePerTickMinutes?.(minutes)
+  engine?.setTimePerTickMinutes(minutes)
+}
+
+function onVisibilityChange() {
+  loop?.setSuspended(document.hidden)
 }
 
 onMounted(async () => {
-  await initPixi()
-  await initEngine()
-  drawChunk()
+  try {
+    await initializeSimulationRuntime()
+    if (disposed) return
+    await initPixi()
+    if (disposed) return
+    initEngine()
+    loop = new FixedStepLoop(updateOnce, {
+      stepMs: 100,
+      onError(error) {
+        pause()
+        ready.value = false
+        errorMessage.value = 'The ecosystem could not advance.'
+        console.error('Chunk simulation stopped:', error)
+      },
+    })
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    onVisibilityChange()
+    drawChunk()
+    ready.value = true
+  } catch (error) {
+    if (!disposed) {
+      errorMessage.value = 'The ecosystem could not load.'
+      console.error('Chunk simulation failed to load:', error)
+    }
+  } finally {
+    if (!disposed) initializing.value = false
+  }
 })
 
-onBeforeUnmount(() => { pause(); if (app) { try { app.destroy(true) } catch {} app = null } })
+onBeforeUnmount(() => {
+  disposed = true
+  ready.value = false
+  pause()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  engine?.pause()
+  engine = null
+  if (app) { app.destroy(true); app = null }
+  speciesSprites.clear()
+})
 </script>
 
 <style scoped>
@@ -161,4 +198,5 @@ onBeforeUnmount(() => { pause(); if (app) { try { app.destroy(true) } catch {} a
 .label { font-size: 12px; color: #ccc; margin-left: 6px; }
 .info { font-size: 12px; color: #ddd; }
 .spacer { width: 16px; display: inline-block; }
+.status { position: relative; padding: 64px 16px 16px; color: #eaeaea; }
 </style>

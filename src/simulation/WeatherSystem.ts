@@ -119,34 +119,35 @@ export class WeatherSystem {
 
   /**
    * Generate new weather events
+   * BALANCE TUNING: Reduced extreme weather frequency for environmental stability
    */
   private generateWeatherEvents(chunks: Map<string, WorldChunk>): void {
-    // Check for storm generation
-    if (this.enableStorms && this.rng.next() < 0.001) { // 0.1% chance per tick
+    // Check for storm generation - reduced frequency
+    if (this.enableStorms && this.rng.next() < 0.0005) { // Reduced from 0.001 (50% less frequent)
       this.generateStorm(chunks);
     }
-    
-    // Check for drought
-    if (this.enableDroughts && this.rng.next() < 0.0005) {
+
+    // Check for drought - reduced frequency
+    if (this.enableDroughts && this.rng.next() < 0.0002) { // Reduced from 0.0005 (60% less frequent)
       this.generateDrought(chunks);
     }
-    
-    // Check for heat wave
-    if (this.enableHeatWaves && this.rng.next() < 0.0003 && this.globalPattern.temperature.base > 25) {
+
+    // Check for heat wave - reduced frequency
+    if (this.enableHeatWaves && this.rng.next() < 0.0001 && this.globalPattern.temperature.base > 25) { // Reduced from 0.0003
       this.generateHeatWave(chunks);
     }
-    
-    // Check for cold snap
-    if (this.enableColdSnaps && this.rng.next() < 0.0003 && this.globalPattern.temperature.base < 15) {
+
+    // Check for cold snap - reduced frequency
+    if (this.enableColdSnaps && this.rng.next() < 0.0001 && this.globalPattern.temperature.base < 15) { // Reduced from 0.0003
       this.generateColdSnap(chunks);
     }
 
-    // Check for wind storm
-    if (this.enableWindStorms && this.rng.next() < 0.0004) {
+    // Check for wind storm - reduced frequency
+    if (this.enableWindStorms && this.rng.next() < 0.0002) { // Reduced from 0.0004
       this.generateWindStorm(chunks);
     }
 
-    // Check for fog
+    // Fog is benign, keep same frequency
     if (this.enableFog && this.rng.next() < 0.0006) {
       this.generateFog(chunks);
     }
@@ -177,24 +178,25 @@ export class WeatherSystem {
 
   /**
    * Generate a drought event
+   * BALANCE TUNING: Reduced duration and intensity to prevent ecosystem collapse
    */
   private generateDrought(chunks: Map<string, WorldChunk>): void {
     const chunkIds = Array.from(chunks.keys());
     if (chunkIds.length === 0) return;
-    
+
     const randomChunk = this.rng.choice(chunkIds);
     const [, x, y] = randomChunk.split('_').map(Number);
-    
+
     const drought: WeatherEvent = {
       type: WeatherEventType.DROUGHT,
-      duration: this.rng.nextInt(500, 1500), // Long duration
-      intensity: this.rng.nextFloat(0.6, 1.0),
-      radius: this.rng.nextInt(3, 8),
+      duration: this.rng.nextInt(300, 800), // Reduced from 500-1500 - shorter droughts
+      intensity: this.rng.nextFloat(0.4, 0.7), // Reduced from 0.6-1.0 - less severe
+      radius: this.rng.nextInt(2, 5), // Reduced from 3-8 - smaller affected area
       centerX: x,
       centerY: y,
       startTick: this.currentTick
     };
-    
+
     this.activeEvents.set(`drought_${this.currentTick}_${Math.random()}`, drought);
   }
 
@@ -351,10 +353,11 @@ export class WeatherSystem {
         break;
         
       case WeatherEventType.DROUGHT:
-        chunk.climateState.rainLikelihood = Math.max(0, chunk.climateState.rainLikelihood - strength * 0.7);
-        chunk.climateState.temperature += strength * 3; // Droughts are hot
-        // Gradually reduce soil moisture
-        chunk.biomeState.moisture = Math.max(0, chunk.biomeState.moisture - strength * 0.02);
+        // BALANCE TUNING: Reduced drought impact to prevent total moisture depletion
+        chunk.climateState.rainLikelihood = Math.max(0, chunk.climateState.rainLikelihood - strength * 0.5); // Reduced from 0.7
+        chunk.climateState.temperature += strength * 2; // Reduced from 3
+        // Gradually reduce soil moisture - slower rate
+        chunk.biomeState.moisture = Math.max(0.05, chunk.biomeState.moisture - strength * 0.012); // Reduced from 0.02, minimum 0.05
         break;
         
       case WeatherEventType.HEAT_WAVE:

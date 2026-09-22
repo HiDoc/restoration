@@ -1,33 +1,33 @@
 <template>
-  <section class="sci-panel p-4">
-    <div class="flex items-center justify-between pb-3 border-b border-border mb-4">
-      <h2 class="text-xl font-semibold tracking-wide text-accent">Ecosystem Overview</h2>
-      <div class="text-sm text-text-secondary">Day {{ stats.simDays?.toFixed?.(0) || 0 }} · {{ stats.seasonName }} · {{ Math.round((stats.seasonProgress||0)*100) }}%</div>
+  <section class="sci-panel space-y-4 border border-emerald-400/20 bg-gradient-to-br from-emerald-950/80 via-slate-950/70 to-slate-950/75 p-5 text-slate-100 shadow-xl">
+    <div class="flex items-center justify-between border-b border-emerald-400/15 pb-3">
+      <h2 class="text-xl font-semibold tracking-wide text-emerald-200">Ecosystem Overview</h2>
+      <div class="text-sm text-slate-300/80">Day {{ stats.simDays?.toFixed?.(0) || 0 }} · {{ stats.seasonName }} · {{ Math.round((stats.seasonProgress||0)*100) }}%</div>
     </div>
 
     <div class="grid grid-cols-12 gap-4">
       <!-- Status list (left) -->
       <div class="col-span-3 space-y-2">
-        <div v-for="s in status" :key="s.label" class="flex items-center gap-2 text-sm">
-          <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface-alt border border-border text-accent text-[10px]">{{ s.icon }}</span>
+        <div v-for="s in status" :key="s.label" class="flex items-center gap-2 text-sm text-slate-200/90">
+          <span class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-emerald-400/40 bg-slate-900/70 text-[11px] text-emerald-200">{{ s.icon }}</span>
           <div>
-            <div class="text-text-primary">{{ s.label }}</div>
-            <div class="text-xs text-text-secondary">{{ s.state }}</div>
+            <div class="font-semibold text-slate-100">{{ s.label }}</div>
+            <div class="text-xs text-slate-300/70">{{ s.state }}</div>
           </div>
         </div>
       </div>
 
       <!-- KPI gauges (center) -->
       <div class="col-span-6 grid grid-cols-3 gap-4">
-        <div v-for="k in kpis" :key="k.title" class="sci-card p-3 text-center">
-          <div class="text-xs text-text-secondary mb-2">{{ k.title }}</div>
+        <div v-for="k in kpis" :key="k.title" class="rounded-xl border border-emerald-400/25 bg-slate-950/70 p-3 text-center text-slate-100 shadow-inner">
+          <div class="mb-2 text-xs uppercase tracking-[0.18em] text-slate-300/70">{{ k.title }}</div>
           <div class="relative mx-auto w-28 h-28 select-none">
-            <div class="absolute inset-0 rounded-full transition-[background] duration-500" :style="{ background: `conic-gradient(var(--color-${k.accent}) ${k.angle}deg, var(--color-border) ${k.angle}deg)` }"></div>
-            <div class="absolute inset-2 rounded-full bg-surface flex items-center justify-center border border-border">
+            <div class="absolute inset-0 rounded-full transition-[background] duration-500" :style="{ background: `conic-gradient(var(--color-${k.accent}) ${k.angle}deg, rgba(15,23,42,0.4) ${k.angle}deg)` }"></div>
+            <div class="absolute inset-2 flex items-center justify-center rounded-full border border-emerald-400/20 bg-slate-950/80">
               <div class="leading-tight">
                 <div class="text-2xl font-semibold">{{ k.display }}</div>
-                <div class="text-[11px] text-text-secondary">{{ k.unit }}</div>
-                <div v-if="k.delta != null" class="text-[11px] mt-0.5" :class="k.deltaClass">
+                <div class="text-[11px] text-slate-300/70">{{ k.unit }}</div>
+                <div v-if="k.delta != null" class="mt-0.5 text-[11px]" :class="k.deltaClass">
                   {{ k.delta > 0 ? '↗ +' : k.delta < 0 ? '↘ ' : '→ ' }}{{ formatDelta(k) }}
                 </div>
               </div>
@@ -39,11 +39,11 @@
       <!-- Right-side quick facts -->
       <div class="col-span-3 space-y-3">
         <div v-for="q in quick" :key="q.label">
-          <div class="flex items-center justify-between text-xs mb-1">
-            <span class="text-text-secondary">{{ q.label }}</span>
-            <span class="text-text-primary font-medium">{{ q.formatted }}</span>
+          <div class="mb-1 flex items-center justify-between text-xs text-slate-300/70">
+            <span>{{ q.label }}</span>
+            <span class="font-medium text-slate-100">{{ q.formatted }}</span>
           </div>
-          <div class="h-1.5 w-full rounded bg-border overflow-hidden">
+          <div class="h-1.5 w-full overflow-hidden rounded bg-slate-800/60">
             <div class="h-full rounded" :style="{ width: Math.round(q.pct*100) + '%', background: `var(--color-${q.color})` }"></div>
           </div>
         </div>
@@ -78,7 +78,7 @@ function pickDeltaClass(title: string, delta: number): string {
   const goodUp = title !== 'Pollution'
   const positive = delta > 0
   const good = (goodUp && positive) || (!goodUp && !positive && delta !== 0)
-  return good ? 'text-success' : (delta === 0 ? 'text-text-secondary' : 'text-danger')
+  return good ? 'text-emerald-300' : (delta === 0 ? 'text-slate-400' : 'text-rose-300')
 }
 function formatDelta(k: any): string {
   if (k.unit === '%') return `${Math.abs(k.delta)}%`

@@ -17,7 +17,7 @@ describe('SimulationEngine year-end callbacks', () => {
     })
     engine.activateAllChunks()
 
-    let calls: number[] = []
+    const calls: number[] = []
     engine.onYearEnd((y) => calls.push(y))
 
     // Advance through 3 years

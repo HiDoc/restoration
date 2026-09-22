@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { GeneticSystem } from '@/simulation/GeneticSystem'
-import { SpeciesRegistry, SpeciesDefinition } from '@/simulation/SpeciesRegistry'
+import { SpeciesDefinition } from '@/simulation/SpeciesRegistry'
 import { RNGManager } from '@/simulation/SeededRNG'
 import { WorldChunk, SpeciesInstance, PhenologyStage } from '@/simulation/WorldChunk'
 import { VegetationSystem } from '@/simulation/VegetationSystem'
@@ -316,7 +316,6 @@ describe('Integration with Vegetation System', () => {
     
     // Track initial values
     const initialBiomass = species.biomass
-    const initialHealth = species.health
     
     // Run simulation for multiple ticks
     for (let i = 0; i < 10; i++) {

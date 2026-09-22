@@ -46,7 +46,7 @@ export class EventJournal {
   private replayIndex: number = 0;
   private maxEvents: number = 10000; // Prevent memory overflow
 
-  constructor() {}
+  constructor(private readonly clock: () => number = Date.now) {}
 
   /**
    * Record a new event
@@ -59,7 +59,7 @@ export class EventJournal {
 
     const event: SimulationEvent = {
       tick: this.currentTick,
-      timestamp: Date.now(),
+      timestamp: this.clock(),
       type,
       data: JSON.parse(JSON.stringify(data)), // Deep clone to prevent mutations
       chunkId,
@@ -214,7 +214,7 @@ export class EventJournal {
     return JSON.stringify({
       events: this.events,
       currentTick: this.currentTick,
-      exportTimestamp: Date.now()
+      exportTimestamp: this.clock()
     }, null, 2);
   }
 

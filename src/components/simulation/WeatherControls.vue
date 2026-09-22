@@ -30,14 +30,21 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  storms: boolean;
-  droughts: boolean;
-  heatWaves: boolean;
-  coldSnaps: boolean;
-  windStorms: boolean;
-  fog: boolean;
-}>();
+withDefaults(defineProps<{
+  storms?: boolean;
+  droughts?: boolean;
+  heatWaves?: boolean;
+  coldSnaps?: boolean;
+  windStorms?: boolean;
+  fog?: boolean;
+}>(), {
+  storms: false,
+  droughts: false,
+  heatWaves: false,
+  coldSnaps: false,
+  windStorms: false,
+  fog: false,
+});
 
 const emit = defineEmits<{
   'update:storms': [value: boolean];

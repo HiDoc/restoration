@@ -181,10 +181,16 @@ export class SpeciesDatabase {
     if (!this.db) throw new Error('Database not initialized')
 
     const schemaPath = path.join(__dirname, 'schema.sql')
+    const researchSchemaPath = path.join(__dirname, 'research-schema.sql')
+
     const schema = await fs.readFile(schemaPath, 'utf-8')
+    const researchSchema = await fs.readFile(researchSchemaPath, 'utf-8')
+
+    // Execute both schemas
+    const combinedSchema = schema + '\n\n' + researchSchema
 
     return new Promise((resolve, reject) => {
-      this.db!.exec(schema, (err) => {
+      this.db!.exec(combinedSchema, (err) => {
         if (err) {
           reject(new Error(`Failed to create schema: ${err.message}`))
           return

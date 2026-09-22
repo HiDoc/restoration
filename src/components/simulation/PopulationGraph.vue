@@ -20,7 +20,7 @@
         </button>
         <button 
           class="sci-btn text-xs px-2 py-1" 
-          :class="{ 'outline outline-2 outline-primary-400 outline-offset-[-2px]': showEnvironmental }"
+          :class="{ 'outline outline-2 outline-primary-400 outline-offset-[-2px]': environmentalVisible }"
           @click="toggleEnvironmentalView"
           title="Toggle environmental data view"
         >
@@ -46,7 +46,7 @@
       >
         <div class="font-bold mb-1 text-primary-400">Tick {{ tooltipData.tick }}</div>
         
-        <div v-if="!showEnvironmental">
+        <div v-if="!environmentalVisible">
           <div v-for="(count, species) in tooltipData.populations" :key="species" class="tooltip-row">
             <span class="w-2 h-2 rounded-full inline-block" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
             {{ getSpeciesName(species) }}: {{ count }}
@@ -68,7 +68,7 @@
     </div>
     
     <div class="flex flex-wrap gap-3 mb-3 p-2 sci-panel">
-      <div v-if="!showEnvironmental">
+      <div v-if="!environmentalVisible">
         <div v-for="species in visibleSpecies" :key="species" class="flex items-center gap-1.5 text-xs">
           <span class="w-2.5 h-2.5 rounded-full inline-block" :style="{ backgroundColor: getSpeciesColor(species) }"></span>
           <span>{{ getSpeciesName(species) }}</span>
@@ -157,7 +157,7 @@ const populationHistory = ref<PopulationDataPoint[]>([])
 const isPaused = ref(false)
 const canvasWidth = ref(600)
 const canvasHeight = ref(300)
-const showEnvironmental = ref(true)
+const environmentalVisible = ref(props.showEnvironmental ?? true)
 const selectedMetrics = ref(new Set(['avgTemperature', 'avgMoisture', 'avgVitality']))
 
 // Species colors for consistent visualization
@@ -169,7 +169,7 @@ const colorPalette = [
 ]
 
 // Environmental metric colors and configs
-const environmentalMetrics = {
+const environmentalMetrics: Record<string, { name: string; color: string; scale: [number, number] }> = {
   avgTemperature: { name: 'Temperature', color: '#ef4444', scale: [0, 40] },
   avgMoisture: { name: 'Moisture', color: '#06b6d4', scale: [0, 1] },
   avgVitality: { name: 'Vitality', color: '#4ade80', scale: [0, 1] },
@@ -306,7 +306,7 @@ function toggleEnvironmentalMetric(metric: string) {
 }
 
 function toggleEnvironmentalView() {
-  showEnvironmental.value = !showEnvironmental.value
+  environmentalVisible.value = !environmentalVisible.value
   nextTick(() => drawGraph())
 }
 
@@ -341,16 +341,13 @@ function drawGraph() {
   }
   
   const padding = 40
-  const rightPadding = showEnvironmental.value ? 80 : 40
+  const rightPadding = environmentalVisible.value ? 80 : 40
   const graphWidth = width - padding - rightPadding
   const graphHeight = height - padding * 2
   
   const minTick = populationHistory.value[0].tick
   const maxTick = populationHistory.value[populationHistory.value.length - 1].tick
   const tickRange = Math.max(1, maxTick - minTick)
-  
-  // Determine y-axis scale based on what we're showing
-  const maxScale = showEnvironmental.value ? 1 : maxPopulation.value
   
   // Draw grid
   ctx.strokeStyle = '#333'
@@ -383,7 +380,7 @@ function drawGraph() {
     ctx.stroke()
     
     // Left axis labels (population or normalized)
-    if (showEnvironmental.value) {
+    if (environmentalVisible.value) {
       const value = i / steps
       ctx.fillStyle = '#888'
       ctx.font = '10px monospace'
@@ -399,7 +396,7 @@ function drawGraph() {
   }
   
   // Draw environmental metrics if enabled
-  if (showEnvironmental.value) {
+  if (environmentalVisible.value) {
     selectedMetrics.value.forEach(metricKey => {
       const metric = environmentalMetrics[metricKey as keyof typeof environmentalMetrics]
       if (!metric) return
@@ -441,7 +438,7 @@ function drawGraph() {
   }
   
   // Draw species lines (normalized to 0-1 if environmental view is on)
-  if (!showEnvironmental.value) {
+  if (!environmentalVisible.value) {
     visibleSpecies.value.forEach(speciesId => {
       const color = getSpeciesColor(speciesId)
       ctx.strokeStyle = color
@@ -449,7 +446,7 @@ function drawGraph() {
       ctx.beginPath()
       
       let isFirstPoint = true
-      populationHistory.value.forEach((point, index) => {
+      populationHistory.value.forEach((point) => {
         const count = point.populations[speciesId] || 0
         if (count > 0 || !isFirstPoint) {
           const x = padding + ((point.tick - minTick) / tickRange) * graphWidth
@@ -513,7 +510,6 @@ function onMouseMove(event: MouseEvent) {
   
   const rect = canvas.value.getBoundingClientRect()
   const mouseX = event.clientX - rect.left
-  const mouseY = event.clientY - rect.top
   
   const padding = 40
   const graphWidth = canvasWidth.value - padding * 2

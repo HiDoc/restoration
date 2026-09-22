@@ -19,8 +19,6 @@ describe('VegetationSystem growth and reproduction with genetics', () => {
   }
 
   it('applies genetic growth_efficiency to increase growth rate', () => {
-    const reg = SpeciesRegistry.getInstance()
-    const def = reg.getSpecies('common_grass')!
     const veg = new VegetationSystem()
     const chunk = makeFavorableChunk()
 

@@ -1,5 +1,7 @@
 <template>
-  <router-view />
+  <main class="p-5">
+    <router-view />
+  </main>
 </template>
 
 <script setup lang="ts">

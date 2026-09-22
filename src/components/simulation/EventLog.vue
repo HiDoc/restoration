@@ -1,17 +1,17 @@
 <template>
-  <aside class="sci-panel grid grid-rows-[auto_1fr] max-h-[60vh]">
-    <div class="sci-header px-2 py-2 font-semibold">Events</div>
-    <div class="p-2 overflow-y-auto grid gap-1.5 text-xs" ref="chatListEl">
-      <div v-for="(event, i) in events" :key="i" class="opacity-80">{{ event }}</div>
+  <div class="grid gap-1 text-[0.7rem]" ref="chatListEl">
+    <div v-for="event in events" :key="event.id" class="flex items-start gap-1.5 text-slate-200/90 leading-tight">
+      <span class="text-[0.65rem] text-emerald-200/70 flex-shrink-0 font-mono">{{ event.timeLabel }}</span>
+      <span class="flex-1 min-w-0 break-words">{{ event.message }}</span>
     </div>
-  </aside>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 
 const props = defineProps<{
-  events: string[];
+  events: Array<{ id: number; message: string; timeLabel: string }>;
 }>();
 
 const chatListEl = ref<HTMLElement | null>(null);

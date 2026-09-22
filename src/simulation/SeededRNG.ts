@@ -55,7 +55,7 @@ export class SeededRNG {
    */
   nextGaussian(mean: number = 0, stdDev: number = 1): number {
     // Box-Muller transform
-    const u1 = this.next();
+    const u1 = Math.max(Number.MIN_VALUE, this.next());
     const u2 = this.next();
     const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     return z0 * stdDev + mean;
@@ -109,6 +109,11 @@ export class RNGManager {
     this.masterRNG = new SeededRNG(masterSeed);
   }
 
+  /** Create an independent owner for an engine without changing legacy global users. */
+  static create(masterSeed: number): RNGManager {
+    return new RNGManager(masterSeed);
+  }
+
   static initialize(masterSeed: number): RNGManager {
     RNGManager.instance = new RNGManager(masterSeed);
     return RNGManager.instance;
@@ -145,7 +150,7 @@ export class RNGManager {
    */
   private logEvent(event: string, state: number): void {
     this.eventLog.push({
-      timestamp: Date.now(),
+      timestamp: this.eventLog.length,
       event,
       state
     });

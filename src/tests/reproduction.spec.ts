@@ -166,7 +166,6 @@ describe('Reproduction Need and Environmental Quality', () => {
       lastReproductionAttempt: 0,
     })
     
-    const beforeSize = chunk.species.size
     let grassSpecies = chunk.species.get('grass2')
     
     // Run shorter simulation (species survive well for ~100 ticks in perfect conditions)

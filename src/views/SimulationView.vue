@@ -1,221 +1,208 @@
 <template>
-  <div class="grid grid-cols-[1fr_300px] min-h-full max-h-full">
-
-
-    <main class="p-3 pb-20 flex gap-3 flex-col relative max-h-screen overflow-y-auto">
-
-      <div ref="overviewEl">
-        <EcosystemOverview :stats="stats" :year-progress="yearProgress" :seed-rate="derived.seedRate" :seed-max="derived.seedMax" />
-      </div>
-
-      <div ref="speciesEl">
-      <PopulationGraph 
-        :current-tick="stats.currentTick"
-        :total-species="stats.totalSpecies"
-        :chunks="engine?.getAllChunks()"
+  <div class="flex h-screen flex-col text-slate-100 overflow-hidden" :class="viewMode === 'contemplative' ? 'bg-transparent' : 'bg-slate-950/95'">
+    <div v-if="isInitializing || initializationError || !engine" class="m-auto max-w-md px-6 text-center" role="status" aria-live="polite">
+      <p class="text-lg font-semibold">{{ initializationError ? 'The ecosystem could not load' : 'Preparing your ecosystem…' }}</p>
+      <p v-if="initializationError" class="mt-3 text-sm text-slate-300">Check your connection, then try again.</p>
+      <button v-if="initializationError" type="button" class="sci-btn mt-5 px-4 py-2" @click="init">Try again</button>
+    </div>
+    <template v-else>
+    <div v-if="runtimeError" class="border-b border-rose-400/30 bg-slate-950 px-4 py-3 text-sm text-rose-100" role="alert">
+      The simulation stopped unexpectedly. Load a saved ecosystem or restart to continue.
+      <button type="button" class="sci-btn ml-3 px-3 py-1" @click="loadLatestSnapshot">Load</button>
+      <button type="button" class="sci-btn ml-2 px-3 py-1" @click="restartAfterExtinction">Restart</button>
+    </div>
+    <!-- Contemplative View -->
+    <template v-if="viewMode === 'contemplative'">
+      <!-- Floating Controls -->
+      <FloatingControls
+        :is-running="isRunning"
+        :season-name="(stats as any).seasonName ?? 'Season'"
+        :current-year="currentYear"
+        :speed="options.tickMs"
+        :year-progress="yearProgress"
+        :blocked="showYearEndModal || extinction.triggered || !!runtimeError"
+        :saving="isSaving"
+        :loading="isLoadingSnapshot"
+        :view-mode="viewMode"
+        @toggle-play="toggleRunState"
+        @decrease-speed="decreaseSpeed"
+        @increase-speed="increaseSpeed"
+        @step="stepOnce"
+        @save="saveSnapshot"
+        @load="loadLatestSnapshot"
+        @scenarios="scenarioStore.openScenarioSelector()"
+        @toggle-view-mode="toggleViewMode"
       />
-      </div>
 
-      <div class="grid grid-cols-[1fr_280px] gap-3 items-start">
+      <!-- Fullscreen Ecosystem Canvas -->
+      <main class="flex-1 flex items-center justify-center overflow-hidden contemplative-canvas">
         <ChunkGrid
-          :chunk-grid="chunkGrid"
+          :chunk-grid="displayChunkGrid"
           :width="width"
-          :show-labels="options.showLabels"
-          :viz-mode="options.vizMode"
+          :show-labels="false"
+          :viz-mode="'rgb'"
           :engine="engine"
           :selected="selected"
+          :season-name="(stats as any).seasonName ?? 'Season'"
+          :contemplative="true"
           @select="onSelectChunk"
         />
+      </main>
+    </template>
 
-        <div v-if="selectedChunk" class="flex flex-col gap-1.5">
-          <TileInspector :chunk="selectedChunk" @close="clearSelection" />
+    <!-- Analytical View (Original Layout) -->
+    <template v-else>
+      <!-- Fixed Header - Compact -->
+      <header class="flex-shrink-0 flex items-center justify-between gap-4 border-b border-sky-400/25 bg-slate-900/70 px-4 py-2 shadow-lg">
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sky-200/80">
+            <span>{{ (stats as any).seasonName ?? 'Season' }}</span>
+            <span class="text-xs font-normal text-sky-300/70">Y{{ currentYear }}</span>
+          </div>
+          <div class="flex items-center gap-2 min-w-[120px]">
+            <div class="h-1.5 flex-1 rounded-full bg-slate-800">
+              <div
+                class="h-1.5 rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 to-lime-400 transition-all"
+                :style="{ width: `${Math.round((yearProgress ?? 0) * 100)}%` }"
+              ></div>
+            </div>
+            <span class="text-xs text-slate-300/80 whitespace-nowrap">{{ Math.round((yearProgress ?? 0) * 100) }}%</span>
+          </div>
         </div>
-        <div v-else ref="eventsEl">
-          <EventLog :events="events" />
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <span class="text-xs text-slate-300/80">T{{ stats.currentTick }}</span>
+          <button type="button" class="sci-btn px-2 py-1 text-xs" :disabled="options.tickMs >= 1000" aria-label="Slower simulation" @click="decreaseSpeed">−</button>
+          <span class="text-xs tabular-nums">×{{ Number((100 / options.tickMs).toFixed(2)) }}</span>
+          <button type="button" class="sci-btn px-2 py-1 text-xs" :disabled="options.tickMs <= 10" aria-label="Faster simulation" @click="increaseSpeed">+</button>
+          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isRunning || showYearEndModal || extinction.triggered || !!runtimeError" @click="stepOnce">Step one day</button>
+          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isSaving" @click="saveSnapshot">{{ isSaving ? 'Saving…' : 'Save' }}</button>
+          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isLoadingSnapshot" @click="loadLatestSnapshot">{{ isLoadingSnapshot ? 'Loading…' : 'Load' }}</button>
+          <button type="button" class="sci-btn px-3 py-1.5 text-xs" @click="scenarioStore.openScenarioSelector()">Scenarios</button>
+          <button
+            type="button"
+            :disabled="showYearEndModal || extinction.triggered || !!runtimeError"
+            class="sci-btn flex items-center gap-2 border border-sky-400/60 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-sky-100 transition-colors hover:border-sky-300 hover:bg-sky-900/40"
+            @click="toggleRunState"
+          >
+            <span>{{ isRunning ? '⏸' : '▶' }}</span>
+            {{ isRunning ? 'Pause' : 'Play' }}
+          </button>
+          <button
+            type="button"
+            class="sci-btn flex items-center gap-2 border border-amber-400/60 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-colors hover:border-amber-300 hover:bg-amber-900/40"
+            @click="toggleViewMode"
+            title="Switch to Contemplative View"
+          >
+            <span>🌿</span>
+          </button>
         </div>
+      </header>
+
+    <!-- Extinction Alert - Positioned Above Content -->
+    <div
+      v-if="extinction.triggered"
+      class="flex-shrink-0 flex items-center justify-between gap-3 border-b border-rose-400/30 bg-gradient-to-r from-rose-900/70 via-amber-900/20 to-transparent px-4 py-2 text-rose-100"
+      role="status"
+    >
+      <span class="text-sm font-semibold">💀 All species collapsed at tick {{ extinction.sinceTick }}</span>
+      <div class="flex items-center gap-2">
+        <button
+          class="sci-btn text-xs border border-rose-300/60 bg-rose-900/60 text-rose-100 px-3 py-1 transition-colors hover:border-rose-200 hover:bg-rose-700/60"
+          @click="restartAfterExtinction"
+        >
+          🔄 Restart
+        </button>
+        <button
+          class="sci-btn text-xs border border-rose-300/40 bg-rose-900/50 text-rose-100 px-3 py-1 transition-colors hover:border-rose-200 hover:bg-rose-700/50"
+          @click="loadLatestSnapshot"
+        >
+          📥 Load
+        </button>
       </div>
+    </div>
 
-      <LegendOverlay
-        :overlay-legend="options.overlayLegend"
-        :viz-mode="options.vizMode"
-      />
+    <!-- Main Content - Fixed Height Grid with new panels -->
+    <main class="flex-1 grid grid-cols-[1fr_300px_280px_280px_280px] gap-3 px-3 py-3 overflow-hidden">
+      <!-- Chunk Grid - Takes remaining space -->
+      <section class="sci-panel flex flex-col border border-emerald-400/25 bg-gradient-to-br from-emerald-950/75 via-slate-950/65 to-slate-950/80 p-3 shadow-xl overflow-hidden chunk-grid-container">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-emerald-100 mb-2 flex-shrink-0">Chunk Grid</h2>
+        <div class="flex-1 overflow-hidden">
+          <ChunkGrid
+            :chunk-grid="displayChunkGrid"
+            :width="width"
+            :show-labels="options.showLabels"
+            :viz-mode="options.vizMode"
+            :engine="engine"
+            :selected="selected"
+            @select="onSelectChunk"
+          />
+        </div>
+      </section>
+
+      <!-- Goals + Event Feed - Stacked in one column -->
+      <aside class="flex flex-col gap-3 overflow-hidden event-log-container">
+        <!-- Goals Panel -->
+        <div class="flex-1 overflow-hidden goals-panel">
+          <GoalsPanel />
+        </div>
+
+        <!-- Event Feed - Compact -->
+        <div class="sci-panel flex flex-col border border-sky-400/25 bg-gradient-to-br from-slate-950/70 via-slate-950/60 to-slate-950/75 p-3 shadow-lg overflow-hidden" style="max-height: 300px;">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-sky-200 mb-2 flex-shrink-0">Events</h2>
+          <div class="flex-1 overflow-y-auto overflow-x-hidden">
+            <EventLog :events="events" />
+          </div>
+        </div>
+      </aside>
+
+      <!-- Research Panel - Fixed width, scrollable content -->
+      <aside class="sci-panel overflow-hidden research-panel">
+        <ResearchPanel
+          @open-field-guide="researchStore.openFieldGuide()"
+          @select-question="(q) => console.log('Selected question:', q)"
+        />
+      </aside>
+
+      <!-- Hybridization Panel - Fixed width, scrollable content -->
+      <aside class="sci-panel overflow-hidden">
+        <HybridizationPanel
+          :lineages="hybridizationLineages"
+          :stats="hybridizationStats"
+          @open-tree="showHybridizationTree = true"
+          @view-hybrid="viewHybrid"
+        />
+      </aside>
+
+      <!-- Intervention Panel - NEW! Fixed width, scrollable content -->
+      <aside class="sci-panel overflow-hidden intervention-panel">
+        <InterventionPanel :engine="engine" />
+      </aside>
     </main>
 
-        <aside class="p-3 sci-divider-r flex gap-3 flex-col overflow-y-auto max-h-screen">
-      <section class="sci-panel p-2.5" v-if="!props.gameMode">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Controls</span>
-          <span class="sci-collapse-toggle">−</span>
+    <!-- Hybridization Tree Modal (for analytical view) -->
+    <div
+      v-if="showHybridizationTree"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
+      @click.self="showHybridizationTree = false"
+    >
+      <div class="w-[90vw] h-[90vh] overflow-auto">
+        <div class="flex justify-end mb-2">
+          <button
+            class="sci-btn text-xs py-1 px-3"
+            @click="showHybridizationTree = false"
+          >
+            ✕ Close
+          </button>
         </div>
-        <div ref="interactionsEl" class="mt-1.5">
-          <SimulationControls
-            :tick-ms="options.tickMs"
-            :step-count="options.stepCount"
-            :is-running="isRunning"
-            @start="start"
-            @pause="pause"
-            @step="step"
-            @multi-step="multiStep"
-            @update:tick-ms="updateTickMs"
-            @update:step-count="options.stepCount = $event"
-          />
-          <div class="flex gap-2 flex-wrap mb-1.5">
-            <button class="sci-btn" @click="applyActiveRadius" title="Activate chunks around center">🟩 Apply Active Radius</button>
-            <button class="sci-btn" @click="recreate" title="Recreate world with current size">🔁 Recreate World</button>
-          </div>
-          <div class="flex gap-2 flex-wrap mb-1.5">
-            <button class="sci-btn" @click="plantCenter" title="Plant selected species at world center">🌱 Plant Center</button>
-            <button class="sci-btn" @click="plantRandom" title="Plant selected species randomly">🎲 Plant Random</button>
-          </div>
-          <div class="flex gap-2 flex-wrap mb-1.5">
-            <button class="sci-btn" @click="irrigateCenter" :title="`Add moisture +${options.irrigateAmount.toFixed(2)} at center`">💧 Irrigate Center</button>
-            <button class="sci-btn" @click="cleanseCenter" :title="`Reduce pollution -${options.cleanseAmount.toFixed(2)} at center`">🧹 Cleanse Center</button>
-          </div>
-        </div>
-      </section>
+        <HybridizationTree
+          :lineages="hybridizationLineages"
+          :stats="hybridizationStats"
+        />
+      </div>
+    </div>
+    </template>
 
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Climate</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div ref="climateEl" class="mt-1.5">
-          <WeatherControls />
-        </div>
-      </section>
-
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Pollinators</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div ref="pollinatorsEl" class="mt-1.5">
-          <PollinatorControls />
-        </div>
-      </section>
-
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Time</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div class="mt-1.5">
-          <div class="flex justify-between">
-            <span>Season&nbsp;</span><b>{{ (stats as any).seasonName }} ({{ Math.round(((stats as any).seasonProgress || 0)*100) }}%)</b>
-          </div>
-          <div class="flex justify-between">
-            <span>Year</span><b>{{ currentYear }}</b>
-          </div>
-          <div class="flex flex-col gap-1 mb-1.5">
-            <span>Year Progress</span>
-            <div class="sci-progress">
-              <div class="sci-progress-bar eco-bar-vitality transition-all duration-300 ease-in-out" :style="{ width: (yearProgress * 100) + '%' }"></div>
-            </div>
-            <span class="text-xs text-center">{{ Math.round(yearProgress * 100) }}%</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Time Control</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div class="mt-1.5">
-          <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-2">
-              <button
-                class="sci-btn-primary w-full justify-center flex"
-                @click="start"
-                :disabled="isRunning"
-                title="Start the simulation"
-              >
-                ▶ Start
-              </button>
-              <button
-                class="sci-btn w-full justify-center flex"
-                @click="pause"
-                :disabled="!isRunning"
-                title="Pause the simulation"
-              >
-                ⏸ Pause
-              </button>
-              <button class="sci-btn w-full justify-center flex" @click="step" title="Advance one tick">
-                ⏭ Step
-              </button>
-            </div>
-            
-            <div class="flex flex-col gap-2">
-              <label class="text-xs flex flex-col gap-1.5">
-                Speed
-                <input
-                  class="w-full m-0"
-                  type="range"
-                  min="10"
-                  max="500"
-                  step="10"
-                  v-model.number="options.tickMs"
-                  @input="updateTickMs(options.tickMs)"
-                />
-              </label>
-            </div>
-            
-            <div class="flex flex-col gap-2">
-              <span class="text-xs">Time Scale</span>
-              <div class="flex gap-1">
-                <button class="sci-btn sci-btn-sm flex-1 text-xs" :class="{'outline outline-2 outline-primary-400 outline-offset-[-2px]': options.timeScale==='minute'}" @click="setTimeScale('minute')" title="1 minute per tick">1m</button>
-                <button class="sci-btn sci-btn-sm flex-1 text-xs" :class="{'outline outline-2 outline-primary-400 outline-offset-[-2px]': options.timeScale==='hour'}" @click="setTimeScale('hour')" title="1 hour per tick">1h</button>
-                <button class="sci-btn sci-btn-sm flex-1 text-xs" :class="{'outline outline-2 outline-primary-400 outline-offset-[-2px]': options.timeScale==='day'}" @click="setTimeScale('day')" title="1 day per tick">1d</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Seed Selection</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div class="mt-1.5">
-          <SeedSelection :engine="engine" />
-        </div>
-      </section>
-
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Persistence</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div class="mt-1.5">
-          <SimulationPersistence
-            :auto-save="persist.autoSave"
-            :interval="persist.interval"
-            :last-saved-tick="persist.lastSavedTick"
-            :backend="persist.backend"
-            @update:auto-save="persist.autoSave = $event"
-            @update:interval="persist.interval = $event"
-            @update:backend="switchBackend($event)"
-            @save-now="saveSnapshot"
-            @load-latest="loadLatestSnapshot"
-            @clear-saves="clearSaves"
-          />
-        </div>
-      </section>
-      <section class="sci-panel p-2.5">
-        <div class="sci-header flex items-center justify-between font-semibold -m-1 p-1 mb-2" v-dropdown>
-          <span>Appearance</span>
-          <span class="sci-collapse-toggle">−</span>
-        </div>
-        <div ref="settingsEl" class="mt-1.5">
-          <ThemeSwitcher />
-        </div>
-      </section>
-    </aside>
-
-    <BottomDock :active="activeTab" @select="onDockSelect" />
-  
-    <!-- Year-end seed selection modal -->
+    <!-- Common modals for both views -->
     <YearEndSeedSelection
       :show="showYearEndModal"
       :year="completedYear"
@@ -225,95 +212,136 @@
       @close="showYearEndModal = false"
       @confirm="onYearEndConfirm"
     />
+
+    <SpeciesDiscoveryModal
+      :show="researchStore.showDiscoveryModal"
+      :discovery="researchStore.latestDiscovery"
+      :species-name="researchStore.latestDiscovery ? getSpeciesName(researchStore.latestDiscovery.speciesId) : ''"
+      @close="researchStore.closeDiscoveryModal()"
+      @open-field-guide="researchStore.closeDiscoveryAndOpenFieldGuide()"
+    />
+
+    <FieldGuidePanel
+      :show="researchStore.showFieldGuide"
+      :total-species="SpeciesRegistry.getInstance().getAllSpecies().length"
+      @close="researchStore.closeFieldGuide()"
+    />
+
+    <!-- NEW GAMEPLAY MODALS -->
+
+    <!-- Tutorial Welcome Modal -->
+    <WelcomeModal
+      :show="tutorialStore.showWelcomeModal"
+      @close="tutorialStore.dismissWelcome()"
+      @start-tutorial="startTutorial"
+      @skip="skipTutorial"
+    />
+
+    <!-- Tutorial Tooltip Overlay -->
+    <TooltipOverlay
+      :show="tutorialStore.showTooltip && tutorialStore.activeTooltip !== null"
+      :target-selector="tutorialStore.activeTooltip?.targetElement"
+      :title="tutorialStore.activeTooltip?.title || ''"
+      :content="tutorialStore.activeTooltip?.content || ''"
+      :placement="tutorialStore.activeTooltip?.placement"
+      @next="tutorialStore.completeCurrentStep()"
+      @skip="tutorialStore.skipTutorial()"
+    />
+
+    <!-- Scenario Selector Modal -->
+    <ScenarioSelector
+      :show="scenarioStore.showScenarioSelector"
+      :scenarios="scenarioStore.availableScenarios"
+      :completed-scenario-ids="scenarioStore.completedScenarioIds"
+      @close="scenarioStore.closeScenarioSelector()"
+      @select="startScenario"
+    />
+
+    <!-- Scenario Progress HUD -->
+    <ScenarioProgress
+      v-if="scenarioStore.hasActiveScenario"
+      :scenario="scenarioStore.activeScenario"
+      :time-remaining="scenarioStore.timeRemaining"
+      :time-progress="scenarioStore.timeProgress"
+      :scenario-progress="scenarioStore.scenarioProgress"
+      :completed-goals-count="goalsStore.completionCount"
+    />
+
+    <!-- Chunk Inspector -->
+    <ChunkInspector
+      :show="showChunkInspector"
+      :chunk="selectedChunkForInspection"
+      @close="showChunkInspector = false"
+      @apply-intervention="applyInterventionFromInspector"
+    />
+    <p v-if="saveNotice" class="fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
+    <div v-if="extinction.triggered && viewMode === 'contemplative'" class="fixed bottom-6 left-6 z-[110] rounded-lg bg-slate-950 px-4 py-3 text-sm" role="status">
+      No living plants or viable seeds remain.
+      <button type="button" class="sci-btn ml-3 px-3 py-1" @click="restartAfterExtinction">Restart</button>
+      <button type="button" class="sci-btn ml-2 px-3 py-1" @click="loadLatestSnapshot">Load</button>
+    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, reactive, ref, computed, watch, nextTick } from "vue";
+import { onMounted, onBeforeUnmount, reactive, ref, computed, watch, type Ref } from "vue";
 import {
   SimulationEngine,
   type SimulationConfig,
 } from "@/simulation/SimulationEngine";
-import { WeatherSystem } from "@/simulation/WeatherSystem";
-import { HydrologySystem } from "@/simulation/HydrologySystem";
-import { CanopySystem } from "@/simulation/CanopySystem";
-import { PollinatorSystem } from "@/simulation/PollinatorSystem";
-import { BirdsSystem } from "@/simulation/BirdsSystem";
-import { VegetationSystem } from "@/simulation/VegetationSystem";
+import { FixedStepLoop } from "@/core/FixedStepLoop";
+import { advanceDailyIncome } from "@/simulation/GameplayEconomy";
+import { initializeSimulationRuntime } from "@/simulation/rust/SimulationRuntime";
 import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 
 // Components
-import SimulationControls from "@/components/simulation/SimulationControls.vue";
-import WeatherControls from "@/components/simulation/WeatherControls.vue";
-import PollinatorControls from "@/components/simulation/PollinatorControls.vue";
-import SeedSelection from "@/components/simulation/SeedSelection.vue";
 import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import EventLog from "@/components/simulation/EventLog.vue";
-import LegendOverlay from "@/components/simulation/LegendOverlay.vue";
-import SimulationPersistence from "@/components/simulation/SimulationPersistence.vue";
-import TileInspector from "@/components/simulation/TileInspector.vue";
-import PopulationGraph from "@/components/simulation/PopulationGraph.vue";
-import EcosystemOverview from "@/components/simulation/EcosystemOverview.vue";
-import ThemeSwitcher from "@/components/simulation/ThemeSwitcher.vue";
-import BottomDock from "@/components/simulation/BottomDock.vue";
+import SpeciesDiscoveryModal from "@/components/simulation/SpeciesDiscoveryModal.vue";
+import FieldGuidePanel from "@/components/simulation/FieldGuidePanel.vue";
+import ResearchPanel from "@/components/simulation/ResearchPanel.vue";
+import HybridizationPanel from "@/components/simulation/HybridizationPanel.vue";
+import HybridizationTree from "@/components/simulation/HybridizationTree.vue";
+import FloatingControls from "@/components/simulation/FloatingControls.vue";
+
+// New gameplay components
+import InterventionPanel from "@/components/simulation/InterventionPanel.vue";
+import GoalsPanel from "@/components/simulation/GoalsPanel.vue";
+import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
+import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
+import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
+import ScenarioProgress from "@/components/simulation/ScenarioProgress.vue";
+import ChunkInspector from "@/components/simulation/ChunkInspector.vue";
+
+// Stores and utilities
 import { SimDB } from "@/persistence/SimDB";
-import { SqliteSimDB } from "@/persistence/SqliteSimDB";
-import { dropdown as vDropdown } from "@/utils/dropdown";
-// Register local directive for collapsible sections
- 
-// @ts-ignore - defineOptions macro provided by Vue
-defineOptions({ directives: { dropdown: vDropdown } })
+import { useResearchStore } from "@/stores/researchStore";
+import { useInterventionStore } from "@/stores/interventionStore";
+import { useGoalsStore } from "@/stores/goalsStore";
+import { useTutorialStore } from "@/stores/tutorialStore";
+import { useScenarioStore } from "@/stores/scenarioStore";
+import { DiscoveryMethod } from "@/simulation/ResearchSystem";
+import type { VizMode } from "@/components/simulation/types";
+import type { HybridLineage } from "@/simulation/HybridizationSystem";
+import type { PlayerIntervention } from "@/simulation/SimulationEngine";
 
-// Props
-const props = withDefaults(defineProps<{
-  gameMode?: boolean
-}>(), {
-  gameMode: false
-})
-
-const engine = ref<SimulationEngine | null>(null);
-const weather = ref<WeatherSystem | null>(null);
-const hydro = ref<HydrologySystem | null>(null);
-const canopy = ref<CanopySystem | null>(null);
-const vegetation = ref<VegetationSystem | null>(null);
-const pollinators = ref<PollinatorSystem | null>(null);
-const birds = ref<BirdsSystem | null>(null);
+const engine: Ref<SimulationEngine | null> = ref(null);
+const isInitializing = ref(true);
+const initializationError = ref<string | null>(null);
+const runtimeError = ref<string | null>(null);
+const isSaving = ref(false);
+const isLoadingSnapshot = ref(false);
+const saveNotice = ref('');
+let unmounted = false;
+let initializationVersion = 0;
 
 const width = ref(6);
 const height = ref(6);
-const tickHandle = ref<number | null>(null);
-const events = ref<string[]>([]);
-// Dock & derived metrics
-const activeTab = ref('overview')
-const derived = reactive({ seedRate: 0, seedMax: 100 })
-function onDockSelect(v: string) { activeTab.value = v; scrollToSection(v) }
-
-// Section anchors
-const overviewEl = ref<HTMLElement|null>(null)
-const speciesEl = ref<HTMLElement|null>(null)
-const eventsEl = ref<HTMLElement|null>(null)
-const settingsEl = ref<HTMLElement|null>(null)
-const interactionsEl = ref<HTMLElement|null>(null)
-const climateEl = ref<HTMLElement|null>(null)
-const pollinatorsEl = ref<HTMLElement|null>(null)
-
-function scrollToSection(key: string) {
-  const map: Record<string, HTMLElement | null | undefined> = {
-    overview: overviewEl.value,
-    species: speciesEl.value,
-    climate: climateEl.value,
-    hydro: climateEl.value,
-    canopy: interactionsEl.value,
-    pollinators: pollinatorsEl.value,
-    interactions: interactionsEl.value,
-    events: eventsEl.value,
-    settings: settingsEl.value,
-  }
-  nextTick(() => map[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-}
-// Dock & derived metrics
-// (removed duplicate block)
+type SimulationEventEntry = { id: number; message: string; timeLabel: string; tick: number };
+const events = ref<SimulationEventEntry[]>([]);
+let eventCounter = 0;
 const selected = ref<{ x: number; y: number } | null>(null);
 
 // Year-end seed selection
@@ -326,31 +354,30 @@ const persist = reactive({
   autoSave: false,
   interval: 50,
   lastSavedTick: null as number | null,
-  backend: "indexeddb" as "indexeddb" | "sqlite",
 });
-let db: SimDB | SqliteSimDB | null = null;
+let db: SimDB | null = null;
 
 const options = reactive({
   worldWidth: 6,
   worldHeight: 6,
   tickMs: 100,
-  stepCount: 10,
-  vizMode: "rgb" as
-    | "rgb"
-    | "vitality"
-    | "moisture"
-    | "pollution"
-    | "diversity"
-    | "succession",
-  timeScale: 'day' as 'minute'|'hour'|'day',
+  vizMode: "rgb" as VizMode,
   showLabels: true,
-  speciesId: "common_grass",
-  irrigateAmount: 0.2,
-  cleanseAmount: 0.2,
-  overlayLegend: true,
 });
 
 const isRunning = ref(false);
+const loop = new FixedStepLoop(updateOnce, {
+  stepMs: options.tickMs,
+  maxCatchUpSteps: 5,
+  onError(error) {
+    isRunning.value = false;
+    runtimeError.value = error instanceof Error ? error.message : String(error);
+    console.error('Simulation update failed:', error);
+  },
+});
+
+// View mode state (contemplative/analytical)
+const viewMode = ref<'contemplative' | 'analytical'>('contemplative');
 
 const stats = reactive({
   currentTick: 0,
@@ -360,6 +387,39 @@ const stats = reactive({
   avgVitality: 0,
   avgPollution: 0,
 });
+
+// Stores
+const researchStore = useResearchStore();
+const interventionStore = useInterventionStore();
+const goalsStore = useGoalsStore();
+const tutorialStore = useTutorialStore();
+const scenarioStore = useScenarioStore();
+
+const extinction = reactive({ triggered: false, sinceTick: 0 });
+let extinctionGraceUntilTick = 50;
+let resumeAfterYearEnd = false;
+
+// Hybridization system
+const showHybridizationTree = ref(false);
+const hybridizationLineages = ref<Map<string, HybridLineage>>(new Map());
+const hybridizationStats = ref({
+  totalHybrids: 0,
+  totalEvents: 0,
+  successfulEvents: 0,
+  averageGeneration: 0,
+  maxGeneration: 0
+});
+
+// Lightweight gameplay state
+const gameplay = reactive({
+  points: 0,
+  difficulty: 'normal' as 'easy'|'normal'|'hard',
+  lastDayCounted: 0,
+})
+
+// Chunk inspector state
+const showChunkInspector = ref(false);
+const selectedChunkForInspection = ref<any>(null);
 
 const chunkGrid = computed(() => {
   if (!engine.value) return [] as any[];
@@ -372,91 +432,152 @@ const chunkGrid = computed(() => {
   return chunks.sort((a, b) => a.y - b.y || a.x - b.x);
 });
 
+type HistoryFrame = { tick: number; capturedAt: string; grid: any[] };
+const historyConfig = { captureEvery: 12, maxFrames: 24 };
+const historyFrames = ref<HistoryFrame[]>([]);
+const selectedHistoryIndex = ref<number>(-1);
+
+const displayChunkGrid = computed(() => {
+  if (selectedHistoryIndex.value === -1) return chunkGrid.value;
+  const frame = historyFrames.value[selectedHistoryIndex.value];
+  return frame?.grid || chunkGrid.value;
+});
+
 // Species change detection helpers
 const prevSpecies: Map<string, Map<string, string>> = new Map();
 const seenWeather: Set<string> = new Set();
 
-function init() {
+async function init() {
+  const version = ++initializationVersion;
+  pause();
+  isInitializing.value = true;
+  initializationError.value = null;
+  runtimeError.value = null;
+  try {
+    await initializeSimulationRuntime();
+    if (unmounted || version !== initializationVersion) return;
+    initializeWorld();
+  } catch (error) {
+    initializationError.value = error instanceof Error ? error.message : String(error);
+    console.error('Ecosystem initialization failed:', error);
+  } finally {
+    if (!unmounted && version === initializationVersion) isInitializing.value = false;
+  }
+}
+
+function initializeWorld() {
   const config: SimulationConfig = {
     worldWidth: options.worldWidth,
     worldHeight: options.worldHeight,
     chunkSize: 32,
-    tickRate: 1000 / Math.max(10, options.tickMs),
+    tickRate: 10,
     masterSeed: 12345,
-    maxActiveChunks: 36,
+    maxActiveChunks: options.worldWidth * options.worldHeight,
+    seasonLengthTicks: 90,
+    timePerTickMinutes: 1440,
   };
   engine.value = new SimulationEngine(config);
+
+  historyFrames.value = [];
+  selectedHistoryIndex.value = -1;
 
   // Activate all chunks for EcoSim view
   engine.value.activateAllChunks();
 
-  weather.value = new WeatherSystem();
-  // Align weather seasons with engine
-  try {
-    (weather.value as any).seasonLength =
-      engine.value.getConfig().seasonLengthTicks;
-  } catch {}
-  hydro.value = new HydrologySystem();
-  canopy.value = new CanopySystem();
-  vegetation.value = new VegetationSystem(engine.value);
-
-  hydro.value.initializeElevation(engine.value.getAllChunks());
-
-  pollinators.value = new PollinatorSystem();
-  pollinators.value.initialize(engine.value.getAllChunks());
-
-  birds.value = new BirdsSystem();
-  birds.value.initialize(engine.value.getAllChunks());
-
+  events.value = [];
+  eventCounter = 0;
+  showYearEndModal.value = false;
+  showChunkInspector.value = false;
+  selectedChunkForInspection.value = null;
+  selected.value = null;
+  gameplay.points = 0;
+  gameplay.lastDayCounted = 0;
+  extinctionGraceUntilTick = 50;
+  extinction.triggered = false;
   updateStats();
   initSpeciesSnapshot(engine.value.getAllChunks());
   seenWeather.clear();
-  if (typeof indexedDB !== "undefined") db = new SimDB();
-  
+  if (!db && typeof indexedDB !== "undefined") db = new SimDB();
+
+  // Initialize research system
+  const researchSystem = engine.value.getResearchSystem();
+  if (researchSystem) {
+    researchStore.reset();
+    researchStore.initialize(engine.value.getEventJournal(), 0);
+    engine.value.setResearchSystem(researchStore.system as any);
+
+    // Manually discover starting species
+    researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
+
+    // Set up periodic observation every 10 ticks
+    engine.value.onTick((tick: number) => {
+      if (tick % 10 === 0) {
+        engine.value?.observeAllActiveSpecies();
+      }
+    });
+  }
+
+  // Initialize intervention system
+  interventionStore.reset();
+  interventionStore.initialize(engine.value, gameplay.difficulty);
+
+  // Initialize goals system
+  goalsStore.reset();
+  goalsStore.initialize(engine.value, gameplay.difficulty, engine.value.getResearchSystem());
+
+  // Initialize tutorial system
+  tutorialStore.initializeTutorial();
+
+  // Initialize scenario system
+  scenarioStore.reset();
+  scenarioStore.initialize(engine.value);
+
+  // Set up goal evaluation callback (every tick)
+  engine.value.onTick((tick: number) => {
+    // Evaluate goals
+    const alreadyCompleted = new Set(goalsStore.completedGoals.map(goal => goal.goal.id));
+    const goalResults = goalsStore.evaluateGoals(tick);
+
+    // Check for newly completed goals and award points
+    goalResults.forEach(result => {
+      if (result.completed && !alreadyCompleted.has(result.goal.id)) {
+        // Award points to intervention store
+        interventionStore.addPoints(result.goal.rewardPoints);
+      }
+    });
+
+    // Evaluate scenario if active
+    if (scenarioStore.hasActiveScenario) {
+      const completedGoalIds = goalsStore.completedGoals.map(g => g.goal.id);
+      scenarioStore.evaluateScenario(completedGoalIds);
+    }
+
+    // Update tutorial tooltips based on tick
+    tutorialStore.triggerByTick(tick);
+  });
+
   // Register year-end callback
   engine.value.onYearEnd(onYearEnd);
-  
+
   // Initialize year progress
   updateYearProgress();
+  captureHistory(stats.currentTick);
+  updateHybridizationData();
+  loop.setStepMs(options.tickMs);
+  loop.setSuspended(document.hidden);
 }
 
 function updateOnce() {
-  if (!engine.value || !weather.value || !hydro.value || !canopy.value) return;
+  if (!engine.value || showYearEndModal.value || runtimeError.value) return;
 
+  // Rust owns the full ecology schedule. Vue only observes the completed tick.
   engine.value.update();
-
-  const tick = engine.value.getCurrentTick();
   const chunks = engine.value.getAllChunks();
-  const active = engine.value.getActiveChunkIds();
-
-  // Annotate chunks with season info for systems that read from chunk
-  const seasonStats: any = engine.value.getStatistics();
-  chunks.forEach((c) => {
-    (c as any).seasonName = seasonStats.seasonName;
-    (c as any).seasonProgress = seasonStats.seasonProgress;
-  });
-
-  weather.value.update(tick, chunks);
-  hydro.value.update(chunks, active);
-
-  active.forEach((id) => {
-    const c = chunks.get(id);
-    if (c) {
-      canopy.value!.update(c);
-      // Run vegetation system to handle reproduction, dispersal, germination
-      // Obtain days per tick from engine time scale
-      const daysPerTick = (engine.value as any)?.getDaysPerTick?.() ?? 1
-      vegetation.value!.update(c, daysPerTick);
-    }
-  });
-
-  pollinators.value?.update(chunks);
-  birds.value?.update(chunks, tick);
-
+  updateStats();
   detectSpeciesChanges(chunks);
   detectWeatherEvents();
-
-  updateStats();
+  updateHybridizationData();
+  captureHistory(stats.currentTick);
   // Auto save
   if (
     persist.autoSave &&
@@ -480,212 +601,325 @@ function updateStats() {
   (stats as any).seasonProgress = s.seasonProgress;
   (stats as any).dayFraction = s.dayFraction;
   (stats as any).simDays = (s as any).simDays ?? 0;
-  // Derived: seed rate per day (sum lastTickLanded across chunks / daysPerTick)
-  try {
-    const chunks = engine.value?.getAllChunks() || new Map()
-    let lastTickLanded = 0
-    ;(chunks as Map<string, any>).forEach((ch: any) => {
-      lastTickLanded += ch?.seedStats?.lastTickLanded || 0
-    })
-    const daysPerTick = engine.value?.getDaysPerTick?.() || 1
-    derived.seedRate = Math.round(lastTickLanded / Math.max(1e-6, daysPerTick))
-    derived.seedMax = Math.max(100, derived.seedRate * 2)
-  } catch {}
+  const income = advanceDailyIncome(gameplay.lastDayCounted, s, gameplay.difficulty);
+  gameplay.lastDayCounted = income.lastDayCounted;
+  gameplay.points += income.points;
+  if (income.points > 0) interventionStore.addPoints(income.points);
   
   // Update year progress
   updateYearProgress();
+
+  if (stats.currentTick >= extinctionGraceUntilTick) {
+    const hasViableSeeds = Array.from(engine.value.getAllChunks().values()).some(chunk =>
+      chunk.seedBank.some(seed => seed.viability > 0)
+    );
+    if (stats.totalSpecies <= 0 && !hasViableSeeds) {
+      if (!extinction.triggered) {
+        pause();
+        extinction.triggered = true;
+        extinction.sinceTick = stats.currentTick;
+        pushEvent('💀 All species have gone extinct. Simulation paused.');
+      }
+    } else if (extinction.triggered) {
+      extinction.triggered = false;
+    }
+  }
+}
+
+function captureHistory(tick: number) {
+  if (!engine.value || historyConfig.captureEvery <= 0) return;
+  if (tick % historyConfig.captureEvery !== 0) return;
+
+  const frame: HistoryFrame = {
+    tick,
+    capturedAt: new Date().toISOString(),
+    grid: chunkGrid.value.map((chunk: any) => snapshotChunk(chunk)),
+  };
+
+  const viewingLatest = selectedHistoryIndex.value !== -1 && selectedHistoryIndex.value === historyFrames.value.length - 1;
+  historyFrames.value.push(frame);
+  if (historyFrames.value.length > historyConfig.maxFrames) {
+    historyFrames.value.shift();
+    if (selectedHistoryIndex.value !== -1) {
+      selectedHistoryIndex.value = Math.max(0, selectedHistoryIndex.value - 1);
+    }
+  }
+  if (selectedHistoryIndex.value !== -1) {
+    if (!historyFrames.value.length) {
+      selectedHistoryIndex.value = -1;
+    } else if (viewingLatest) {
+      selectedHistoryIndex.value = historyFrames.value.length - 1;
+    } else {
+      selectedHistoryIndex.value = Math.min(selectedHistoryIndex.value, historyFrames.value.length - 1);
+    }
+  }
+}
+
+function snapshotChunk(chunk: any) {
+  const biomeState = chunk?.biomeState ? { ...chunk.biomeState } : {};
+  const birds = (chunk as any).birds ? { ...((chunk as any).birds as Record<string, number>) } : undefined;
+  const speciesLabel = makeSpeciesLabel(chunk);
+  const base: any = {
+    id: chunk.id,
+    x: chunk.x,
+    y: chunk.y,
+    biomeState,
+    pollinatorDensity: (chunk as any).pollinatorDensity ?? 0,
+    birdsActivity: (chunk as any).birdsActivity ?? 0,
+    seedBankCount: ((chunk as any).seedBank?.length) || 0,
+  };
+  if (birds) base.birds = birds;
+  if (speciesLabel) base.speciesLabel = speciesLabel;
+  return base;
+}
+
+function makeSpeciesLabel(chunk: any): string | undefined {
+  try {
+    const reg = SpeciesRegistry.getInstance();
+    const speciesMap: Map<string, any[]> | undefined = chunk.species as Map<string, any[]> | undefined;
+    if (!speciesMap || speciesMap.size === 0) return undefined;
+    const counts = new Map<string, number>();
+    speciesMap.forEach((instances, sid) => {
+      counts.set(sid, (counts.get(sid) || 0) + (instances?.length || 0));
+    });
+    if (!counts.size) return undefined;
+    const labels = Array.from(counts.keys())
+      .slice(0, 3)
+      .map((id) => abbreviate(reg.getSpecies(id)?.name || id));
+    return `${labels.join(',')} (${counts.size})`;
+  } catch {
+    return undefined;
+  }
+}
+
+function abbreviate(name: string): string {
+  if (!name) return '';
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  const clean = name.replace(/[^a-zA-Z]/g, '');
+  return clean.slice(0, 3).toUpperCase();
+}
+
+function getSpeciesName(speciesId: string): string {
+  return speciesId
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function updateHybridizationData() {
+  if (!engine.value) return;
+  const report = engine.value.getHybridizationStatistics();
+  hybridizationStats.value = {
+    totalHybrids: report.totalHybrids,
+    totalEvents: report.hybridizationEvents,
+    successfulEvents: report.hybridizationEvents,
+    averageGeneration: 0,
+    maxGeneration: 0,
+  };
+}
+
+function viewHybrid(speciesId: string) {
+  // Open the field guide to show hybrid details
+  researchStore.openFieldGuide(speciesId);
 }
 
 function pushEvent(msg: string) {
-  const timestamp = new Date().toLocaleTimeString();
-  events.value.push(`[${timestamp}] ${msg}`);
-  if (events.value.length > 200)
+  const entry: SimulationEventEntry = {
+    id: ++eventCounter,
+    message: msg,
+    timeLabel: `T${stats.currentTick}`,
+    tick: stats.currentTick,
+  };
+  events.value.push(entry);
+  if (events.value.length > 200) {
     events.value.splice(0, events.value.length - 200);
+  }
 }
 
 function start() {
-  if (tickHandle.value != null) return;
+  if (!engine.value || isInitializing.value || showYearEndModal.value || extinction.triggered || runtimeError.value) return;
+  loop.start();
   isRunning.value = true;
-  tickHandle.value = window.setInterval(
-    updateOnce,
-    Math.max(10, options.tickMs)
-  );
 }
 
 function pause() {
-  if (tickHandle.value != null) {
-    clearInterval(tickHandle.value);
-    tickHandle.value = null;
-  }
+  loop.pause();
   isRunning.value = false;
 }
 
-function step() {
-  updateOnce();
-}
-
-function multiStep() {
-  for (let i = 0; i < Math.max(1, options.stepCount); i++) updateOnce();
-}
-
-function updateTickMs(value: number) {
-  options.tickMs = value;
-  if (tickHandle.value != null) {
-    pause();
-    start();
-  }
-  if (engine.value) {
-    engine.value.setTickRate(1000 / Math.max(10, options.tickMs));
-  }
+function stepOnce() {
+  if (!engine.value || isInitializing.value || showYearEndModal.value || extinction.triggered || runtimeError.value) return;
+  loop.step();
 }
 
 function onSelectChunk(payload: { x: number; y: number }) {
   selected.value = payload;
+
+  // If an intervention is selected, apply it
+  if (interventionStore.selectedIntervention && engine.value) {
+    const chunkId = `chunk_${payload.x}_${payload.y}`;
+    const intervention: PlayerIntervention = {
+      chunkId,
+      x: 0.5,
+      y: 0.5,
+      type: interventionStore.selectedIntervention,
+      data: interventionStore.selectedIntervention === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {}
+    };
+
+    // Execute through store (handles cost/cooldown)
+    void interventionStore.executeIntervention(intervention).then(success => {
+      if (success) {
+        updateStats();
+        detectSpeciesChanges(engine.value!.getAllChunks());
+      }
+    });
+  } else {
+    // Open chunk inspector for detailed view
+    const chunk = engine.value?.getChunk(payload.x, payload.y);
+    if (chunk) {
+      selectedChunkForInspection.value = chunk;
+      showChunkInspector.value = true;
+    }
+  }
 }
 
-const selectedChunk = computed(() => {
-  if (!selected.value || !engine.value) return null;
-  return engine.value.getChunk(selected.value.x, selected.value.y);
-});
+// Handler for tutorial
+function startTutorial() {
+  tutorialStore.startTutorial();
+}
 
-async function switchBackend(backend: "indexeddb" | "sqlite") {
-  persist.backend = backend;
-  db = null;
-  if (backend === "indexeddb") {
-    if (typeof indexedDB !== "undefined") db = new SimDB();
-    else pushEvent("⚠️ IndexedDB not available");
-  } else {
-    const sqlite = new SqliteSimDB();
-    const ok = await sqlite.init();
-    if (ok) db = sqlite;
-    else pushEvent("⚠️ SQLite (sql.js) not available");
+function skipTutorial() {
+  tutorialStore.skipTutorial();
+}
+
+function startScenario(id: string) {
+  pause();
+  if (scenarioStore.startScenario(id)) {
+    goalsStore.setActiveGoals(scenarioStore.activeScenario?.goalIds ?? []);
+    updateStats();
+    pushEvent(`Started scenario: ${scenarioStore.activeScenario?.name}. Press Play when ready.`);
   }
+}
+
+// Handler for applying intervention from inspector
+function applyInterventionFromInspector(action: string) {
+  if (!selectedChunkForInspection.value) return;
+
+  interventionStore.selectIntervention(action as any);
+  showChunkInspector.value = false;
 }
 
 async function saveSnapshot() {
-  if (!db || !engine.value) return;
-  const id = await db.saveSnapshot({
-    createdAt: Date.now(),
-    tick: stats.currentTick,
-    state: engine.value.exportState(),
-  });
-  persist.lastSavedTick = stats.currentTick;
-  pushEvent(`💾 Saved snapshot #${id} @ tick ${stats.currentTick}`);
+  if (!engine.value || isSaving.value) return;
+  if (!db) {
+    saveNotice.value = 'Saving is unavailable in this browser.';
+    return;
+  }
+  isSaving.value = true;
+  const tick = engine.value.getCurrentTick();
+  try {
+    // Store data only: Vue proxies and goal evaluator functions cannot be cloned by IndexedDB.
+    const state = JSON.parse(JSON.stringify({
+      format: 'ecosim-game-v2',
+      engine: engine.value.exportState(),
+      research: researchStore.exportState(),
+      interventions: interventionStore.exportState(),
+      goals: goalsStore.exportState(),
+      scenario: scenarioStore.exportState(),
+      tutorial: tutorialStore.exportState(),
+      gameplay: { ...gameplay },
+      options: { ...options },
+      yearEnd: { show: showYearEndModal.value, completedYear: completedYear.value, resume: resumeAfterYearEnd },
+      extinctionGraceUntilTick,
+    }));
+    const id = await db.saveSnapshot({ createdAt: Date.now(), tick, state });
+    persist.lastSavedTick = tick;
+    saveNotice.value = `Ecosystem saved at day ${tick}.`;
+    pushEvent(`💾 Saved snapshot #${id} @ tick ${tick}`);
+  } catch (error) {
+    saveNotice.value = 'The ecosystem could not be saved. Check available browser storage and try again.';
+    console.error('Snapshot save failed:', error);
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 async function loadLatestSnapshot() {
-  if (!db || !engine.value) return;
-  const snap = await db.loadLatest();
-  if (!snap) {
-    pushEvent("ℹ️ No snapshots found");
+  if (!engine.value || isLoadingSnapshot.value) return;
+  if (!db) {
+    saveNotice.value = 'Saved ecosystems are unavailable in this browser.';
     return;
   }
-  engine.value.importState(snap.state);
-  updateStats();
-  pushEvent(`📥 Loaded snapshot #${snap.id} @ tick ${snap.tick}`);
-}
-
-async function clearSaves() {
-  if (db) {
-    await db.clearAll();
-    pushEvent("🗑️ Cleared all snapshots");
-  }
-}
-
-function plantCenter() {
-  if (!engine.value) return;
-  const cx = Math.floor(options.worldWidth / 2);
-  const cy = Math.floor(options.worldHeight / 2);
-  const chunk = engine.value.getChunk(cx, cy);
-  if (!chunk) return;
-  engine.value.executeIntervention({
-    chunkId: chunk.id,
-    x: 0.5,
-    y: 0.5,
-    type: "plant",
-    data: { speciesId: options.speciesId },
-  });
-  updateStats();
-  pushEvent(`🌱 Planted ${options.speciesId} at center (${cx},${cy})`);
-}
-
-function plantRandom() {
-  if (!engine.value) return;
-  const rx = Math.floor(Math.random() * options.worldWidth);
-  const ry = Math.floor(Math.random() * options.worldHeight);
-  const chunk = engine.value.getChunk(rx, ry);
-  if (!chunk) return;
-  engine.value.executeIntervention({
-    chunkId: chunk.id,
-    x: Math.random(),
-    y: Math.random(),
-    type: "plant",
-    data: { speciesId: options.speciesId },
-  });
-  updateStats();
-  pushEvent(`🌱 Planted ${options.speciesId} at random (${rx},${ry})`);
-}
-
-function irrigateCenter() {
-  if (!engine.value) return;
-  const cx = Math.floor(options.worldWidth / 2);
-  const cy = Math.floor(options.worldHeight / 2);
-  const chunk = engine.value.getChunk(cx, cy);
-  if (!chunk) return;
-  engine.value.executeIntervention({
-    chunkId: chunk.id,
-    x: 0.5,
-    y: 0.5,
-    type: "irrigate",
-    data: { amount: options.irrigateAmount },
-  });
-  updateStats();
-  pushEvent(`💧 Irrigated +${options.irrigateAmount.toFixed(2)} at center`);
-}
-
-function cleanseCenter() {
-  if (!engine.value) return;
-  const cx = Math.floor(options.worldWidth / 2);
-  const cy = Math.floor(options.worldHeight / 2);
-  const chunk = engine.value.getChunk(cx, cy);
-  if (!chunk) return;
-  engine.value.executeIntervention({
-    chunkId: chunk.id,
-    x: 0.5,
-    y: 0.5,
-    type: "cleanse",
-    data: { amount: options.cleanseAmount },
-  });
-  updateStats();
-  pushEvent(
-    `🧹 Cleansed -${options.cleanseAmount.toFixed(2)} pollution at center`
-  );
-}
-
-function applyActiveRadius() {
-  if (!engine.value) return;
-  engine.value.activateChunksAroundPoint(
-    Math.floor(options.worldWidth / 2),
-    Math.floor(options.worldHeight / 2),
-    1
-  );
-}
-
-function recreate() {
   pause();
-  width.value = options.worldWidth;
-  height.value = options.worldHeight;
-  init();
-}
-
-
-function clearSelection() {
-  selected.value = null;
+  isLoadingSnapshot.value = true;
+  try {
+    const snap = await db.loadLatest();
+    if (!snap) {
+      saveNotice.value = 'No saved ecosystem yet. Use Save to create one.';
+      return;
+    }
+    const legacy = snap.state?.format !== 'ecosim-game-v2';
+    const state = snap.state;
+    engine.value.importState(legacy ? state : state.engine);
+    if (legacy) {
+      researchStore.reset();
+      researchStore.initialize(engine.value.getEventJournal(), engine.value.getCurrentTick());
+      engine.value.setResearchSystem(researchStore.system as any);
+      researchStore.manualDiscovery('common_grass', engine.value.getCurrentTick(), DiscoveryMethod.INITIAL);
+      interventionStore.reset();
+      interventionStore.initialize(engine.value, gameplay.difficulty);
+      goalsStore.reset();
+      goalsStore.initialize(engine.value, gameplay.difficulty, engine.value.getResearchSystem());
+      scenarioStore.reset();
+      scenarioStore.initialize(engine.value);
+      gameplay.points = 0;
+      gameplay.lastDayCounted = Math.floor(engine.value.getStatistics().simDays);
+    } else {
+      researchStore.importState(state.research);
+      engine.value.setResearchSystem(researchStore.system as any);
+      interventionStore.importState(state.interventions);
+      goalsStore.importState(state.goals);
+      scenarioStore.importState(state.scenario);
+      tutorialStore.importState(state.tutorial);
+      Object.assign(gameplay, state.gameplay);
+      applySavedOptions(state.options);
+    }
+    const config = engine.value.getConfig();
+    width.value = options.worldWidth = config.worldWidth;
+    height.value = options.worldHeight = config.worldHeight;
+    showYearEndModal.value = legacy ? false : state.yearEnd.show;
+    completedYear.value = legacy ? engine.value.getCurrentYear() : state.yearEnd.completedYear;
+    resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
+    extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
+    extinction.triggered = false;
+    runtimeError.value = null;
+    showChunkInspector.value = false;
+    selectedChunkForInspection.value = null;
+    selected.value = null;
+    historyFrames.value = [];
+    selectedHistoryIndex.value = -1;
+    events.value = [];
+    seenWeather.clear();
+    updateStats();
+    initSpeciesSnapshot(engine.value.getAllChunks());
+    updateHybridizationData();
+    captureHistory(stats.currentTick);
+    saveNotice.value = legacy
+      ? `Legacy ecosystem converted at day ${snap.tick}; player progression starts fresh. Press Play when ready.`
+      : `Ecosystem loaded at day ${snap.tick}. Press Play when ready.`;
+    pushEvent(`📥 Loaded snapshot #${snap.id} @ tick ${snap.tick}`);
+  } catch (error) {
+    saveNotice.value = 'The saved ecosystem could not be loaded. Your simulation is paused.';
+    console.error('Snapshot load failed:', error);
+  } finally {
+    isLoadingSnapshot.value = false;
+  }
 }
 
 // Year-end seed selection functions
 function onYearEnd(year: number) {
-  console.log(`Year ${year} completed!`);
+  resumeAfterYearEnd = isRunning.value;
   completedYear.value = year;
   showYearEndModal.value = true;
   // Pause simulation for seed selection
@@ -695,7 +929,7 @@ function onYearEnd(year: number) {
 }
 
 function onYearEndConfirm(seedInstanceId: string | null) {
-  console.log('Year-end seed selection:', seedInstanceId);
+  engine.value?.commitYearEndSelections();
   showYearEndModal.value = false;
   
   // Show notification
@@ -705,7 +939,7 @@ function onYearEndConfirm(seedInstanceId: string | null) {
   pushEvent(message);
   
   // Resume simulation
-  if (!isRunning.value) {
+  if (resumeAfterYearEnd) {
     start();
   }
 }
@@ -717,10 +951,52 @@ function updateYearProgress() {
   }
 }
 
-function setTimeScale(scale: 'minute'|'hour'|'day') {
-  (options as any).timeScale = scale
-  const minutes = scale === 'minute' ? 1 : scale === 'hour' ? 60 : 1440
-  ;(engine.value as any)?.setTimePerTickMinutes?.(minutes)
+function toggleRunState() {
+  if (isRunning.value) {
+    pause();
+  } else {
+    start();
+  }
+}
+
+function toggleViewMode() {
+  viewMode.value = viewMode.value === 'contemplative' ? 'analytical' : 'contemplative';
+  saveViewModePreference();
+}
+
+function decreaseSpeed() {
+  const speeds = [10, 50, 100, 200, 500, 1000];
+  options.tickMs = speeds.find(speed => speed > options.tickMs) ?? speeds[speeds.length - 1];
+}
+
+function increaseSpeed() {
+  const speeds = [10, 50, 100, 200, 500, 1000];
+  options.tickMs = [...speeds].reverse().find(speed => speed < options.tickMs) ?? speeds[0];
+}
+
+function saveViewModePreference() {
+  try {
+    localStorage.setItem('ecosim-view-mode', viewMode.value);
+  } catch {}
+}
+
+function loadViewModePreference() {
+  try {
+    const saved = localStorage.getItem('ecosim-view-mode');
+    if (saved === 'contemplative' || saved === 'analytical') {
+      viewMode.value = saved;
+    }
+  } catch {}
+}
+
+async function restartAfterExtinction() {
+  gameplay.points = 0;
+  pause();
+  width.value = options.worldWidth;
+  height.value = options.worldHeight;
+  extinction.triggered = false;
+  await init();
+  pushEvent('🌱 Simulation restarted after extinction.');
 }
 
 function initSpeciesSnapshot(chunks: Map<string, any>) {
@@ -747,7 +1023,12 @@ function detectSpeciesChanges(chunks: Map<string, any>) {
     currentMap.forEach((spId, sid) => {
       if (!oldMap.has(sid)) {
         const name = reg.getSpecies(spId)?.name || spId;
-        pushEvent(`🆕 ${name} spawned in chunk (${chunk.x},${chunk.y})`);
+        // Check if this is a hybrid (species ID starts with 'hybrid_')
+        if (spId.startsWith('hybrid_')) {
+          pushEvent(`🧬 HYBRID created: ${name} in chunk (${chunk.x},${chunk.y})`);
+        } else {
+          pushEvent(`🆕 ${name} spawned in chunk (${chunk.x},${chunk.y})`);
+        }
       }
     });
 
@@ -764,8 +1045,8 @@ function detectSpeciesChanges(chunks: Map<string, any>) {
 }
 
 function detectWeatherEvents() {
-  if (!weather.value) return;
-  const list = weather.value.getActiveWeatherEvents();
+  if (!engine.value) return;
+  const list = engine.value.getActiveWeatherEvents();
   list.forEach((ev) => {
     const key = `${ev.type}-${ev.centerX}-${ev.centerY}-${ev.startTick}`;
     if (!seenWeather.has(key)) {
@@ -800,8 +1081,25 @@ function loadOptions() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
-    Object.assign(options, saved);
+    applySavedOptions(saved);
   } catch {}
+}
+
+function applySavedOptions(saved: Partial<typeof options> | null) {
+  if (!saved || typeof saved !== 'object') return;
+  for (const dimension of ['worldWidth', 'worldHeight'] as const) {
+    const value = Number(saved[dimension]);
+    if (Number.isInteger(value) && value >= 1 && value <= 20) options[dimension] = value;
+  }
+  const tickMs = Number(saved.tickMs);
+  if (Number.isFinite(tickMs)) options.tickMs = Math.max(10, Math.min(1000, tickMs));
+  if (typeof saved.showLabels === 'boolean') options.showLabels = saved.showLabels;
+}
+
+watch(() => options.tickMs, value => loop.setStepMs(value), { flush: 'sync' });
+
+function onVisibilityChange() {
+  loop.setSuspended(document.hidden);
 }
 
 watch(
@@ -824,21 +1122,47 @@ defineExpose({
     avgVitality: stats.avgVitality,
     avgPollution: stats.avgPollution,
     biodiversity: stats.totalSpecies / Math.max(1, stats.activeChunks),
-    ecosystemHealth: Math.max(0, (stats.avgVitality - stats.avgPollution)) / 100
+    ecosystemHealth: Math.max(0, stats.avgVitality - stats.avgPollution)
   }),
   getEngine: () => engine.value,
+  step: stepOnce,
+  pause,
+  play: start,
   executeIntervention: (intervention: any) => engine.value?.executeIntervention(intervention)
 });
 
 onMounted(() => {
   loadOptions();
+  loadViewModePreference();
   // Ensure grid reflects saved/current world size before creating engine
   width.value = options.worldWidth;
   height.value = options.worldHeight;
-  init();
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  void init();
 });
 
-onBeforeUnmount(() => pause());
+onBeforeUnmount(() => {
+  unmounted = true;
+  initializationVersion += 1;
+  pause();
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+});
 </script>
 
-<!-- All styles have been converted to Tailwind CSS classes -->
+<style scoped>
+.contemplative-canvas {
+  background: linear-gradient(to bottom, #2c3e50 0%, #4a5568 50%, #6b7280 100%);
+  transition: background 1200ms ease;
+}
+
+/* Smooth view mode transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 600ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

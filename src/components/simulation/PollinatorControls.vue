@@ -46,17 +46,27 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  showBees: boolean;
-  showArrows: boolean;
-  diffusionRate: number;
-  diversityWeight: number;
-  lightWeight: number;
-  canopyWeight: number;
-  tempWeight: number;
-  windPenalty: number;
-  rainPenalty: number;
-}>();
+withDefaults(defineProps<{
+  showBees?: boolean;
+  showArrows?: boolean;
+  diffusionRate?: number;
+  diversityWeight?: number;
+  lightWeight?: number;
+  canopyWeight?: number;
+  tempWeight?: number;
+  windPenalty?: number;
+  rainPenalty?: number;
+}>(), {
+  showBees: false,
+  showArrows: false,
+  diffusionRate: 0.02,
+  diversityWeight: 0.04,
+  lightWeight: 0.04,
+  canopyWeight: 0.04,
+  tempWeight: 0.04,
+  windPenalty: 0.02,
+  rainPenalty: 0.02,
+});
 
 const emit = defineEmits<{
   'update:show-bees': [value: boolean];

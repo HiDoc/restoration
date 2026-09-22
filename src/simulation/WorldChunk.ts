@@ -111,12 +111,14 @@ export interface SeedRecord {
   y: number; // 0..1 within chunk
   viability: number; // [0..1]
   maturityTicks: number; // ticks remaining before attempting germination
+  genetics?: import('./GeneticSystem').GeneticProfile;
 }
 
 /**
  * Individual world chunk
  */
 export class WorldChunk {
+  private static readonly projectionFields = ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'canopyLayers', 'groundLight', 'isRaining', 'weatherType'] as const;
   public readonly id: string;
   public readonly x: number;
   public readonly y: number;
@@ -505,6 +507,7 @@ export class WorldChunk {
    */
   exportState(): any {
     return {
+      ...Object.fromEntries(WorldChunk.projectionFields.filter(key => key in this).map(key => [key, (this as any)[key]])),
       id: this.id,
       x: this.x,
       y: this.y,
@@ -524,6 +527,10 @@ export class WorldChunk {
    * Load chunk state
    */
   importState(state: any): void {
+    for (const key of WorldChunk.projectionFields) {
+      if (key in state) (this as any)[key] = state[key];
+      else delete (this as any)[key];
+    }
     this.biomeState = state.biomeState;
     this.climateState = state.climateState;
     this.lastUpdateTick = state.lastUpdateTick;

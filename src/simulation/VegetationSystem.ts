@@ -6,6 +6,7 @@ import { SeededRNG, RNGManager } from './SeededRNG';
 import { WorldChunk, SpeciesInstance, PhenologyStage, CauseOfDeath } from './WorldChunk';
 import { SpeciesRegistry, SpeciesDefinition } from './SpeciesRegistry';
 import { GeneticSystem } from './GeneticSystem';
+import { HybridizationSystem } from './HybridizationSystem';
 import { EventType } from './EventJournal';
 
 export interface GrowthFactors {
@@ -49,21 +50,28 @@ export class VegetationSystem {
   private rng: SeededRNG;
   private speciesRegistry: SpeciesRegistry;
   private geneticSystem: GeneticSystem;
+  private hybridizationSystem: HybridizationSystem;
   private _simulationEngine?: any; // Optional reference to get master genomes
-  
+
   // Growth and mortality parameters
   private readonly COMPETITION_RADIUS = 1.0;
   private readonly MAX_BIOMASS_PER_CHUNK = 100;
-  private readonly BASE_MORTALITY_RATE = 0.001;
-  
+  // BALANCE TUNING: Reduced base mortality to prevent catastrophic die-offs
+  private readonly BASE_MORTALITY_RATE = 0.0005; // Reduced from 0.001 - 50% lower base death rate
+
+  // Hybridization parameters
+  private readonly HYBRIDIZATION_CHANCE = 0.05; // 5% chance per pollination event
+  private readonly HYBRIDIZATION_RADIUS = 0.3; // Search radius for nearby flowering plants
+
   // Mortality tracking
   private mortalityHistory: MortalityRecord[] = [];
   private currentTick = 0;
-  
+
   constructor(simulationEngine?: any) {
     this.rng = RNGManager.getInstance().getRNG('vegetation');
     this.speciesRegistry = SpeciesRegistry.getInstance();
     this.geneticSystem = new GeneticSystem(RNGManager.getInstance());
+    this.hybridizationSystem = new HybridizationSystem(RNGManager.getInstance());
     this._simulationEngine = simulationEngine;
   }
 
@@ -91,6 +99,8 @@ export class VegetationSystem {
     this.processReproduction(chunk, speciesArray, deltaTime);
     // Process asexual (vegetative) reproduction for eligible species
     this.processAsexualReproduction(chunk, speciesArray, deltaTime);
+    // Process hybridization attempts
+    this.processHybridization(chunk, speciesArray, deltaTime);
     
     // Process seed dispersal (to local and neighboring chunks)
     this.processSeedDispersal(chunk, speciesArray);
@@ -103,6 +113,68 @@ export class VegetationSystem {
     
     // Update succession metrics
     this.updateSuccessionMetrics(chunk, speciesArray);
+  }
+
+  /**
+   * Process hybridization attempts between compatible flowering species
+   */
+  private processHybridization(chunk: WorldChunk, species: SpeciesInstance[], _deltaTime: number): void {
+    // Find flowering plants
+    const floweringPlants = species.filter(s =>
+      s.phenologyStage === PhenologyStage.FLOWERING ||
+      s.phenologyStage === PhenologyStage.FRUITING
+    );
+
+    if (floweringPlants.length < 2) return;
+
+    // Attempt hybridization for each flowering plant
+    floweringPlants.forEach(plant => {
+      // Only attempt hybridization occasionally
+      if (this.rng.next() > this.HYBRIDIZATION_CHANCE) return;
+
+      // Find nearby flowering plants of different species
+      const nearbyPartners = floweringPlants.filter(other => {
+        if (other.id === plant.id) return false;
+        if (other.speciesId === plant.speciesId) return false; // Different species only
+
+        const distance = Math.sqrt(
+          Math.pow(plant.x - other.x, 2) +
+          Math.pow(plant.y - other.y, 2)
+        );
+
+        return distance <= this.HYBRIDIZATION_RADIUS;
+      });
+
+      if (nearbyPartners.length === 0) return;
+
+      // Pick a random partner
+      const partner = this.rng.choice(nearbyPartners);
+
+      // Attempt hybridization
+      const result = this.hybridizationSystem.attemptHybridization(
+        plant,
+        partner,
+        chunk,
+        this.currentTick
+      );
+
+      if (result.success && result.hybridInstance) {
+        // Add hybrid to chunk
+        chunk.species.set(result.hybridInstance.id, result.hybridInstance);
+
+        // Emit hybridization event
+        try {
+          const emit = (chunk as any).__emitEvent as ((t: EventType, d: any) => void) | undefined;
+          emit?.(EventType.HYBRID_CREATED, {
+            speciesId: result.hybridInstance.speciesId,
+            parentAId: plant.speciesId,
+            parentBId: partner.speciesId,
+            generation: result.event.generation,
+            tick: this.currentTick
+          });
+        } catch {}
+      }
+    });
   }
 
   /**
@@ -342,7 +414,6 @@ export class VegetationSystem {
    */
   private calculateCompetition(species: SpeciesInstance, chunk: WorldChunk): number {
     let competitionStress = 0;
-    let competitorCount = 0;
 
     // Check competition from other species in the chunk
     chunk.species.forEach(otherSpecies => {
@@ -357,7 +428,6 @@ export class VegetationSystem {
         // Competition intensity based on biomass and distance
         const competitionIntensity = otherSpecies.biomass / Math.max(0.1, distance);
         competitionStress += competitionIntensity;
-        competitorCount++;
       }
     });
 
@@ -430,8 +500,9 @@ export class VegetationSystem {
    */
   private calculateDynamicReproductionNeed(speciesDef: SpeciesDefinition, species: SpeciesInstance): number {
     const baseNeed = speciesDef.reproductionNeed;
-    const urgencyReduction = species.reproductiveUrge * 0.4; // Up to 40% reduction when desperate
-    return Math.max(0.1, baseNeed - urgencyReduction); // Never below 10%
+    // BALANCE TUNING: Increased urgency reduction to help species reproduce under stress
+    const urgencyReduction = species.reproductiveUrge * 0.55; // Up to 55% reduction (was 40%)
+    return Math.max(0.05, baseNeed - urgencyReduction); // Reduced minimum from 0.1 to 0.05
   }
 
   /**
@@ -527,50 +598,51 @@ export class VegetationSystem {
     const moisture = chunk.biomeState.moisture;
     const vitality = chunk.biomeState.vitality;
     const soil = chunk.biomeState.soil;
-    
+
     // Stress increases with extreme conditions
     let stress = 0;
-    
+
     // Temperature stress
     if (temp < 10 || temp > 30) stress += 0.3;
     else if (temp < 15 || temp > 25) stress += 0.1;
-    
+
     // Moisture stress
     if (moisture < 0.3 || moisture > 0.9) stress += 0.2;
     else if (moisture < 0.4 || moisture > 0.8) stress += 0.1;
-    
+
     // Overall ecosystem health stress
     stress += (1 - vitality) * 0.3;
     stress += (1 - soil) * 0.2;
-    
+
     return Math.max(0, Math.min(1, stress));
   }
 
   private calculateHealthChange(species: SpeciesInstance, speciesDef: SpeciesDefinition, factors: GrowthFactors, deltaTime: number): number {
-    let healthChange = 0.012 * deltaTime; // Slightly higher base recovery rate
-    
-    // Stress from poor growing conditions
+    // BALANCE TUNING: Increased base recovery to help species survive environmental stress
+    let healthChange = 0.018 * deltaTime; // Increased from 0.012 - 50% higher recovery rate
+
+    // Stress from poor growing conditions - reduced impact
     const overallStress = 1 - this.calculateEnvironmentalModifier(factors);
-    healthChange -= overallStress * 0.02 * deltaTime;
-    
+    healthChange -= overallStress * 0.015 * deltaTime; // Reduced from 0.02 - 25% less stress damage
+
     // Age-related decline
     const ageRatio = species.age / speciesDef.lifespanTicks;
     if (ageRatio > 0.7) {
       const senescenceRate = (ageRatio - 0.7) / 0.3;
-      healthChange -= senescenceRate * 0.01 * deltaTime;
+      healthChange -= senescenceRate * 0.008 * deltaTime; // Reduced from 0.01 - slower aging
     }
-    
+
     // Phenology affects health
     switch (species.phenologyStage) {
       case PhenologyStage.FLOWERING:
       case PhenologyStage.FRUITING:
-        healthChange -= 0.003 * deltaTime; // Reproductive cost (tempered)
+        healthChange -= 0.002 * deltaTime; // Reduced from 0.003 - lower reproductive cost
         break;
       case PhenologyStage.DORMANT:
-        healthChange += 0.002 * deltaTime; // Rest period
+        healthChange += 0.003 * deltaTime; // Increased from 0.002 - better rest recovery
         break;
     }
-    
+
     return healthChange;
   }
 
@@ -621,7 +693,7 @@ export class VegetationSystem {
     const seasonFactor = this.isInReproductionSeason(speciesDef, chunk) ? 1.0 : 0.2;
     const pollinationSuccess = this.calculatePollinationSuccess(speciesDef, chunk);
     
-    let rate = base * sizeEffect * healthFactor * vitalityFactor * lightFactor * seasonFactor * pollinationSuccess;
+    const rate = base * sizeEffect * healthFactor * vitalityFactor * lightFactor * seasonFactor * pollinationSuccess;
 
     // Record debug info for inspector
     try {
@@ -853,27 +925,28 @@ export class VegetationSystem {
         const temp = chunk.climateState.temperature;
         const moisture = chunk.biomeState.moisture;
         
+        // BALANCE TUNING: Reduced environmental stress mortality rates
         // Temperature stress
         if (temp < speciesDef.temperatureRange.min) {
           const coldStress = (speciesDef.temperatureRange.min - temp) / 10;
-          mortalityRate += coldStress * 0.02 * deltaTime;
+          mortalityRate += coldStress * 0.015 * deltaTime; // Reduced from 0.02
           primaryCause = CauseOfDeath.COLD_DAMAGE;
-          if (temp < speciesDef.temperatureRange.min - 5) mortalityRate += 0.05 * deltaTime;
+          if (temp < speciesDef.temperatureRange.min - 5) mortalityRate += 0.03 * deltaTime; // Reduced from 0.05
         } else if (temp > speciesDef.temperatureRange.max) {
           const heatStress = (temp - speciesDef.temperatureRange.max) / 10;
-          mortalityRate += heatStress * 0.02 * deltaTime;
+          mortalityRate += heatStress * 0.015 * deltaTime; // Reduced from 0.02
           primaryCause = CauseOfDeath.HEAT_STRESS;
-          if (temp > speciesDef.temperatureRange.max + 5) mortalityRate += 0.05 * deltaTime;
+          if (temp > speciesDef.temperatureRange.max + 5) mortalityRate += 0.03 * deltaTime; // Reduced from 0.05
         }
-        
-        // Drought stress
+
+        // Drought stress - reduced impact
         if (moisture < speciesDef.moistureRange.min) {
           const deficit = (speciesDef.moistureRange.min - moisture);
-          const droughtStress = deficit * 0.08 * deltaTime;
+          const droughtStress = deficit * 0.05 * deltaTime; // Reduced from 0.08
           mortalityRate += droughtStress;
           primaryCause = CauseOfDeath.DROUGHT;
-          if (deficit > 0.05) mortalityRate += 0.02 * deltaTime;
-          if (deficit > 0.1) mortalityRate += 0.05 * deltaTime;
+          if (deficit > 0.05) mortalityRate += 0.015 * deltaTime; // Reduced from 0.02
+          if (deficit > 0.1) mortalityRate += 0.03 * deltaTime; // Reduced from 0.05
         }
         
         // Pollution mortality
@@ -903,13 +976,26 @@ export class VegetationSystem {
                         eventType === 1 ? CauseOfDeath.DISEASE : CauseOfDeath.PREDATION;
         }
         
+        // BALANCE TUNING: Succession mechanics - reduce mortality for endangered species
+        const speciesPopulation = species.filter(s => s.speciesId === plant.speciesId).length;
+        if (speciesPopulation <= 3) {
+          // Critical population - 80% mortality reduction
+          mortalityRate *= 0.2;
+        } else if (speciesPopulation <= 10) {
+          // Low population - 50% mortality reduction
+          mortalityRate *= 0.5;
+        } else if (speciesPopulation <= 20) {
+          // Moderate population - 25% mortality reduction
+          mortalityRate *= 0.75;
+        }
+
         // Apply mortality check
         if (this.rng.next() < mortalityRate) {
           shouldDie = true;
           causeOfDeath = primaryCause;
         }
       }
-      
+
       if (shouldDie) {
         // Record the death before removal
         plant.causeOfDeath = causeOfDeath;
@@ -1040,10 +1126,11 @@ export class VegetationSystem {
 
   /**
    * Calculate germination probability
+   * BALANCE TUNING: Added population recovery mechanics for endangered species
    */
   private calculateGerminationProbability(speciesDef: SpeciesDefinition, chunk: WorldChunk, seed: any): number {
-    let probability = 0.1; // Base germination rate
-    
+    let probability = 0.15; // Base germination rate - increased from 0.1
+
     // Temperature requirements
     const temp = chunk.climateState.temperature;
     if (temp >= speciesDef.temperatureRange.min && temp <= speciesDef.temperatureRange.max) {
@@ -1051,7 +1138,7 @@ export class VegetationSystem {
     } else {
       probability *= 0.3; // Poor temperature reduces it
     }
-    
+
     // Moisture requirements
     const moisture = chunk.biomeState.moisture;
     if (moisture >= speciesDef.moistureRange.min) {
@@ -1059,7 +1146,7 @@ export class VegetationSystem {
     } else {
       probability *= 0.2;
     }
-    
+
     // Light requirements for germination
     const light = chunk.climateState.light;
     if (light >= speciesDef.lightRequirement * 0.5) { // Seeds need less light than adults
@@ -1071,13 +1158,24 @@ export class VegetationSystem {
     if (!this.isInReproductionSeason(speciesDef, chunk)) {
       probability *= 0.7;
     }
-    
+
+    // BALANCE TUNING: Succession mechanics - low population gets germination boost
+    const speciesPopulation = Array.from(chunk.species.values())
+      .filter(s => s.speciesId === seed.speciesId).length;
+    if (speciesPopulation < 3) {
+      // Endangered species get significant germination boost
+      probability *= 2.5;
+    } else if (speciesPopulation < 10) {
+      // Low population gets moderate boost
+      probability *= 1.5;
+    }
+
     // Competition check - reduce probability in crowded areas
     const localBiomass = this.getLocalBiomass(chunk, seed.x, seed.y);
     if (localBiomass > 5) {
       probability *= 0.5;
     }
-    
+
     // Soil quality
     probability *= (0.5 + chunk.biomeState.soil * 0.5);
 
@@ -1340,6 +1438,13 @@ export class VegetationSystem {
    */
   clearMortalityHistory(): void {
     this.mortalityHistory = [];
+  }
+
+  /**
+   * Get hybridization system for external access
+   */
+  getHybridizationSystem(): HybridizationSystem {
+    return this.hybridizationSystem;
   }
 
   /**

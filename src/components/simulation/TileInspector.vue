@@ -135,7 +135,7 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 import ChunkPixi from './ChunkPixi.vue'
 
 const props = defineProps<{ chunk: any }>();
-const emits = defineEmits(["close"]);
+defineEmits(["close"]);
 const tab = ref<'overview'|'repro'>('overview')
 
 const speciesSummary = computed(() => {

@@ -17,7 +17,7 @@ function installDom(mqlMatches = false) {
     getItem: (k: string) => (storage.has(k) ? storage.get(k)! : null),
     setItem: (k: string, v: string) => void storage.set(k, v)
   }
-  ;(globalThis as any).matchMedia = (query: string) => ({
+  ;(globalThis as any).matchMedia = (_query: string) => ({
     matches: mqlMatches,
     addEventListener: (_: string, __: any) => {},
     removeEventListener: (_: string, __: any) => {}

@@ -1,175 +1,84 @@
-# EcoSim - Ecological Simulation Game
+# EcoSim
 
-A sophisticated ecological simulation game with Pokémon-inspired mechanics, featuring dynamic species reproduction, environmental adaptation, and realistic biological systems.
+EcoSim is an ecological sandbox written in Vue 3 and TypeScript. It combines a deterministic simulation core with a seasonal game UI so you can experiment with habitats, species genetics, and environmental interventions—all rendered on a close-packed hex grid.
 
-## Quick Start
+## Highlights
 
-```bash
-# Install dependencies
-npm install
-
-# Initialize species database
-npm run init-db
-
-# Start development server
-npm run dev
-
-# Run tests (Vitest)
-npm test
-
-# Build for production
-npm run build
-
-# Run linting
-npm run lint
-
-# Type check
-npm run typecheck
-```
-
-## Project Structure
-
-```
-/src
-  /simulation      # Ecological simulation engine (orchestrator + systems)
-    - SimulationEngine.ts     # Master orchestrator
-    - WorldChunk.ts           # Spatial world units
-    - SpeciesRegistry.ts      # Species definitions
-    - VegetationSystem.ts     # Growth, reproduction, mortality
-    - WeatherSystem.ts        # Seasonal weather + events
-    - HydrologySystem.ts      # Water flow and moisture
-    - CanopySystem.ts         # Light attenuation and canopy
-    - PollinatorSystem.ts     # Pollinator density field
-    - BirdsSystem.ts          # Seed dispersal, pest control, migration
-  /database        # SQLite species database
-    - SpeciesDatabase.ts      # Database adapter
-    - schema.sql              # Database schema
-    - init-species-data.sql   # Seed data
-  /core            # Game scaffolding (engine shell, camera, input)
-  /world           # Tile map, layers, loaders
-  /render          # Sprite loader/manager
-  /components      # Vue components
-  /views           # Routed screens (UI layer)
-  /utils           # Helpers
-  /tests           # Vitest suites (src/**/*.spec.ts)
-```
-
-## Key Features
-
-### 🧬 Dynamic Reproduction System
-- **Reproduction Need**: Each species has environmental quality thresholds for reproduction
-- **Reproductive Urge**: Time-based urge system that builds over failed reproduction attempts
-- **Adaptive Thresholds**: Species lower their standards when desperate to reproduce
-- **Environmental Quality**: Geometric mean assessment of temperature, moisture, light, and nutrients
-
-### 🌿 Advanced Species Simulation
-- **10 Unique Species**: From pioneer grasses to climax trees, each with distinct traits
-- **Phenology Stages**: Seed → Vegetative → Flowering → Fruiting lifecycle
-- **Environmental Adaptation**: Species respond to temperature, moisture, light, and soil conditions
-- **Competition**: Dynamic resource competition between neighboring species
-
-### 🌍 Realistic Ecological Systems
-- **Biome Simulation**: Grassland, forest, wetland, and urban environments
-- **Climate Systems**: Temperature gradients, rainfall patterns, seasonal changes
-- **Succession**: Pioneer species prepare environments for climax communities
-- **Species Interactions**: Pollination, seed dispersal, and competitive relationships
-
-## Tech Stack
-
-- **Vue 3** - Reactive UI framework with Composition API
-- **TypeScript** - Strict, type-safe development
-- **SQLite** - Species database management
-- **Vite** - Fast dev server and bundler (port 3000)
-- **Vitest** - Unit testing framework
-- **ESLint** - Code quality enforcement
-
-## Game Mechanics
-
-### Species Collection & Research
-- Discover species through environmental exploration
-- Research species traits and optimal conditions
-- Track population dynamics and reproductive success
-- Unlock rare species through ecological achievements
-
-### Environmental Management
-- Modify habitat conditions to favor different species
-- Balance competing species for ecosystem health
-- Create optimal conditions for reproduction and growth
-- Manage succession from pioneer to climax communities
-
-### Simulation Controls
-- Real-time environmental parameter adjustment
-- Species population monitoring and analysis
-- Reproduction rate tracking and optimization
-- Environmental stress and adaptation visualization
-
-## Testing
-
-The project includes a growing Vitest suite:
-
-- 60+ tests across 17 test files
-- Reproduction system tests — species breeding mechanics
-- Environmental system tests — climate and habitat simulation
-- Species behavior tests — growth, survival, adaptation
-- Database integration tests — species data management
-
-```bash
-# Run all tests
-npm test
-
-# Watch mode
-npm run test:watch
-
-# Run a specific test file
-npm test src/tests/reproduction.spec.ts
-
-# Coverage (if needed)
-npx vitest run --coverage
-```
-
-## Database Setup
-
-The game uses SQLite to manage species data:
-
-```bash
-# Initialize database with schema and species data
-npm run init-db
-
-# Verify database and print examples
-npm run test-db
-```
-
-The database includes:
-- **Vegetal Species** - 10 species with detailed ecological traits
-- **Species Interactions** - Pollination, seed dispersal, and feeding relationships
-- **Biome Associations** - Species abundance weights per biome type
-- **Simulation Overrides** - Fine-tuning parameters for game balance
-
-## Development Philosophy
-
-This project follows **minimal, high-impact code** principles:
-- Eliminate unnecessary abstractions
-- Reuse existing tested components
-- Prioritize code readability and maintainability
-- Implement robust biological realism within game constraints
+- **Living Hex World** – Chunks render as textured hex tiles with hover/selection stats for vitality, moisture, pollution, temperature, diversity, and species counts.
+- **Seasonal Command Deck** – Scenario dashboard, guided workflow sidebar, and themed controls keep climate, pollinators, and interventions within reach.
+- **Deterministic Simulation** – Seeded RNG plus subsystems for weather, hydrology, canopy, pollinators, birds, and vegetation with genetics-aware reproduction.
+- **Safe-Guarded Runs** – Automatic pause when biodiversity collapses, with quick restart or snapshot loading to continue experiments.
+- **Database Backed** – SQLite dataset for vegetal species, birds, and interactions, surfaced via adapter utilities and tunable overrides.
 
 ## Getting Started
 
-1. **Clone and Setup**:
-   ```bash
-   git clone <repository>
-   cd pokemon-vibe-game
-   npm install
-   npm run init-db
-   ```
+```bash
+rustup target add wasm32-unknown-unknown # install the Rust WebAssembly target
+npm ci               # install locked dependencies
+npm run init-db      # build the species database
+npm run dev          # compile Rust and start Vite (http://localhost:3000)
+```
 
-2. **Start Development**:
-   ```bash
-   npm run dev
-   ```
+The simulation runs in Rust through WebAssembly. Use Node.js 22.12+ and stable
+Rust; see [Rust simulation setup and architecture](SIMULATION_RUST.md) for
+build commands, deterministic ticks, replay, and save migration details.
 
-3. **Open the Game**: Navigate to `http://localhost:3000` and explore the ecological simulation
+### Useful Commands
 
-4. **Run Tests**: Ensure everything works with `npm test`
+| Task                | Command                 |
+|---------------------|-------------------------|
+| Run unit tests      | `npm test`              |
+| Watch tests         | `npm run test:watch`    |
+| Type checking       | `npm run typecheck`     |
+| ESLint              | `npm run lint`          |
+| Production build    | `npm run build`         |
 
-The simulation starts with basic grassland conditions. Experiment with environmental parameters to see how different species respond, reproduce, and compete for resources!
+## Directory Map
+
+```
+src/
+  components/        # Vue components (dashboard, hex grid, workflow, etc.)
+  core/              # Game scaffolding (engine shell, camera, input)
+  database/          # SQLite schema, adapters, seed data
+  persistence/       # Save/load providers
+  render/            # Sprite utilities
+  simulation/        # Deterministic ecological engine & systems
+  utils/             # Helpers, directives
+  views/             # Routed screens (SimulationView, etc.)
+docs/                # Architecture and feature documentation
+public/terrain/      # Hex tile textures (grassland, forest, wetland, savanna, wasteland)
+```
+
+## UI Tour
+
+- **Hex Board** – Each chunk sits on a textured hex; hover or select to reveal biome & climate stats, seed counts, and badges for birds/pollinators.
+- **Scenario Dashboard** – Summaries for vitality, cleanliness, species totals, alerts, and recent events.
+- **Guided Workflow Sidebar** – Observe → Hypothesize → Test steps with quick toggles for overlays, history scrubber, and interventions.
+- **Control Panels** – Climate, pollinator, time, persistence, theme, and intervention controls themed with seasonal gradients.
+- **Bottom Dock** – Quick navigation to overview, goals, species, climate, hydrology, interactions, events, and settings sections.
+
+## Simulation Notes
+
+- Center seeding now spawns a **3×3 cluster** of three `common_grass` per chunk (27 total) while trimming grass elsewhere for a clean start.
+- Chunk baselines adapt to the current biome, with overlays reacting to active visualization mode (vitality, moisture, pollution, etc.).
+- Extinction detection pauses automatically and offers restart or snapshot recovery.
+
+## Documentation
+
+The `/docs` folder contains deeper dives:
+
+- `ARCHITECTURE_OVERVIEW.md` – Engine layout, hex rendering pipeline, UI tiers.
+- `QUICK_START_GUIDE.md` – Bootstrapping, example code, and workflow tips.
+- `SIMULATION_ENGINE.md` – System-level details, lifecycle, and API usage.
+- `SIMULATION_GAME_DESIGN.md` – Experience & progression goals.
+- `SPECIES_DATABASE.md` – SQLite schema, adapter usage, and override tables.
+
+## Contributing
+
+1. Fork the repo and create a feature branch.
+2. Run `npm run lint` and `npm run typecheck` before submitting a PR.
+3. Document new behaviours/components and update docs if the workflow changes.
+
+## License
+
+This project is released under the MIT License. See `LICENSE` for details.

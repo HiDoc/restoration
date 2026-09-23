@@ -18,6 +18,8 @@ export interface DigestInput {
   populationAfter: ReadonlyMap<string, number>
   /** Display name of a plant or animal. */
   nameOf: (speciesId: string) => string
+  /** Pairs (`animal|plant`) the player already knew before this span; only new ones are reported. */
+  knownInteractions?: ReadonlySet<string>
 }
 
 const WEATHER: Record<string, string> = {
@@ -58,7 +60,7 @@ function mostCommon(values: string[]): string | undefined {
 }
 
 /** What changed while time was advanced, most notable first, in plain words. */
-export function buildDigest({ events, seasonBefore, seasonAfter, populationBefore, populationAfter, nameOf }: DigestInput): DigestLine[] {
+export function buildDigest({ events, seasonBefore, seasonAfter, populationBefore, populationAfter, nameOf, knownInteractions }: DigestInput): DigestLine[] {
   const lines: DigestLine[] = []
   const deaths = bySpecies(events, EventType.SPECIES_DIE)
   const births = bySpecies(events, EventType.SPECIES_SPAWN)
@@ -80,7 +82,7 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
   const pairs = new Map<string, SimulationEvent>()
   for (const event of events) {
     const key = `${event.data?.faunaId}|${event.data?.plantId}`
-    if (event.type === EventType.INTERACTION_OBSERVED && !pairs.has(key)) pairs.set(key, event)
+    if (event.type === EventType.INTERACTION_OBSERVED && !pairs.has(key) && !knownInteractions?.has(key)) pairs.set(key, event)
   }
   for (const event of pairs.values()) {
     lines.push({ icon: 'interaction', text: `Seen together: ${nameOf(event.data.faunaId)} ↔ ${nameOf(event.data.plantId)}.`, chunkId: event.chunkId })

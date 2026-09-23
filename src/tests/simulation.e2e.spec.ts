@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
 import { RNGManager } from '@/simulation/SeededRNG';
 import { PhenologyStage } from '@/simulation/WorldChunk';
-import { DiscoveryMethod, TraitCategory } from '@/simulation/ResearchSystem';
-import { useResearchStore } from '@/stores/researchStore';
+import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { STARTING_MEADOW, plantStartingMeadow } from '@/game/startingMeadow';
 import { createPinia, setActivePinia } from 'pinia';
 
 /**
@@ -13,7 +13,7 @@ import { createPinia, setActivePinia } from 'pinia';
  * through multiple update cycles, including all integrated systems:
  * - SimulationEngine orchestration of the Rust core (climate, hydrology,
  *   growth, reproduction, germination, dispersal)
- * - Research system (species discovery, trait unlocking)
+ * - Knowledge (what the player learns from the world)
  * - Year-end workflow (callbacks, seed selection)
  */
 
@@ -124,127 +124,23 @@ describe('Simulation E2E Tests', () => {
     });
   });
 
-  describe('Research System Integration E2E', () => {
-    let researchStore: ReturnType<typeof useResearchStore>;
+  describe('Knowledge E2E', () => {
+    it('learns what the player could see over a spring on the starting meadow', () => {
+      plantStartingMeadow(engine);
+      const knowledge = useKnowledgeStore();
+      knowledge.reset();
+      knowledge.observe(engine);
+      expect(Object.keys(knowledge.knowledge.species)).toEqual(expect.arrayContaining(STARTING_MEADOW));
 
-    beforeEach(() => {
-      researchStore = useResearchStore();
-      const eventJournal = (engine as any).eventJournal; // Access private eventJournal
-      researchStore.initialize(eventJournal, 0);
-      if (researchStore.system) {
-        engine.setResearchSystem(researchStore.system as any);
-      }
-    });
-
-    it('should discover species through observation', () => {
-      // Manually discover starting species
-      researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
-
-      expect(researchStore.discoveredCount).toBe(1);
-      expect(researchStore.discoveredSpeciesIds).toContain('common_grass');
-    });
-
-    it('should track observations and unlock traits progressively', () => {
-      const chunk = engine.getChunk(1, 1)!;
-
-      // Add test species to chunk
-      chunk.addSpecies({
-        id: 'test_plant_1',
-        speciesId: 'test_species',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: PhenologyStage.VEGETATIVE,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // Observe species multiple times
-      for (let i = 0; i < 15; i++) {
-        engine.observeAllActiveSpecies();
-      }
-
-      expect(researchStore.getObservationCount('test_species')).toBe(15);
-      // BASIC is unlocked on first discovery, ENVIRONMENTAL requires 10 observations
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.BASIC)).toBe(true);
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.ENVIRONMENTAL)).toBe(true);
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.REPRODUCTIVE)).toBe(false);
-    });
-
-    it('should integrate observation into simulation loop', () => {
-      // Add species to multiple chunks
-      const chunk1 = engine.getChunk(0, 0)!;
-      const chunk2 = engine.getChunk(1, 1)!;
-
-      chunk1.addSpecies({
-        id: 'p1',
-        speciesId: 'common_grass',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: PhenologyStage.VEGETATIVE,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      chunk2.addSpecies({
-        id: 'p2',
-        speciesId: 'silver_birch',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: PhenologyStage.VEGETATIVE,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // Observe periodically during simulation
-      for (let tick = 0; tick < 50; tick++) {
+      for (let day = 0; day < 89; day++) {
         engine.update();
-
-        if (tick % 10 === 0) {
-          engine.observeAllActiveSpecies();
-        }
+        knowledge.observe(engine);
       }
 
-      // Should have observed both species multiple times
-      expect(researchStore.discoveredCount).toBeGreaterThanOrEqual(2);
-      expect(researchStore.totalObservations).toBeGreaterThanOrEqual(10);
-    });
-
-    it('should calculate research progress correctly', () => {
-      const chunk = engine.getChunk(0, 0)!;
-
-      chunk.addSpecies({
-        id: 'p1',
-        speciesId: 'progress_test',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: PhenologyStage.VEGETATIVE,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // 0 observations = 0% progress
-      expect(researchStore.getResearchProgress('progress_test')).toBe(0);
-
-      // 10 observations = partial progress
-      for (let i = 0; i < 10; i++) {
-        engine.observeAllActiveSpecies();
-      }
-      expect(researchStore.getResearchProgress('progress_test')).toBeGreaterThan(0);
-      expect(researchStore.getResearchProgress('progress_test')).toBeLessThan(1);
-
-      // 100+ observations = 100% progress
-      for (let i = 0; i < 95; i++) {
-        engine.observeAllActiveSpecies();
-      }
-      expect(researchStore.getResearchProgress('progress_test')).toBe(1.0);
+      const clover = knowledge.knowledge.species.white_clover;
+      expect(clover.flowering).toContain('spring');
+      expect(clover.fruiting).toEqual([]); // clover fruits in summer and autumn, not yet seen
+      expect(knowledge.summary.knownSpecies).toBeGreaterThanOrEqual(STARTING_MEADOW.length);
     });
   });
 
@@ -441,12 +337,6 @@ describe('Simulation E2E Tests', () => {
 
       // Should not throw when updating empty chunk
       expect(() => engine.update()).not.toThrow();
-    });
-
-    it('should handle observation of non-existent species', () => {
-      expect(() => {
-        engine.observeSpeciesInChunk('chunk_99_99');
-      }).not.toThrow();
     });
 
     it('should recover from extreme environmental conditions', () => {

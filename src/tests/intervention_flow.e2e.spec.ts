@@ -27,7 +27,7 @@ describe('Intervention Flow E2E', () => {
 
     // Initialize stores
     interventionStore.initialize(engine, 'normal');
-    goalsStore.initialize(engine, 'normal', engine.getResearchSystem());
+    goalsStore.initialize(engine, 'normal');
   });
 
   describe('Complete Gameplay Loop', () => {

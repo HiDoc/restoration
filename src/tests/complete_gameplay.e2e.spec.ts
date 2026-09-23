@@ -59,7 +59,7 @@ describe('Complete Gameplay Integration', () => {
 
     // Initialize all game systems
     interventionStore.initialize(engine, 'normal');
-    goalsStore.initialize(engine, 'normal', engine.getResearchSystem());
+    goalsStore.initialize(engine, 'normal');
     tutorialStore.initializeTutorial();
     scenarioStore.initialize(engine);
   });

@@ -15,6 +15,7 @@ export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export interface SpeciesDefinition {
   id: string;
   name: string;
+  scientificName?: string;
   category: SpeciesCategory;
   
   // Core attributes

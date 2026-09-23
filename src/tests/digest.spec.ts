@@ -78,6 +78,17 @@ describe('buildDigest', () => {
     ])
   })
 
+  it('only reports pairs the player did not already know', () => {
+    const lines = digest({
+      events: [
+        event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }),
+        event('interaction_observed', { faunaId: 'common_blue', plantId: 'white_clover' }),
+      ],
+      knownInteractions: new Set(['blackbird|hawthorn']),
+    })
+    expect(lines.map(line => line.text)).toEqual(['Seen together: Common Blue ↔ White Clover.'])
+  })
+
   it('keeps the most notable lines and summarises the rest', () => {
     const events = Array.from({ length: 12 }, (_, i) => event('first_sighting', { faunaId: `animal_${i}` }))
     const lines = digest({ events, seasonAfter: 'summer' })

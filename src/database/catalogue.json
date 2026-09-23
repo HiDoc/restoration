@@ -3,6 +3,7 @@
     {
       "id": "lady_fern",
       "name": "Lady Fern",
+      "scientificName": "Athyrium filix-femina",
       "category": "fern",
       "maxBiomass": 1.8,
       "growthRate": 0.08,
@@ -70,6 +71,7 @@
     {
       "id": "silver_birch",
       "name": "Silver Birch",
+      "scientificName": "Betula pendula",
       "category": "tree",
       "maxBiomass": 8,
       "growthRate": 1.5,
@@ -143,6 +145,7 @@
     {
       "id": "hawthorn",
       "name": "Common Hawthorn",
+      "scientificName": "Crataegus monogyna",
       "category": "shrub",
       "maxBiomass": 4,
       "growthRate": 0.8999999999999999,
@@ -214,6 +217,7 @@
     {
       "id": "beech",
       "name": "European Beech",
+      "scientificName": "Fagus sylvatica",
       "category": "tree",
       "maxBiomass": 18,
       "growthRate": 0.3,
@@ -283,6 +287,7 @@
     {
       "id": "common_grass",
       "name": "Red Fescue",
+      "scientificName": "Festuca rubra",
       "category": "grass",
       "maxBiomass": 0.3,
       "growthRate": 0.15,
@@ -358,6 +363,7 @@
     {
       "id": "wild_bluebell",
       "name": "Bluebell",
+      "scientificName": "Hyacinthoides non-scripta",
       "category": "herb",
       "maxBiomass": 0.6,
       "growthRate": 0.1,
@@ -434,6 +440,7 @@
     {
       "id": "moss_cushion",
       "name": "Cushion Moss",
+      "scientificName": "Leucobryum glaucum",
       "category": "moss",
       "maxBiomass": 0.1,
       "growthRate": 0.05,
@@ -504,6 +511,7 @@
     {
       "id": "scots_pine",
       "name": "Scots Pine",
+      "scientificName": "Pinus sylvestris",
       "category": "tree",
       "maxBiomass": 12,
       "growthRate": 0.25,
@@ -579,6 +587,7 @@
     {
       "id": "bracken_fern",
       "name": "Bracken Fern",
+      "scientificName": "Pteridium aquilinum",
       "category": "fern",
       "maxBiomass": 1.2,
       "growthRate": 0.12,
@@ -644,6 +653,7 @@
     {
       "id": "english_oak",
       "name": "English Oak",
+      "scientificName": "Quercus robur",
       "category": "tree",
       "maxBiomass": 15,
       "growthRate": 0.4,
@@ -712,6 +722,7 @@
     {
       "id": "pioneer_willow",
       "name": "Goat Willow",
+      "scientificName": "Salix caprea",
       "category": "shrub",
       "maxBiomass": 2.5,
       "growthRate": 1.25,
@@ -786,6 +797,7 @@
     {
       "id": "white_clover",
       "name": "White Clover",
+      "scientificName": "Trifolium repens",
       "category": "herb",
       "maxBiomass": 0.4,
       "growthRate": 0.2,

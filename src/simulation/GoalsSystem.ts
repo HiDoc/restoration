@@ -4,7 +4,9 @@
  */
 
 import type { SimulationEngine } from './SimulationEngine';
-import type { ResearchSystem } from './ResearchSystem';
+import type { KnowledgeSummary } from '@/game/codex';
+
+const NO_KNOWLEDGE = (): KnowledgeSummary => ({ knownSpecies: 0, completeEntries: 0, interactions: 0 });
 
 export type GoalCategory = 'biodiversity' | 'ecosystem_health' | 'research' | 'succession' | 'pollution';
 export type GoalDifficulty = 'easy' | 'normal' | 'hard';
@@ -17,7 +19,7 @@ export interface Goal {
   targetValue: number;
   rewardPoints: number;
   difficulty: GoalDifficulty;
-  evaluator: (engine: SimulationEngine, researchSystem?: ResearchSystem) => number;
+  evaluator: (engine: SimulationEngine, knowledge: KnowledgeSummary) => number;
 }
 
 export interface GoalProgress {
@@ -127,56 +129,52 @@ const RESEARCH_GOALS: Goal[] = [
   {
     id: 'discover_10',
     title: 'Field Researcher',
-    description: 'Discover 2 different species',
+    description: 'Get to know 2 species',
     category: 'research',
     targetValue: 2,
     rewardPoints: 100,
     difficulty: 'easy',
-    evaluator: (_engine, researchSystem) => researchSystem?.getDiscoveredSpecies().length || 0
+    evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
   {
     id: 'discover_25',
     title: 'Naturalist',
-    description: 'Discover 3 different species',
+    description: 'Get to know 3 species',
     category: 'research',
     targetValue: 3,
     rewardPoints: 250,
     difficulty: 'normal',
-    evaluator: (_engine, researchSystem) => researchSystem?.getDiscoveredSpecies().length || 0
+    evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
   {
     id: 'discover_50',
     title: 'Master Ecologist',
-    description: 'Discover 5 different species',
+    description: 'Get to know 5 species',
     category: 'research',
     targetValue: 5,
     rewardPoints: 500,
     difficulty: 'hard',
-    evaluator: (_engine, researchSystem) => researchSystem?.getDiscoveredSpecies().length || 0
+    evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
   {
     id: 'research_complete_3',
     title: 'Deep Understanding',
-    description: 'Fully research 3 species (unlock all traits)',
+    description: 'Complete 3 Codex entries (every fact and partner seen)',
     category: 'research',
     targetValue: 3,
     rewardPoints: 150,
     difficulty: 'normal',
-    evaluator: (_engine, researchSystem) => {
-      if (!researchSystem) return 0;
-      const discovered = researchSystem.getDiscoveredSpecies();
-      return discovered.filter(id => researchSystem.getResearchProgress(id) === 1.0).length;
-    }
+    evaluator: (_engine, knowledge) => knowledge.completeEntries
   },
   {
-    id: 'observations_500',
-    title: 'Dedicated Observer',
-    description: 'Record 500 total species observations',
+    id: 'interactions_5',
+    title: 'Web Watcher',
+    description: 'Witness 5 plant–animal interactions',
     category: 'research',
-    targetValue: 500,
+    targetValue: 5,
     rewardPoints: 100,
     difficulty: 'normal',
-    evaluator: (_engine, researchSystem) => researchSystem?.getState().totalObservations || 0
+    evaluator: (_engine, knowledge) => knowledge.interactions
   }
 ];
 
@@ -262,13 +260,13 @@ export const ALL_GOALS: Goal[] = [
  */
 export class GoalsSystem {
   private engine: SimulationEngine;
-  private researchSystem?: ResearchSystem;
+  private knowledge: () => KnowledgeSummary;
   private activeGoals: Map<string, GoalProgress> = new Map();
   private completedGoals: Set<string> = new Set();
 
-  constructor(engine: SimulationEngine, researchSystem?: ResearchSystem) {
+  constructor(engine: SimulationEngine, knowledge: () => KnowledgeSummary = NO_KNOWLEDGE) {
     this.engine = engine;
-    this.researchSystem = researchSystem;
+    this.knowledge = knowledge;
   }
 
   /**
@@ -320,7 +318,7 @@ export class GoalsSystem {
       }
 
       const { goal } = goalProgress;
-      const currentValue = goal.evaluator(this.engine, this.researchSystem);
+      const currentValue = goal.evaluator(this.engine, this.knowledge());
       const progress = this.calculateProgress(currentValue, goal.targetValue, goal.category);
 
       // Check completion

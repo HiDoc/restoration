@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
 import { RNGManager } from '@/simulation/SeededRNG';
-import { DiscoveryMethod } from '@/simulation/ResearchSystem';
-import { useResearchStore } from '@/stores/researchStore';
+import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { codexEntries } from '@/game/codex';
 import { createPinia, setActivePinia } from 'pinia';
 
 /**
@@ -66,14 +66,10 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
     const engine = new SimulationEngine(config);
     engine.activateAllChunks();
 
-    // Initialize research system
-    const researchStore = useResearchStore();
-    const eventJournal = (engine as any).eventJournal;
-    researchStore.initialize(eventJournal, 0);
-    if (researchStore.system) {
-      engine.setResearchSystem(researchStore.system as any);
-    }
-    researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
+    const knowledge = useKnowledgeStore();
+    knowledge.reset();
+    knowledge.observe(engine);
+    const known = () => knowledge.summary.knownSpecies;
 
     const speciesHistory: number[] = [];
     let maxSpecies = 0;
@@ -86,11 +82,8 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
       engine.update();
       const tick = engine.getCurrentTick();
 
-      // BALANCE TUNING: Reduced observation frequency for realistic progression
-      // Observe species every 50 ticks instead of every 10 (80% reduction)
-      if (tick % 50 === 0) {
-        engine.observeAllActiveSpecies();
-      }
+      // The game folds in what the player sees on each displayed tick; every 10 ticks is enough here.
+      if (tick % 10 === 0) knowledge.observe(engine);
 
       const stats = engine.getStatistics();
       speciesHistory.push(stats.totalSpecies);
@@ -98,7 +91,7 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
       totalVitality += stats.avgVitality;
       vitalityCount++;
 
-      if (researchStore.discoveredCount > 1 && firstDiscoveryTick === 0) {
+      if (known() > 1 && firstDiscoveryTick === 0) {
         firstDiscoveryTick = tick;
       }
 
@@ -108,29 +101,13 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
     }
 
     const avgSpecies = speciesHistory.reduce((a, b) => a + b, 0) / speciesHistory.length;
-    const discoveryRate = (researchStore.discoveredCount / ticks) * 100;
+    const discoveryRate = (known() / ticks) * 100;
     const avgVitality = totalVitality / vitalityCount;
 
-    // Calculate trait unlock efficiency
-    let totalTraits = 0;
-    let totalObservations = 0;
-    researchStore.discoveredSpeciesIds.forEach((speciesId) => {
-      const observations = researchStore.getObservationCount(speciesId);
-      totalObservations += observations;
-
-      if (researchStore.hasUnlockedTrait(speciesId, 'BASIC' as any)) totalTraits++;
-      if (researchStore.hasUnlockedTrait(speciesId, 'ENVIRONMENTAL' as any)) totalTraits++;
-      if (researchStore.hasUnlockedTrait(speciesId, 'REPRODUCTIVE' as any)) totalTraits++;
-      if (researchStore.hasUnlockedTrait(speciesId, 'ECOLOGICAL' as any)) totalTraits++;
-      if (researchStore.hasUnlockedTrait(speciesId, 'GENETIC' as any)) totalTraits++;
-    });
-
-    const observationRate = researchStore.discoveredCount > 0
-      ? totalObservations / researchStore.discoveredCount
-      : 0;
-    const traitUnlockRate = researchStore.discoveredCount > 0
-      ? totalTraits / researchStore.discoveredCount
-      : 0;
+    // Interactions witnessed per species known, and how complete the known Codex entries are.
+    const knownEntries = codexEntries(knowledge.knowledge).filter(entry => entry.known);
+    const observationRate = known() > 0 ? knowledge.summary.interactions / known() : 0;
+    const traitUnlockRate = knownEntries.length > 0 ? knownEntries.reduce((sum, e) => sum + e.progress, 0) / knownEntries.length : 0;
 
     return {
       run: seed,

@@ -11,7 +11,6 @@ import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
 import { GeneticSystem, GeneticProfile } from './GeneticSystem';
-import { ResearchSystem } from './ResearchSystem';
 import { InterventionManager } from './InterventionManager';
 
 // Animals come from the same catalogue as the plants.
@@ -64,9 +63,6 @@ export class SimulationEngine {
 
   // Genetics management
   private geneticSystem: GeneticSystem;
-
-  // Research and discovery system (optional)
-  private researchSystem?: ResearchSystem;
 
   // Intervention management (for player actions with costs/cooldowns)
   public interventionManager?: InterventionManager;
@@ -151,7 +147,6 @@ export class SimulationEngine {
     this.rngManager = RNGManager.create(config.masterSeed);
     this.eventJournal = new EventJournal(() => this.currentTick);
     this.geneticSystem = new GeneticSystem(this.rngManager);
-    this.researchSystem = new ResearchSystem(this.eventJournal, 0);
 
     // Initialize world chunks
     this.initializeWorld();
@@ -607,7 +602,6 @@ export class SimulationEngine {
     this.rngManager = RNGManager.create(this.config.masterSeed);
     this.geneticSystem = new GeneticSystem(this.rngManager);
     // Keep store references alive while resetting their gameplay state.
-    this.researchSystem?.importState(new ResearchSystem(this.eventJournal, 0).exportState());
     if (this.interventionManager) {
       const previous = this.interventionManager.exportState();
       this.interventionManager.importState({ ...previous, usageHistory: [], lastUsedTick: [] });
@@ -894,71 +888,6 @@ export class SimulationEngine {
   }
 
   /**
-   * Get goal-relevant metrics for goal evaluation
-   */
-  getGoalMetrics() {
-    const stats = this.getStatistics();
-    const discoveredSpecies = this.researchSystem?.getDiscoveredSpecies().length || 0;
-    const totalObservations = this.researchSystem?.getState().totalObservations || 0;
-
-    return {
-      // From statistics
-      totalSpecies: stats.totalSpecies,
-      totalHybrids: stats.totalHybrids,
-      avgVitality: stats.avgVitality,
-      avgPollution: stats.avgPollution,
-      activeChunks: stats.activeChunks,
-      currentTick: stats.currentTick,
-      simDays: stats.simDays,
-
-      // From research system
-      discoveredSpecies,
-      totalObservations,
-
-      // Additional computed metrics
-      ecosystemStability: this.calculateStability(),
-      canopyDevelopment: this.calculateCanopyDevelopment()
-    };
-  }
-
-  /**
-   * Calculate ecosystem stability metric (0-1)
-   */
-  private calculateStability(): number {
-    // Simple stability metric based on vitality variance
-    const vitalities: number[] = [];
-    this.chunks.forEach(chunk => {
-      vitalities.push(chunk.biomeState.vitality);
-    });
-
-    if (vitalities.length === 0) return 0;
-
-    const mean = vitalities.reduce((a, b) => a + b, 0) / vitalities.length;
-    const variance = vitalities.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vitalities.length;
-    const stability = Math.max(0, 1 - variance); // Lower variance = higher stability
-
-    return stability;
-  }
-
-  /**
-   * Calculate canopy development metric (0-1)
-   */
-  private calculateCanopyDevelopment(): number {
-    let totalCanopy = 0;
-    let chunkCount = 0;
-
-    this.chunks.forEach(chunk => {
-      if ((chunk as any).canopyState) {
-        totalCanopy += (chunk as any).canopyState.canopyHeight || 0;
-        chunkCount++;
-      }
-    });
-
-    if (chunkCount === 0) return 0;
-    return totalCanopy / chunkCount;
-  }
-
-  /**
    * Apply scenario initial conditions
    */
   applyScenarioConditions(conditions: {
@@ -1025,10 +954,6 @@ export class SimulationEngine {
   /**
    * Public getters for external systems
    */
-  getResearchSystem(): ResearchSystem | undefined {
-    return this.researchSystem;
-  }
-
   getChunksMap(): Map<string, WorldChunk> {
     this.grantMutableAccess();
     return this.chunks;
@@ -1060,7 +985,6 @@ export class SimulationEngine {
       masterGenomes: this.masterGenomes,
       pendingMasterGenomes: this.pendingMasterGenomes,
       selectedSeeds: this.selectedSeeds,
-      researchState: this.researchSystem?.exportState(),
       interventionState: this.interventionManager?.exportState(),
       rustState: this.runtime.request({ op: 'export' }).state
     }));
@@ -1130,8 +1054,6 @@ export class SimulationEngine {
       const journal = JSON.parse(state.eventJournal);
       if (!Array.isArray(journal.events)) throw new Error('Invalid saved event journal');
     }
-    const research = new ResearchSystem(this.eventJournal, response.snapshot.tick);
-    if (state.researchState) research.importState(state.researchState);
     const manager = new InterventionManager();
     if (state.interventionState) manager.importState(state.interventionState);
     if (state.activeChunks !== undefined && !Array.isArray(state.activeChunks)) throw new Error('Invalid saved active chunks');
@@ -1155,7 +1077,6 @@ export class SimulationEngine {
     this.eventJournal.clear();
     if (state.eventJournal) this.eventJournal.importFromJSON(state.eventJournal);
     this.eventJournal.setCurrentTick(this.currentTick);
-    this.researchSystem?.importState(research.exportState());
     if (state.interventionState) {
       this.interventionManager ??= new InterventionManager();
       this.interventionManager.importState(manager.exportState());
@@ -1225,41 +1146,6 @@ export class SimulationEngine {
     return this.timePerTickMinutes / 1440;
   }
 
-  setResearchSystem(system: ResearchSystem): void {
-    this.researchSystem = system;
-  }
-
-  /**
-   * Manually trigger species observation for research
-   * Called by UI or can be automated in tick loop
-   */
-  observeSpeciesInChunk(chunkId: string): void {
-    if (!this.researchSystem) return;
-
-    const chunk = this.chunks.get(chunkId);
-    if (!chunk) return;
-
-    // Observe all species instances in the chunk
-    chunk.species.forEach(instance => {
-      this.researchSystem!.observeSpecies(
-        instance.speciesId,
-        chunk,
-        this.currentTick,
-        instance
-      );
-    });
-  }
-
-  /**
-   * Observe all species in all active chunks (expensive - use sparingly)
-   */
-  observeAllActiveSpecies(): void {
-    if (!this.researchSystem) return;
-
-    this.activeChunks.forEach(chunkId => {
-      this.observeSpeciesInChunk(chunkId);
-    });
-  }
   private validateConfig(config: SimulationConfig): void {
     if (!config || !Number.isInteger(config.worldWidth) || !Number.isInteger(config.worldHeight) || config.worldWidth < 1 || config.worldHeight < 1 || config.worldWidth * config.worldHeight > 65536) {
       throw new Error('Simulation world dimensions must be positive integers with at most 65536 chunks');

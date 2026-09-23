@@ -103,6 +103,7 @@ export class SpeciesDataAdapter {
     return {
       id: dbSpecies.id,
       name: dbSpecies.common_name || dbSpecies.name,
+      scientificName: dbSpecies.name,
       category: this.convertSpeciesCategory(dbSpecies.type),
       maxBiomass: dbSpecies.max_biomass,
       growthRate: dbSpecies.growth_rate * clock,

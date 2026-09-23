@@ -264,6 +264,14 @@
 .nouveau select.nv-btn { appearance: auto; text-align: left; }
 .nouveau select.nv-btn option { color: var(--nv-ink-900); background: var(--nv-parchment-100); }
 
+.nv-chip {
+  border: 1px solid var(--nv-brass-700);
+  border-radius: 9999px;
+  background: rgba(232, 213, 163, 0.35);
+  padding: 0.05rem 0.5rem;
+  font-size: 0.7rem;
+}
+
 /* Goal checkbox */
 .nv-check {
   width: 0.95rem;

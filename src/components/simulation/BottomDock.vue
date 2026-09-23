@@ -23,7 +23,7 @@ defineEmits<{ select: [value: string] }>()
 const items = [
   { key: 'overview', glyph: 'icon-leaf', label: 'Overview' },
   { key: 'goals', glyph: 'glyph-goals', label: 'Goals' },
-  { key: 'species', glyph: 'glyph-species', label: 'Species' },
+  { key: 'species', glyph: 'glyph-species', label: 'Codex' },
   { key: 'climate', glyph: 'glyph-climate', label: 'Climate' },
   { key: 'hydro', glyph: 'glyph-hydrology', label: 'Hydrology' },
   { key: 'interactions', glyph: 'glyph-interactions', label: 'Interactions' },

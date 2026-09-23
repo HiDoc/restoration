@@ -103,7 +103,7 @@ describe('Game Balance Analysis - 1000 Simulations', () => {
 
     // Initialize stores
     interventionStore.initialize(engine, difficulty);
-    goalsStore.initialize(engine, difficulty, engine.getResearchSystem());
+    goalsStore.initialize(engine, difficulty);
 
     let firstGoalCompletedAt: number | null = null;
     let speciesCountSum = 0;

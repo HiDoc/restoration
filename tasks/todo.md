@@ -137,7 +137,8 @@ refresh is ~66 ms there). Follow-ups:
       A6 reworks genetics for two-parent crossing; that is most of the 7.4 MB.
 - [ ] Hold the engine in `shallowRef` and re-render the map from an explicit world-version signal. The deep
       proxy is currently what triggers hex re-renders, so this needs its own change.
-- [ ] Research observation every 10 ticks pulls a snapshot; move it into the KnowledgeStore work (A4).
+- [x] Research observation every 10 ticks pulls a snapshot; move it into the KnowledgeStore work (A4). Done:
+      the store reads plants with `readChunks` once per displayed tick.
 
 ### A1. Time as the main control
 Trial (2026-09-23): with the 12 catalogue plants loaded as-is on a 6×6 world for two years, Red Fescue takes
@@ -233,13 +234,29 @@ Follow-ups found in A3:
 - [ ] A kit-style butterfly (and hoverfly) illustration would replace the SVG stand-in and the reused bee icon.
 
 ### A4. Knowledge store and Codex
-- [ ] `KnowledgeStore` (Pinia, saved in snapshots): known species, known traits per species (revealed by
-      observation), known interactions, hybrid pedigrees.
-- [ ] Codex screen (replaces the Species dock tab and the field guide): Plants / Hybrids / Birds / Pollinators /
-      Interactions with `known / total` counts (hybrids show `n / ???`). Entries show only known facts; unknown
-      slots render as `?`.
-- [ ] "New interaction discovered" toast on the first `InteractionObserved` for a pair.
-- [ ] Interaction graph view built from known interactions only (plain SVG; no library needed at this size).
+The research system counts per-organism "observations" every 10 ticks and unlocks traits at thresholds; the
+player never sees an observation happen. The knowledge store replaces it with what the player witnesses.
+
+- [x] **A4.1 Knowledge model.** `src/game/knowledge.ts`: plain JSON (saved with the game). `see(plantIds)` for plants
+      on the map; `learn(events)` for `first_sighting`, `flowering_started`/`seeds_ripe` (the seasons a plant was
+      seen flowering/fruiting), clonal `species_spawn` (spreads without seed), `interaction_observed`. Returns
+      discoveries for toasts. Codex entries compare knowledge with catalogue truth: each fact slot is known or `?`.
+- [x] **A4.2 Store.** Pinia `knowledgeStore`, fed from new journal events on each displayed tick; saved/loaded with
+      snapshots. The digest keeps only pairs new to the player.
+- [x] **A4.3 Codex.** Replaces the field guide and the Species dock tab: Plants / Pollinators / Birds /
+      Interactions with known/total, entries with `?` slots and partners, and a graph of known links (plain SVG).
+      Toast on each new species or interaction.
+- [x] **A4.4 Retire the research system.** Research goals read a knowledge summary (species known, entries
+      complete, interactions witnessed; "500 observations" becomes "witness 5 interactions"). Delete
+      `ResearchSystem`, `researchStore`, `FieldGuidePanel`, `SpeciesDiscoveryModal`, the engine's periodic
+      observation and their tests.
+
+Done (2026-09-23). Full suite: 198 passed, 18 failed, all failures known before A4 (points economy → A5,
+year-end copy, diffusion/death-cause singles). In the browser: toasts on discovery, digest lists only new pairs,
+Codex tabs with `?` slots and the link graph.
+Follow-ups found in A4:
+- [ ] The graph is two columns of names; with many links it needs grouping or a force layout.
+- [ ] Toasts do not link to the Codex entry they announce.
 
 ### A5. Collect and plant
 - [ ] Seed inventory replaces resource points for planting. Clicking a hex with ripe plants (autumn) collects a

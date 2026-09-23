@@ -14,7 +14,7 @@ import {
   type GoalCategory
 } from '@/simulation/GoalsSystem';
 import type { SimulationEngine } from '@/simulation/SimulationEngine';
-import type { ResearchSystem } from '@/simulation/ResearchSystem';
+import type { KnowledgeSummary } from '@/game/codex';
 
 /**
  * Goals store - single source of truth for goal state
@@ -94,11 +94,11 @@ export const useGoalsStore = defineStore('goals', () => {
   function initialize(
     simulationEngine: SimulationEngine,
     gameDifficulty: GoalDifficulty = 'normal',
-    researchSystem?: ResearchSystem
+    knowledge?: () => KnowledgeSummary
   ) {
     engine.value = simulationEngine;
     difficulty.value = gameDifficulty;
-    system.value = new GoalsSystem(simulationEngine, researchSystem);
+    system.value = new GoalsSystem(simulationEngine, knowledge);
 
     // Set starter goals
     const starterGoals = GoalsSystem.getStarterGoals();

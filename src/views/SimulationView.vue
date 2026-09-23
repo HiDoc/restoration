@@ -66,7 +66,7 @@
         </div>
         <p class="nv-serif ml-auto hidden text-right text-lg italic leading-tight text-[#e8d5a3]/85 lg:block">“Small changes.<br />Living worlds.”</p>
         <div class="ml-auto flex items-center gap-1.5 lg:ml-0">
-          <button type="button" class="research-panel nv-img-btn" title="Field guide" aria-label="Open field guide" @click="researchStore.openFieldGuide()"><img :src="nv('btn-journal')" alt="" /></button>
+          <button type="button" class="research-panel nv-img-btn" title="Codex" aria-label="Open the Codex" @click="showCodex = true"><img :src="nv('btn-journal')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Contemplative view" aria-label="Switch to contemplative view" @click="toggleViewMode"><img :src="nv('btn-settings')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Scenarios" aria-label="Choose scenario" @click="scenarioStore.openScenarioSelector()"><img :src="nv('btn-map')" alt="" /></button>
         </div>
@@ -294,6 +294,13 @@
         </aside>
       </main>
 
+      <!-- Discoveries: brief, non-blocking notes as the player learns something new -->
+      <ol class="nouveau-toasts pointer-events-none fixed bottom-24 left-1/2 z-[60] grid -translate-x-1/2 gap-1.5" aria-live="polite">
+        <li v-for="toast in toasts" :key="toast.id" class="nv-panel nv-small flex items-center gap-2 px-3 py-1.5 text-[#2b2118] shadow-lg">
+          <img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}
+        </li>
+      </ol>
+
       <footer class="nv-dock-band flex min-w-0 flex-shrink-0 items-end">
         <img :src="nv('dock-left')" alt="Nature adapts, so can we" class="hidden h-[4.25rem] w-auto flex-shrink-0 xl:block" />
         <BottomDock class="min-w-0 flex-1" :active="dockTab" @select="onDockSelect" />
@@ -352,19 +359,9 @@
       @confirm="onYearEndConfirm"
     />
 
-    <SpeciesDiscoveryModal
-      :show="researchStore.showDiscoveryModal"
-      :discovery="researchStore.latestDiscovery"
-      :species-name="researchStore.latestDiscovery ? getSpeciesName(researchStore.latestDiscovery.speciesId) : ''"
-      @close="researchStore.closeDiscoveryModal()"
-      @open-field-guide="researchStore.closeDiscoveryAndOpenFieldGuide()"
-    />
+    <CodexPanel :show="showCodex" @close="showCodex = false" />
 
-    <FieldGuidePanel
-      :show="researchStore.showFieldGuide"
-      :total-species="SpeciesRegistry.getInstance().getAllSpecies().length"
-      @close="researchStore.closeFieldGuide()"
-    />
+
 
     <!-- NEW GAMEPLAY MODALS -->
 
@@ -438,8 +435,7 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 // Components
 import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
-import SpeciesDiscoveryModal from "@/components/simulation/SpeciesDiscoveryModal.vue";
-import FieldGuidePanel from "@/components/simulation/FieldGuidePanel.vue";
+import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import HybridizationTree from "@/components/simulation/HybridizationTree.vue";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
@@ -448,6 +444,7 @@ import { buildDigest, type DigestLine } from "@/game/digest";
 import { plantStartingMeadow } from "@/game/startingMeadow";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
+import type { Discovery } from "@/game/knowledge";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
@@ -456,12 +453,11 @@ import ChunkInspector from "@/components/simulation/ChunkInspector.vue";
 
 // Stores and utilities
 import { SimDB } from "@/persistence/SimDB";
-import { useResearchStore } from "@/stores/researchStore";
+import { useKnowledgeStore } from "@/stores/knowledgeStore";
 import { useInterventionStore } from "@/stores/interventionStore";
 import { useGoalsStore } from "@/stores/goalsStore";
 import { useTutorialStore } from "@/stores/tutorialStore";
 import { useScenarioStore } from "@/stores/scenarioStore";
-import { DiscoveryMethod } from "@/simulation/ResearchSystem";
 import type { VizMode } from "@/components/simulation/types";
 import type { HybridLineage } from "@/simulation/HybridizationSystem";
 import type { PlayerIntervention } from "@/simulation/SimulationEngine";
@@ -530,7 +526,7 @@ const stats = reactive({
 });
 
 // Stores
-const researchStore = useResearchStore();
+const knowledgeStore = useKnowledgeStore();
 const interventionStore = useInterventionStore();
 const goalsStore = useGoalsStore();
 const tutorialStore = useTutorialStore();
@@ -638,23 +634,9 @@ function initializeWorld() {
   seenWeather.clear();
   if (!db && typeof indexedDB !== "undefined") db = new SimDB();
 
-  // Initialize research system
-  const researchSystem = engine.value.getResearchSystem();
-  if (researchSystem) {
-    researchStore.reset();
-    researchStore.initialize(engine.value.getEventJournal(), 0);
-    engine.value.setResearchSystem(researchStore.system as any);
-
-    // Manually discover starting species
-    researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
-
-    // Set up periodic observation every 10 ticks
-    engine.value.onTick((tick: number) => {
-      if (tick % 10 === 0) {
-        engine.value?.observeAllActiveSpecies();
-      }
-    });
-  }
+  // The player starts knowing the plants of the starting meadow, without fanfare.
+  knowledgeStore.reset();
+  knowledgeStore.observe(engine.value);
 
   // Initialize intervention system
   interventionStore.reset();
@@ -662,7 +644,7 @@ function initializeWorld() {
 
   // Initialize goals system
   goalsStore.reset();
-  goalsStore.initialize(engine.value, gameplay.difficulty, engine.value.getResearchSystem());
+  goalsStore.initialize(engine.value, gameplay.difficulty, () => knowledgeStore.summary);
 
   // Initialize tutorial system
   tutorialStore.initializeTutorial();
@@ -707,9 +689,10 @@ function updateOnce() {
   refreshView();
 }
 
-/** Bring the screen, goals and history up to the engine's latest tick. */
+/** Bring the screen, goals, knowledge and history up to the engine's latest tick. */
 function refreshView() {
   if (!engine.value) return;
+  announce(knowledgeStore.observe(engine.value));
   evaluateProgress(engine.value.getCurrentTick());
   const chunks = engine.value.readChunks();
   updateStats();
@@ -839,12 +822,6 @@ function abbreviate(name: string): string {
   return clean.slice(0, 3).toUpperCase();
 }
 
-function getSpeciesName(speciesId: string): string {
-  return speciesId
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 function updateHybridizationData() {
   if (!engine.value) return;
@@ -957,7 +934,7 @@ async function saveSnapshot() {
     const state = JSON.parse(JSON.stringify({
       format: 'ecosim-game-v2',
       engine: engine.value.exportState(),
-      research: researchStore.exportState(),
+      knowledge: knowledgeStore.exportState(),
       interventions: interventionStore.exportState(),
       goals: goalsStore.exportState(),
       scenario: scenarioStore.exportState(),
@@ -997,21 +974,19 @@ async function loadLatestSnapshot() {
     const state = snap.state;
     engine.value.importState(legacy ? state : state.engine);
     if (legacy) {
-      researchStore.reset();
-      researchStore.initialize(engine.value.getEventJournal(), engine.value.getCurrentTick());
-      engine.value.setResearchSystem(researchStore.system as any);
-      researchStore.manualDiscovery('common_grass', engine.value.getCurrentTick(), DiscoveryMethod.INITIAL);
+      knowledgeStore.reset();
+      knowledgeStore.observe(engine.value);
       interventionStore.reset();
       interventionStore.initialize(engine.value, gameplay.difficulty);
       goalsStore.reset();
-      goalsStore.initialize(engine.value, gameplay.difficulty, engine.value.getResearchSystem());
+      goalsStore.initialize(engine.value, gameplay.difficulty, () => knowledgeStore.summary);
       scenarioStore.reset();
       scenarioStore.initialize(engine.value);
       gameplay.points = 0;
       gameplay.lastDayCounted = Math.floor(engine.value.getStatistics().simDays);
     } else {
-      researchStore.importState(state.research);
-      engine.value.setResearchSystem(researchStore.system as any);
+      // Saves from before the Codex have no knowledge; the player relearns from what is on the map.
+      knowledgeStore.importState(state.knowledge);
       interventionStore.importState(state.interventions);
       goalsStore.importState(state.goals);
       scenarioStore.importState(state.scenario);
@@ -1125,6 +1100,26 @@ const seasonLabel = computed(() => {
 const simDays = computed(() => Math.floor((stats as any).simDays ?? stats.currentTick));
 const cleanliness = computed(() => Math.max(0, Math.min(1, 1 - (stats.avgPollution || 0))));
 
+// ---- Codex and discoveries ----
+const showCodex = ref(false);
+const toasts = ref<Array<{ id: number; icon: string; text: string }>>([]);
+let toastId = 0;
+// A few at a time: a burst of discoveries (e.g. after a Season) shouldn't bury the map.
+const MAX_TOASTS = 3;
+const TOAST_MS = 4500;
+
+function announce(found: Discovery[]) {
+  for (const discovery of found.slice(0, MAX_TOASTS)) {
+    const text = discovery.kind === 'species'
+      ? `New in your Codex: ${speciesInfo(discovery.id).name}`
+      : `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`;
+    const icon = discovery.kind === 'species' ? 'icon-observe' : 'icon-diversity';
+    const toast = { id: ++toastId, icon, text };
+    toasts.value = [...toasts.value, toast].slice(-MAX_TOASTS);
+    setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== toast.id); }, TOAST_MS);
+  }
+}
+
 // ---- Advancing time ----
 const advancing = ref<null | 'week' | 'season'>(null);
 const digest = ref<null | { title: string; lines: DigestLine[] }>(null);
@@ -1162,7 +1157,7 @@ function advanceTime(span: 'week' | 'season') {
   const ticksPerDay = 1440 / (sim.getConfig().timePerTickMinutes ?? 1440);
   const startTick = sim.getCurrentTick();
   const targetTick = startTick + days * ticksPerDay;
-  const before = { season: stats.seasonName, population: populationBySpecies() };
+  const before = { season: stats.seasonName, population: populationBySpecies(), interactions: new Set(Object.keys(knowledgeStore.knowledge.interactions)) };
   advancing.value = span;
 
   const frame = () => {
@@ -1184,6 +1179,7 @@ function advanceTime(span: 'week' | 'season') {
         populationBefore: before.population,
         populationAfter: populationBySpecies(),
         nameOf: id => speciesInfo(id).name,
+        knownInteractions: before.interactions,
       }),
     };
   };
@@ -1252,7 +1248,7 @@ function onScrubHistory(index: number) {
 function onDockSelect(key: string) {
   dockTab.value = key;
   if (key === 'overview') options.vizMode = 'rgb';
-  else if (key === 'species') options.vizMode = 'species';
+  else if (key === 'species') showCodex.value = true;
   else if (key === 'climate') options.vizMode = 'temperature';
   else if (key === 'hydro') options.vizMode = 'moisture';
   else if (key === 'interactions') showHybridizationTree.value = true;

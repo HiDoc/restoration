@@ -13,8 +13,8 @@ const emit = defineEmits<{
 
 const cards = [
   { icon: 'icon-observe', title: 'Observe Species Ecology', text: 'Watch species adapt, reproduce, and interact based on environmental conditions.' },
-  { icon: 'icon-diversity', title: 'Complete Ecosystem Goals', text: 'Achieve biodiversity, health, and research objectives to earn points.' },
-  { icon: 'icon-modify', title: 'Use Interventions Wisely', text: 'Plant species, irrigate land, and cleanse pollution, but manage your resources.' },
+  { icon: 'icon-diversity', title: 'Complete Ecosystem Goals', text: 'Achieve biodiversity, health, and research objectives to receive new seeds.' },
+  { icon: 'icon-modify', title: 'Use Interventions Wisely', text: 'Collect seed from ripe plants, sow it where it will thrive, water and clean the land.' },
   { icon: 'icon-journal', title: 'Discover New Species', text: 'Research species to unlock traits and understand ecological relationships.' },
 ];
 

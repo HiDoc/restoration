@@ -12,6 +12,8 @@ pub(crate) struct Snapshot<'a> {
     season: &'static str,
     year: u64,
     chunks: Vec<Chunk<'a>>,
+    /// Seeds in hand per species.
+    inventory: BTreeMap<&'a str, usize>,
     weather_events: &'a [Weather],
 }
 
@@ -122,6 +124,13 @@ impl World {
             season: self.season(),
             year: self.elapsed_minutes / (self.config.season_length_ticks * 1440 * 4),
             chunks,
+            inventory: self
+                .inventory
+                .iter()
+                .fold(BTreeMap::new(), |mut counts, seed| {
+                    *counts.entry(seed.species_id.as_str()).or_default() += 1;
+                    counts
+                }),
             weather_events: &self.weather,
         }
     }

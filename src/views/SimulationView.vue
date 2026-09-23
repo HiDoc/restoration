@@ -166,11 +166,14 @@
                 <span>{{ action.label }}</span>
               </button>
             </div>
-            <label class="nv-small nv-muted mt-1.5 block" for="nv-plant-species">Species to plant</label>
-            <select id="nv-plant-species" v-model="interventionStore.selectedPlantSpecies" class="nv-btn mt-0.5 w-full">
-              <option v-for="species in plantSpeciesOptions" :key="species.id" :value="species.id">{{ species.name }}</option>
-            </select>
-            <p v-if="interventionStore.selectedIntervention" class="nv-small mt-1 text-center font-bold">Click a hex to apply · {{ interventionStore.resourcePoints }} points</p>
+            <template v-if="pouch.length">
+              <label class="nv-small nv-muted mt-1.5 block" for="nv-plant-species">Seeds in your pouch</label>
+              <select id="nv-plant-species" v-model="interventionStore.selectedPlantSpecies" class="nv-btn mt-0.5 w-full">
+                <option v-for="seed in pouch" :key="seed.id" :value="seed.id">{{ seed.name }} × {{ seed.count }}</option>
+              </select>
+            </template>
+            <p v-else class="nv-small nv-muted mt-1.5">No seeds yet. Collect them from ripe plants.</p>
+            <p v-if="interventionStore.selectedIntervention" class="nv-small mt-1 text-center font-bold">Click a hex to {{ interventionStore.selectedIntervention === 'plant' ? 'see how it would fare' : 'apply' }}</p>
           </section>
         </aside>
 
@@ -219,8 +222,13 @@
                 </dd>
               </div>
             </dl>
-            <div class="mt-2 flex items-center justify-between gap-2">
+            <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
+              {{ speciesInfo(interventionStore.selectedPlantSpecies).name }}: <span class="font-bold">{{ plantFit.words }}</span>
+            </p>
+            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
               <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
+              <button v-if="plantFit" type="button" class="nv-btn" @click="applyToSelected('plant')">Plant here</button>
+              <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="applyToSelected('collect')">Collect seeds</button>
               <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
             </div>
           </div>
@@ -428,7 +436,6 @@ import {
   type SimulationConfig,
 } from "@/simulation/SimulationEngine";
 import { FixedStepLoop } from "@/core/FixedStepLoop";
-import { advanceDailyIncome } from "@/simulation/GameplayEconomy";
 import { initializeSimulationRuntime } from "@/simulation/rust/SimulationRuntime";
 import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 
@@ -442,6 +449,7 @@ import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { plantStartingMeadow } from "@/game/startingMeadow";
+import { habitatFit, rewardSpecies, REWARD_SEEDS, STARTER_SEEDS } from "@/game/seeds";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
@@ -460,7 +468,7 @@ import { useTutorialStore } from "@/stores/tutorialStore";
 import { useScenarioStore } from "@/stores/scenarioStore";
 import type { VizMode } from "@/components/simulation/types";
 import type { HybridLineage } from "@/simulation/HybridizationSystem";
-import type { PlayerIntervention } from "@/simulation/SimulationEngine";
+import type { InterventionType } from "@/simulation/InterventionManager";
 
 const engine: Ref<SimulationEngine | null> = ref(null);
 const isInitializing = ref(true);
@@ -549,9 +557,7 @@ const hybridizationStats = ref({
 
 // Lightweight gameplay state
 const gameplay = reactive({
-  points: 0,
   difficulty: 'normal' as 'easy'|'normal'|'hard',
-  lastDayCounted: 0,
 })
 
 // Chunk inspector state
@@ -625,8 +631,6 @@ function initializeWorld() {
   showChunkInspector.value = false;
   selectedChunkForInspection.value = null;
   selected.value = null;
-  gameplay.points = 0;
-  gameplay.lastDayCounted = 0;
   extinctionGraceUntilTick = 50;
   extinction.triggered = false;
   updateStats();
@@ -640,7 +644,8 @@ function initializeWorld() {
 
   // Initialize intervention system
   interventionStore.reset();
-  interventionStore.initialize(engine.value, gameplay.difficulty);
+  interventionStore.initialize(engine.value);
+  interventionStore.addSeeds(STARTER_SEEDS);
 
   // Initialize goals system
   goalsStore.reset();
@@ -671,14 +676,20 @@ function initializeWorld() {
 function evaluateProgress(tick: number) {
   const alreadyCompleted = new Set(goalsStore.completedGoals.map(goal => goal.goal.id));
   goalsStore.evaluateGoals(tick).forEach(result => {
-    if (result.completed && !alreadyCompleted.has(result.goal.id)) {
-      interventionStore.addPoints(result.goal.rewardPoints);
-    }
+    if (result.completed && !alreadyCompleted.has(result.goal.id)) rewardGoal(result.goal.title);
   });
   if (scenarioStore.hasActiveScenario) {
     scenarioStore.evaluateScenario(goalsStore.completedGoals.map(g => g.goal.id));
   }
   tutorialStore.triggerByTick(tick);
+}
+
+/** A completed goal sends seed of a species the map lacks. */
+function rewardGoal(title: string) {
+  const species = engine.value && rewardSpecies(engine.value.readChunks().values(), interventionStore.seeds);
+  if (!species) return;
+  interventionStore.addSeeds({ [species]: REWARD_SEEDS });
+  notify('icon-plants', `${title} done: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
 }
 
 function updateOnce() {
@@ -723,10 +734,6 @@ function updateStats() {
   (stats as any).seasonProgress = s.seasonProgress;
   (stats as any).dayFraction = s.dayFraction;
   (stats as any).simDays = (s as any).simDays ?? 0;
-  const income = advanceDailyIncome(gameplay.lastDayCounted, s, gameplay.difficulty);
-  gameplay.lastDayCounted = income.lastDayCounted;
-  gameplay.points += income.points;
-  if (income.points > 0) interventionStore.addPoints(income.points);
   
   // Update year progress
   updateYearProgress();
@@ -866,33 +873,40 @@ function stepOnce() {
 
 function onSelectChunk(payload: { x: number; y: number }) {
   selected.value = payload;
-
-  // If an intervention is selected, apply it
-  if (interventionStore.selectedIntervention && engine.value) {
-    const chunkId = `chunk_${payload.x}_${payload.y}`;
-    const intervention: PlayerIntervention = {
-      chunkId,
-      x: 0.5,
-      y: 0.5,
-      type: interventionStore.selectedIntervention,
-      data: interventionStore.selectedIntervention === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {}
-    };
-
-    // Execute through store (handles cost/cooldown)
-    void interventionStore.executeIntervention(intervention).then(success => {
-      if (success) {
-        updateStats();
-        detectSpeciesChanges(engine.value!.readChunks());
-      }
-    });
-  } else {
-    // Nouveau map shows an inline tooltip; open the full modal on demand.
-    const chunk = engine.value?.readChunk(payload.x, payload.y);
-    if (chunk) {
-      selectedChunkForInspection.value = chunk;
-      showChunkInspector.value = viewMode.value === 'contemplative';
-    }
+  const armed = interventionStore.selectedIntervention;
+  // Planting waits for "Plant here" on the hex card, after the player has seen how the seed would fare.
+  if (armed && armed !== 'plant') {
+    applyIntervention(armed, payload);
+    return;
   }
+  const chunk = engine.value?.readChunk(payload.x, payload.y);
+  if (chunk) {
+    selectedChunkForInspection.value = chunk;
+    // Nouveau map shows an inline card; the full modal opens on demand.
+    showChunkInspector.value = viewMode.value === 'contemplative';
+  }
+}
+
+const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
+
+function applyIntervention(type: InterventionType, at: { x: number; y: number }) {
+  if (!engine.value) return;
+  const success = interventionStore.executeIntervention({
+    chunkId: `chunk_${at.x}_${at.y}`,
+    x: 0.5,
+    y: 0.5,
+    type,
+    data: type === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {},
+  });
+  notify(success ? INTERVENTION_ICONS[type] ?? 'icon-leaf' : 'icon-observe', interventionStore.actionMessage);
+  if (success) {
+    updateStats();
+    detectSpeciesChanges(engine.value.readChunks());
+  }
+}
+
+function applyToSelected(type: InterventionType) {
+  if (selected.value) applyIntervention(type, selected.value);
 }
 
 // Handler for tutorial
@@ -977,13 +991,11 @@ async function loadLatestSnapshot() {
       knowledgeStore.reset();
       knowledgeStore.observe(engine.value);
       interventionStore.reset();
-      interventionStore.initialize(engine.value, gameplay.difficulty);
+      interventionStore.initialize(engine.value);
       goalsStore.reset();
       goalsStore.initialize(engine.value, gameplay.difficulty, () => knowledgeStore.summary);
       scenarioStore.reset();
       scenarioStore.initialize(engine.value);
-      gameplay.points = 0;
-      gameplay.lastDayCounted = Math.floor(engine.value.getStatistics().simDays);
     } else {
       // Saves from before the Codex have no knowledge; the player relearns from what is on the map.
       knowledgeStore.importState(state.knowledge);
@@ -1108,15 +1120,16 @@ let toastId = 0;
 const MAX_TOASTS = 3;
 const TOAST_MS = 4500;
 
+function notify(icon: string, text: string) {
+  const toast = { id: ++toastId, icon, text };
+  toasts.value = [...toasts.value, toast].slice(-MAX_TOASTS);
+  setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== toast.id); }, TOAST_MS);
+}
+
 function announce(found: Discovery[]) {
   for (const discovery of found.slice(0, MAX_TOASTS)) {
-    const text = discovery.kind === 'species'
-      ? `New in your Codex: ${speciesInfo(discovery.id).name}`
-      : `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`;
-    const icon = discovery.kind === 'species' ? 'icon-observe' : 'icon-diversity';
-    const toast = { id: ++toastId, icon, text };
-    toasts.value = [...toasts.value, toast].slice(-MAX_TOASTS);
-    setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== toast.id); }, TOAST_MS);
+    if (discovery.kind === 'species') notify('icon-observe', `New in your Codex: ${speciesInfo(discovery.id).name}`);
+    else notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`);
   }
 }
 
@@ -1322,12 +1335,13 @@ const overviewRows = computed<StatRow[]>(() => [
   { label: 'Bird species', icon: 'icon-birds', value: life.value.birdKinds },
   { label: 'Pollinator species', icon: 'icon-pollinators', value: life.value.pollinatorKinds },
 ]);
-const plantSpeciesOptions = computed(() => {
-  try {
-    return SpeciesRegistry.getInstance().getAllSpecies();
-  } catch {
-    return [];
-  }
+const pouch = computed(() =>
+  Object.entries(interventionStore.seeds).map(([id, count]) => ({ id, count, name: speciesInfo(id).name }))
+);
+// With Plant armed, the selected hex says how the chosen seed would fare before anything is spent.
+const plantFit = computed(() => {
+  const species = SpeciesRegistry.getInstance().getSpecies(interventionStore.selectedPlantSpecies);
+  return interventionStore.selectedIntervention === 'plant' && species && tooltipChunk.value ? habitatFit(species, tooltipChunk.value) : null;
 });
 
 function clearSelection() {
@@ -1352,7 +1366,6 @@ function loadViewModePreference() {
 }
 
 async function restartAfterExtinction() {
-  gameplay.points = 0;
   pause();
   width.value = options.worldWidth;
   height.value = options.worldHeight;

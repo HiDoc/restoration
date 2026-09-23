@@ -27,7 +27,6 @@ export const useGoalsStore = defineStore('goals', () => {
   // State
   const activeGoalIds = ref<string[]>([]);
   const difficulty: Ref<GoalDifficulty> = ref('normal');
-  const totalPointsAwarded = ref(0);
   const lastEvaluationTick = ref(0);
 
   // UI state
@@ -124,7 +123,7 @@ export const useGoalsStore = defineStore('goals', () => {
     for (const result of results) {
       const wasCompleted = previousStates.get(result.goal.id);
       if (result.completed && !wasCompleted) {
-        onGoalCompleted(result.goal, result.goal.rewardPoints);
+        onGoalCompleted(result.goal);
       }
     }
 
@@ -134,14 +133,8 @@ export const useGoalsStore = defineStore('goals', () => {
   /**
    * Handle goal completion
    */
-  function onGoalCompleted(goal: Goal, points: number): void {
-    totalPointsAwarded.value += points;
+  function onGoalCompleted(goal: Goal): void {
     latestCompletedGoal.value = goal;
-
-    // Could trigger modal or notification
-    console.log(`Goal completed: ${goal.title} (+${points} points)`);
-
-    // Emit event for other systems (e.g., award points to intervention store)
   }
 
   /**
@@ -197,13 +190,6 @@ export const useGoalsStore = defineStore('goals', () => {
   }
 
   /**
-   * Get total points from completed goals
-   */
-  const totalPointsFromGoals = computed(() => {
-    return completedGoals.value.reduce((sum, g) => sum + g.goal.rewardPoints, 0);
-  });
-
-  /**
    * Show goal completion modal
    */
   function showCompletionModal(goal: Goal): void {
@@ -226,7 +212,6 @@ export const useGoalsStore = defineStore('goals', () => {
     return {
       activeGoalIds: activeGoalIds.value,
       difficulty: difficulty.value,
-      totalPointsAwarded: totalPointsAwarded.value,
       lastEvaluationTick: lastEvaluationTick.value,
       systemState: system.value?.exportState()
     };
@@ -238,7 +223,6 @@ export const useGoalsStore = defineStore('goals', () => {
   function importState(state: any) {
     if (state.activeGoalIds) activeGoalIds.value = state.activeGoalIds;
     if (state.difficulty) difficulty.value = state.difficulty;
-    if (state.totalPointsAwarded !== undefined) totalPointsAwarded.value = state.totalPointsAwarded;
     if (state.lastEvaluationTick !== undefined) lastEvaluationTick.value = state.lastEvaluationTick;
     latestCompletedGoal.value = null;
     showGoalCompletionModal.value = false;
@@ -252,7 +236,6 @@ export const useGoalsStore = defineStore('goals', () => {
    */
   function reset() {
     activeGoalIds.value = [];
-    totalPointsAwarded.value = 0;
     lastEvaluationTick.value = 0;
     showGoalCompletionModal.value = false;
     latestCompletedGoal.value = null;
@@ -271,7 +254,6 @@ export const useGoalsStore = defineStore('goals', () => {
     engine,
     activeGoalIds,
     difficulty,
-    totalPointsAwarded,
     lastEvaluationTick,
     showGoalCompletionModal,
     latestCompletedGoal,
@@ -286,7 +268,6 @@ export const useGoalsStore = defineStore('goals', () => {
     totalGoalCount,
     completionPercentage,
     goalsByCategory,
-    totalPointsFromGoals,
 
     // Methods
     initialize,

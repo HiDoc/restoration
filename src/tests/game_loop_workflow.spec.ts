@@ -6,7 +6,6 @@ import { SCENARIOS } from '@/simulation/ScenarioSystem';
 import { ALL_GOALS } from '@/simulation/GoalsSystem';
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry';
 import { useScenarioStore } from '@/stores/scenarioStore';
-import { useInterventionStore } from '@/stores/interventionStore';
 
 function world() {
   return new SimulationEngine({
@@ -65,20 +64,15 @@ describe('year-end and scenario workflows', () => {
     }
   });
 
-  it('preserves completed scenario progress and first-clear history across save/load', () => {
+  it('preserves completed scenario progress across save/load', () => {
     const engine = world();
     const store = useScenarioStore();
     store.initialize(engine);
     expect(store.startScenario('quick_start')).toBe(true);
-    const resources = useInterventionStore();
-    expect(resources.resourcePoints).toBe(150);
     const required = store.activeScenario!.goalIds;
     expect(store.evaluateScenario(required).success).toBe(true);
-    expect(resources.resourcePoints).toBe(250);
-    expect(resources.totalPointsEarned).toBe(100);
     expect(store.scenarioProgress).toBe(1);
     expect(store.evaluateScenario([]).success).toBe(true);
-    expect(resources.totalPointsEarned).toBe(100);
     expect(store.scenarioProgress).toBe(1);
     const saved = JSON.parse(JSON.stringify(store.exportState()));
     store.reset();
@@ -91,8 +85,6 @@ describe('year-end and scenario workflows', () => {
     expect(store.completedScenarioIds).toContain('quick_start');
     store.evaluateScenario(required);
     expect(store.completedScenarioIds).toEqual(['quick_start']);
-    expect(resources.totalPointsEarned).toBe(100);
-    expect(resources.resourcePoints).toBe(150);
   });
 
   it('retains timeout failure and clears active scenarios when loading an empty slot', () => {

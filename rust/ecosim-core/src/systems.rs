@@ -314,7 +314,7 @@ impl World {
         }
     }
 
-    fn inherit_genetics(&mut self, extra: &BTreeMap<String, Value>) -> Value {
+    pub(crate) fn inherit_genetics(&mut self, extra: &BTreeMap<String, Value>) -> Value {
         let mut genetics = extra.get("genetics").filter(|value|value.is_object()).cloned().unwrap_or_else(|| {
             let traits:Vec<_> = ["drought_tolerance","cold_resistance","growth_efficiency","reproduction_vigor","nutrient_efficiency","light_sensitivity","competition_aggression"].iter()
                 .map(|id| json!([id,{"id":id,"name":id,"value":0.5,"baseValue":0.5,"mutationRate":0.08,"variance":0.2,"dominance":0.7,"beneficial":true}])).collect();

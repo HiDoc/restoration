@@ -87,6 +87,10 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
                     serde_json::from_value(definitions.clone()).map_err(|e| e.to_string())?,
                 )?;
             }
+            if let Some(seeds) = request.get("addSeeds") {
+                candidate
+                    .add_seeds(serde_json::from_value(seeds.clone()).map_err(|e| e.to_string())?)?;
+            }
             if let Some(chunks) = request.get("chunks") {
                 candidate
                     .sync(serde_json::from_value(chunks.clone()).map_err(|e| e.to_string())?)?;

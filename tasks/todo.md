@@ -259,10 +259,35 @@ Follow-ups found in A4:
 - [ ] Toasts do not link to the Codex entry they announce.
 
 ### A5. Collect and plant
-- [ ] Seed inventory replaces resource points for planting. Clicking a hex with ripe plants (autumn) collects a
-      limited number of seeds, and each seed keeps its parent's genetics.
-- [ ] Planting spends a seed and places it in the chosen hex. Show the habitat fit as words ("likes it here",
-      "too dry") before the player commits.
+Seeds are the only currency. Points, daily income and intervention costs go; cooldowns stay on the
+environmental interventions (irrigate, cleanse, ritual, hybridize) so they cannot be spammed.
+
+- [x] **A5.1 Rust inventory.** `World.inventory: Vec<Seed>`, saved with the world. Command `collect` on a hex
+      takes one seed from each fruiting plant there whose seed has ripened (reserve ≥ 0.1, about ten days for a
+      grass), up to 3 per species; the seed inherits the plant's genetics and the plant's reserve resets, so a
+      harvest costs the wild seed rain and repeat visits wait for seed to ripen again. Nothing ripe → error.
+      `plant` takes the oldest seed of that species and the plant inherits its genetics; no seed → error.
+      `sync` accepts `addSeeds: {speciesId: count}` for the starter packet and rewards. The snapshot projects
+      `inventory: {speciesId: count}`. Event `seeds_collected`.
+- [x] **A5.2 Economy.** Deleted `GameplayEconomy`, points in `interventionStore`, costs in
+      `InterventionManager`, `startingPoints`/`rewardPoints` in scenarios. New games start with 3 Goat Willow
+      and 3 Silver Birch. A completed goal sends 3 seeds of the first catalogue plant neither on the map nor in
+      the pouch.
+- [x] **A5.3 UI.** A hex card with fruiting plants shows "Collect seeds". The pouch lists seeds in hand with
+      counts. With Plant armed, clicking a hex shows the habitat fit in words (moisture, ground light,
+      pollution, soil, from the engine's stress terms) and "Plant here"; nothing is spent until it is pressed.
+      Intervention results appear as toasts (the store's message was previously shown nowhere).
+- [x] **A5.4 Tests.** Rust: collect/plant inventory rules. `seed_economy.spec.ts` replaces
+      `intervention_store`, `intervention_flow` and `complete_gameplay` (points-based); planting tests add seeds.
+
+Done (2026-09-23). Full suite: 171 passed, 7 failed, all known (year-end copy 5, diffusion, death cause). The
+old `simulationengine` failure (planted a non-existent `oak`) is fixed. In the browser: plant with fit words,
+goal rewards bring distinct species, collect from ripe fescue.
+Follow-ups found in A5:
+- [ ] Collecting seed a plant gave only on fruiting start is impossible for about ten days; the hex card could
+      say "ripening" instead of offering Collect until then.
+- [ ] Reward toasts can be pushed out by a burst of discovery toasts after a Season.
+- [ ] The legacy `hybridize` intervention still creates effect residues; A6 replaces it.
 
 ### A6. Hybridization v1
 - [ ] Rust `cross(receiver, donor)`: per trait, blend by dominance plus mutation from the seeded RNG. The

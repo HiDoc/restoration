@@ -17,7 +17,6 @@ export interface Goal {
   description: string;
   category: GoalCategory;
   targetValue: number;
-  rewardPoints: number;
   difficulty: GoalDifficulty;
   evaluator: (engine: SimulationEngine, knowledge: KnowledgeSummary) => number;
 }
@@ -40,7 +39,6 @@ const BIODIVERSITY_GOALS: Goal[] = [
     description: 'Grow 2 different species in your ecosystem',
     category: 'biodiversity',
     targetValue: 2,
-    rewardPoints: 50,
     difficulty: 'easy',
     evaluator: (engine) => engine.getStatistics().uniqueSpecies
   },
@@ -50,7 +48,6 @@ const BIODIVERSITY_GOALS: Goal[] = [
     description: 'Reach 3 different species coexisting',
     category: 'biodiversity',
     targetValue: 3,
-    rewardPoints: 100,
     difficulty: 'easy',
     evaluator: (engine) => engine.getStatistics().uniqueSpecies
   },
@@ -60,7 +57,6 @@ const BIODIVERSITY_GOALS: Goal[] = [
     description: 'Support 4 different species simultaneously',
     category: 'biodiversity',
     targetValue: 4,
-    rewardPoints: 200,
     difficulty: 'normal',
     evaluator: (engine) => engine.getStatistics().uniqueSpecies
   },
@@ -70,7 +66,6 @@ const BIODIVERSITY_GOALS: Goal[] = [
     description: 'Maintain 5 different species in harmony',
     category: 'biodiversity',
     targetValue: 5,
-    rewardPoints: 350,
     difficulty: 'hard',
     evaluator: (engine) => engine.getStatistics().uniqueSpecies
   }
@@ -86,7 +81,6 @@ const ECOSYSTEM_HEALTH_GOALS: Goal[] = [
     description: 'Achieve 60% average ecosystem vitality',
     category: 'ecosystem_health',
     targetValue: 0.60,
-    rewardPoints: 75,
     difficulty: 'easy',
     evaluator: (engine) => engine.getStatistics().avgVitality
   },
@@ -96,7 +90,6 @@ const ECOSYSTEM_HEALTH_GOALS: Goal[] = [
     description: 'Reach 70% average vitality',
     category: 'ecosystem_health',
     targetValue: 0.70,
-    rewardPoints: 125,
     difficulty: 'easy',
     evaluator: (engine) => engine.getStatistics().avgVitality
   },
@@ -106,7 +99,6 @@ const ECOSYSTEM_HEALTH_GOALS: Goal[] = [
     description: 'Achieve 80% average ecosystem health',
     category: 'ecosystem_health',
     targetValue: 0.80,
-    rewardPoints: 200,
     difficulty: 'normal',
     evaluator: (engine) => engine.getStatistics().avgVitality
   },
@@ -116,7 +108,6 @@ const ECOSYSTEM_HEALTH_GOALS: Goal[] = [
     description: 'Maintain 90% average vitality',
     category: 'ecosystem_health',
     targetValue: 0.90,
-    rewardPoints: 400,
     difficulty: 'hard',
     evaluator: (engine) => engine.getStatistics().avgVitality
   }
@@ -132,7 +123,6 @@ const RESEARCH_GOALS: Goal[] = [
     description: 'Get to know 2 species',
     category: 'research',
     targetValue: 2,
-    rewardPoints: 100,
     difficulty: 'easy',
     evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
@@ -142,7 +132,6 @@ const RESEARCH_GOALS: Goal[] = [
     description: 'Get to know 3 species',
     category: 'research',
     targetValue: 3,
-    rewardPoints: 250,
     difficulty: 'normal',
     evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
@@ -152,7 +141,6 @@ const RESEARCH_GOALS: Goal[] = [
     description: 'Get to know 5 species',
     category: 'research',
     targetValue: 5,
-    rewardPoints: 500,
     difficulty: 'hard',
     evaluator: (_engine, knowledge) => knowledge.knownSpecies
   },
@@ -162,7 +150,6 @@ const RESEARCH_GOALS: Goal[] = [
     description: 'Complete 3 Codex entries (every fact and partner seen)',
     category: 'research',
     targetValue: 3,
-    rewardPoints: 150,
     difficulty: 'normal',
     evaluator: (_engine, knowledge) => knowledge.completeEntries
   },
@@ -172,7 +159,6 @@ const RESEARCH_GOALS: Goal[] = [
     description: 'Witness 5 plant–animal interactions',
     category: 'research',
     targetValue: 5,
-    rewardPoints: 100,
     difficulty: 'normal',
     evaluator: (_engine, knowledge) => knowledge.interactions
   }
@@ -188,7 +174,6 @@ const POLLUTION_GOALS: Goal[] = [
     description: 'Reduce average pollution below 20%',
     category: 'pollution',
     targetValue: 0.20,
-    rewardPoints: 100,
     difficulty: 'normal',
     evaluator: (engine) => {
       // Return inverted value since we want pollution BELOW threshold
@@ -202,7 +187,6 @@ const POLLUTION_GOALS: Goal[] = [
     description: 'Maintain pollution below 10%',
     category: 'pollution',
     targetValue: 0.10,
-    rewardPoints: 200,
     difficulty: 'hard',
     evaluator: (engine) => {
       const pollution = engine.getStatistics().avgPollution;
@@ -221,7 +205,6 @@ const SUCCESSION_GOALS: Goal[] = [
     description: 'Establish a forest ecosystem with canopy layer',
     category: 'succession',
     targetValue: 1.0,
-    rewardPoints: 300,
     difficulty: 'normal',
     evaluator: (engine) => {
       // Check if any chunks have significant canopy
@@ -238,7 +221,6 @@ const SUCCESSION_GOALS: Goal[] = [
     description: 'Maintain ecosystem for 5 years (1800 ticks)',
     category: 'succession',
     targetValue: 1800,
-    rewardPoints: 250,
     difficulty: 'normal',
     evaluator: (engine) => engine.getCurrentTick()
   }

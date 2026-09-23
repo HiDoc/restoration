@@ -42,7 +42,7 @@ const TUTORIAL_STEPS: TooltipStep[] = [
   {
     id: 'goals_intro',
     title: 'Your Goals',
-    content: 'Complete these goals to earn points and unlock new capabilities. Track your progress here.',
+    content: 'Complete these goals to receive seeds of species your land lacks. Track your progress here.',
     targetElement: '.goals-panel',
     placement: 'left',
     trigger: 'tick'
@@ -50,7 +50,7 @@ const TUTORIAL_STEPS: TooltipStep[] = [
   {
     id: 'interventions_intro',
     title: 'Interventions',
-    content: 'Use these tools to shape your ecosystem. Each intervention costs points and has a cooldown period.',
+    content: 'Plant seeds from your pouch and gather more from ripe plants. Watering and cleaning need a few days of rest between uses.',
     targetElement: '.intervention-panel',
     placement: 'right',
     trigger: 'manual'

@@ -458,3 +458,90 @@ fn runners_spread_a_plant_that_sets_no_seed() {
     assert!(runners.components.organisms.len() > start);
     assert!(clumps.components.organisms.len() <= start);
 }
+
+#[test]
+fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
+    let mut meadow = world_with(
+        3,
+        SpeciesDefinition {
+            ecology: Some(Ecology {
+                flowering_seasons: vec!["summer".into()],
+                fruiting_seasons: vec!["autumn".into()],
+                dormant_seasons: vec![],
+            }),
+            ..SpeciesDefinition::default()
+        },
+    );
+    let species = meadow.definitions.keys().next().unwrap().clone();
+    let command = |kind: &str, chunk: &str| -> Command {
+        serde_json::from_value(json!({"type":kind,"chunkId":chunk,"data":{"speciesId":species}}))
+            .unwrap()
+    };
+    assert!(
+        meadow.submit(command("plant", "chunk_0_0")).is_err(),
+        "no seed in hand"
+    );
+    assert!(
+        meadow.submit(command("collect", "chunk_0_0")).is_err(),
+        "nothing ripe in spring"
+    );
+    assert!(meadow
+        .add_seeds([("missing".to_string(), 1)].into())
+        .is_err());
+
+    meadow.step(240).unwrap();
+    let ripe_plants = |w: &World, chunk: &str| {
+        let c = &w.components;
+        c.positions
+            .iter()
+            .filter(|(plant, p)| {
+                c.habitats[&p.chunk].id == chunk
+                    && c.reproduction[plant].stage == "fruiting"
+                    && c.reproduction[plant].reserve >= 0.1
+            })
+            .count()
+    };
+    let ripe = meadow
+        .components
+        .habitats
+        .values()
+        .map(|h| h.id.clone())
+        .find(|id| ripe_plants(&meadow, id) > 3)
+        .expect("a hex with several ripe plants by mid-autumn");
+    let before = ripe_plants(&meadow, &ripe);
+    meadow.submit(command("collect", &ripe)).unwrap();
+    assert_eq!(
+        meadow.inventory.len(),
+        3,
+        "a few seeds per species per visit"
+    );
+    assert_eq!(
+        ripe_plants(&meadow, &ripe),
+        before - 3,
+        "each picked plant gave up its seed"
+    );
+
+    let genetics = meadow.inventory[0].extra["genetics"].clone();
+    assert!(
+        genetics.is_object(),
+        "collected seed keeps its parent's genetics"
+    );
+    let room = meadow
+        .components
+        .habitats
+        .iter()
+        .min_by_key(|(chunk, _)| {
+            meadow
+                .components
+                .positions
+                .values()
+                .filter(|p| p.chunk == **chunk)
+                .count()
+        })
+        .map(|(_, h)| h.id.clone())
+        .unwrap();
+    meadow.submit(command("plant", &room)).unwrap();
+    assert_eq!(meadow.inventory.len(), 2);
+    let (_, planted) = meadow.components.organisms.last_key_value().unwrap();
+    assert_eq!(planted.extra["genetics"], genetics);
+}

@@ -119,7 +119,6 @@ function close() {
                       </span>
                       <span class="text-slate-500">{{ scenario.goalIds.length }} goals</span>
                     </div>
-                    <span class="text-amber-400 font-semibold">{{ scenario.rewardPoints }} pts</span>
                   </div>
 
                   <div v-if="scenario.timeLimit" class="mt-2 text-xs text-slate-500">
@@ -161,7 +160,6 @@ function close() {
                       </span>
                       <span class="text-slate-500">{{ scenario.goalIds.length }} goals</span>
                     </div>
-                    <span class="text-amber-400 font-semibold">{{ scenario.rewardPoints }} pts</span>
                   </div>
 
                   <div v-if="scenario.timeLimit" class="mt-2 text-xs text-slate-500">
@@ -203,7 +201,6 @@ function close() {
                       </span>
                       <span class="text-slate-500">{{ scenario.goalIds.length }} goals</span>
                     </div>
-                    <span class="text-amber-400 font-semibold">{{ scenario.rewardPoints }} pts</span>
                   </div>
 
                   <div v-if="scenario.timeLimit" class="mt-2 text-xs text-slate-500">

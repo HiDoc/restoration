@@ -22,13 +22,11 @@ export interface ScenarioConfig {
   difficulty: ScenarioDifficulty;
   initialConditions: {
     biomeStates?: BiomeConditions;
-    startingPoints: number;
     weatherPattern?: string;
     initialSpecies?: string[];
   };
   goalIds: string[]; // References to GoalsSystem goals
   timeLimit?: number; // ticks
-  rewardPoints: number;
   successMessage: string;
   failureMessage?: string;
 }
@@ -55,12 +53,10 @@ export const SCENARIOS: ScenarioConfig[] = [
         pollution: 0.4,
         nutrients: 0.5
       },
-      startingPoints: 200,
       initialSpecies: ['common_grass']
     },
     goalIds: ['diversity_5', 'health_60'],
     timeLimit: 500,
-    rewardPoints: 150,
     successMessage: 'The meadow flourishes once again! Birds return and wildflowers bloom.',
     failureMessage: 'Time ran out before the ecosystem could recover.'
   },
@@ -75,12 +71,10 @@ export const SCENARIOS: ScenarioConfig[] = [
         moisture: 0.3,
         nutrients: 0.2
       },
-      startingPoints: 300,
       initialSpecies: ['common_grass']
     },
     goalIds: ['pollution_below_20', 'diversity_10', 'health_70'],
     timeLimit: 800,
-    rewardPoints: 300,
     successMessage: 'The toxic wasteland transforms into thriving habitat. Nature reclaims the land.',
     failureMessage: 'Pollution levels remain too high for sustainable life.'
   },
@@ -94,13 +88,11 @@ export const SCENARIOS: ScenarioConfig[] = [
         moisture: 0.1,
         temperature: 30
       },
-      startingPoints: 250,
       weatherPattern: 'drought',
       initialSpecies: ['common_grass', 'hawthorn', 'scots_pine']
     },
     goalIds: ['diversity_10', 'health_60'],
     timeLimit: 600,
-    rewardPoints: 350,
     successMessage: 'Your careful management allows the ecosystem to endure the drought!',
     failureMessage: 'Too many species succumbed to the harsh conditions.'
   },
@@ -115,12 +107,10 @@ export const SCENARIOS: ScenarioConfig[] = [
         nutrients: 0.7,
         light: 1.0
       },
-      startingPoints: 400,
       initialSpecies: ['common_grass', 'silver_birch']
     },
     goalIds: ['diversity_15', 'forest_established', 'health_80'],
     timeLimit: 1500,
-    rewardPoints: 500,
     successMessage: 'A magnificent forest stands where once was grassland. Succession complete!',
     failureMessage: 'The forest did not develop sufficient canopy layers.'
   },
@@ -135,12 +125,10 @@ export const SCENARIOS: ScenarioConfig[] = [
         nutrients: 0.6,
         pollution: 0.1
       },
-      startingPoints: 500,
       initialSpecies: ['common_grass', 'silver_birch', 'moss_cushion', 'lady_fern']
     },
     goalIds: ['diversity_20', 'health_90', 'pollution_below_10'],
     timeLimit: 2000,
-    rewardPoints: 750,
     successMessage: 'An ecological masterpiece! Your ecosystem teems with life in perfect harmony.',
     failureMessage: 'Maintaining such high biodiversity proved too challenging.'
   },
@@ -154,12 +142,10 @@ export const SCENARIOS: ScenarioConfig[] = [
         moisture: 0.5,
         nutrients: 0.6
       },
-      startingPoints: 150,
       initialSpecies: ['common_grass']
     },
     goalIds: ['diversity_5'],
     timeLimit: 300,
-    rewardPoints: 100,
     successMessage: 'Great start! You understand the basics of ecosystem management.',
     failureMessage: 'Keep trying! Use interventions to help species establish.'
   }

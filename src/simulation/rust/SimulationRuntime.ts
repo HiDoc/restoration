@@ -59,6 +59,8 @@ export interface RuntimeSnapshot {
   chunks: any[];
   weatherEvents?: any[];
   hybridizationEvents?: number;
+  /** Seeds in the player's pouch per species. */
+  inventory?: Record<string, number>;
 }
 
 export interface RuntimeResponse {

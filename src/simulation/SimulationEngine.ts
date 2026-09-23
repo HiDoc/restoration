@@ -11,7 +11,7 @@ import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
 import { GeneticSystem, GeneticProfile } from './GeneticSystem';
-import { InterventionManager } from './InterventionManager';
+import { InterventionManager, type InterventionType } from './InterventionManager';
 
 // Animals come from the same catalogue as the plants.
 const FAUNA = buildFaunaDefinitions(catalogue);
@@ -35,7 +35,7 @@ export interface PlayerIntervention {
   chunkId: string;
   x: number;
   y: number;
-  type: 'plant' | 'hybridize' | 'irrigate' | 'cleanse' | 'ritual';
+  type: InterventionType;
   data: any;
   playerId?: string;
   /** Omit to apply now; future ticks are replayable scheduled commands. */
@@ -776,7 +776,7 @@ export class SimulationEngine {
   executeIntervention(intervention: PlayerIntervention): boolean {
     if (!this.chunks.has(intervention.chunkId)) return false;
     if (this.interventionManager) {
-      const validation = this.interventionManager.validateIntervention(intervention.type, Number.MAX_SAFE_INTEGER, this.currentTick);
+      const validation = this.interventionManager.validateIntervention(intervention.type, this.currentTick);
       if (!validation.valid) return false;
     }
     if (intervention.type === 'plant' && !SpeciesRegistry.getInstance().getSpecies(intervention.data?.speciesId)) return false;
@@ -789,6 +789,18 @@ export class SimulationEngine {
       console.warn('Intervention rejected:', error);
       return false;
     }
+  }
+
+  /** Seeds in the player's pouch per species. Only commands and syncs change it, and both return a snapshot. */
+  getInventory(): Readonly<Record<string, number>> {
+    return this.runtimeSnapshot?.inventory ?? {};
+  }
+
+  /** Fresh seeds for the pouch: a starter packet or a reward. */
+  addSeeds(counts: Record<string, number>): void {
+    this.syncRuntime();
+    this.runtime.request({ op: 'sync', addSeeds: counts });
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
   }
 
   /**

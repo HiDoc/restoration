@@ -85,44 +85,35 @@ describe('ecosystem goals', () => {
     expect(goals.getActiveGoals()[0].goal.targetValue).toBe(2);
   });
 
-  it('awards a completed goal once across reevaluation and save/load', () => {
+  it('completes a goal once across reevaluation and save/load', () => {
     const engine = world();
     const store = useGoalsStore();
     store.initialize(engine);
     store.setActiveGoals(['diversity_5']);
     addSpecies(engine, 'silver_birch');
     store.evaluateGoals(1);
-    expect(store.totalPointsAwarded).toBe(50);
     store.evaluateGoals(1);
     store.evaluateGoals(2);
-    expect(store.totalPointsAwarded).toBe(50);
+    expect(store.completedGoals.map(g => g.goal.id)).toEqual(['diversity_5']);
     const saved = JSON.parse(JSON.stringify(store.exportState()));
     store.initialize(engine);
     store.importState(saved);
     store.evaluateGoals(3);
-    expect(store.totalPointsAwarded).toBe(50);
-    store.importState({ ...saved, totalPointsAwarded: 0, lastEvaluationTick: 0 });
-    expect(store.totalPointsAwarded).toBe(0);
-    expect(store.lastEvaluationTick).toBe(0);
+    expect(store.completedGoals.map(g => g.goal.id)).toEqual(['diversity_5']);
   });
 
-  it('refreshes intervention cooldowns from authoritative ticks and restores spent points', async () => {
+  it('refreshes intervention cooldowns from authoritative ticks and restores them on load', () => {
     const engine = world();
     const store = useInterventionStore();
     store.initialize(engine);
-    expect(await store.executeIntervention({
-      chunkId: 'chunk_1_1', type: 'plant', x: 0.5, y: 0.5, data: { speciesId: 'silver_birch' },
-    })).toBe(true);
-    const cooldown = store.getRemainingCooldown('plant');
+    expect(store.executeIntervention({ chunkId: 'chunk_1_1', type: 'irrigate', x: 0.5, y: 0.5, data: {} })).toBe(true);
+    const cooldown = store.getRemainingCooldown('irrigate');
     expect(cooldown).toBeGreaterThan(0);
-    const points = store.resourcePoints;
     const saved = JSON.parse(JSON.stringify(store.exportState()));
     engine.update();
-    expect(store.currentTick).toBe(1);
-    expect(store.getRemainingCooldown('plant')).toBe(cooldown - 1);
-    store.addPoints(100);
+    expect(store.getRemainingCooldown('irrigate')).toBe(cooldown - 1);
+    store.initialize(engine);
     store.importState(saved);
-    expect(store.resourcePoints).toBe(points);
-    expect(store.getRemainingCooldown('plant')).toBe(cooldown - 1);
+    expect(store.getRemainingCooldown('irrigate')).toBe(cooldown - 1);
   });
 });

@@ -13,7 +13,6 @@ import {
   type ScenarioDifficulty
 } from '@/simulation/ScenarioSystem';
 import type { SimulationEngine } from '@/simulation/SimulationEngine';
-import { useInterventionStore } from '@/stores/interventionStore';
 
 /**
  * Scenario store - single source of truth for scenario state
@@ -97,7 +96,6 @@ export const useScenarioStore = defineStore('scenario', () => {
 
     const success = system.value.startScenario(scenarioId);
     if (success) {
-      useInterventionStore().resourcePoints = scenario.initialConditions.startingPoints;
       activeScenario.value = scenario;
       scenarioStartTick.value = engine.value?.getCurrentTick() || 0;
       scenarioCompleted.value = false;
@@ -130,7 +128,7 @@ export const useScenarioStore = defineStore('scenario', () => {
 
     // Check for completion or failure
     if (evaluation.success && !scenarioCompleted.value) {
-      onScenarioSuccess(activeScenario.value);
+      onScenarioSuccess();
     } else if (evaluation.failure && !scenarioFailed.value) {
       onScenarioFailure(activeScenario.value);
     }
@@ -141,19 +139,15 @@ export const useScenarioStore = defineStore('scenario', () => {
   /**
    * Handle scenario success
    */
-  function onScenarioSuccess(scenario: ScenarioConfig): void {
-    const firstClear = !system.value?.isScenarioCompleted(scenario.id);
+  function onScenarioSuccess(): void {
     scenarioSuccess.value = true;
     scenarioCompleted.value = true;
     showCompletionModal.value = true;
-
-    console.log(`Scenario completed: ${scenario.name} (+${scenario.rewardPoints} points)`);
 
     // Mark as completed in system
     if (system.value) {
       system.value.completeScenario(true);
     }
-    if (firstClear) useInterventionStore().addPoints(scenario.rewardPoints);
   }
 
   /**
@@ -242,16 +236,6 @@ export const useScenarioStore = defineStore('scenario', () => {
   }
 
   /**
-   * Get total points from completed scenarios
-   */
-  const totalPointsFromScenarios = computed(() => {
-    return completedScenarioIds.value.reduce((sum, id) => {
-      const scenario = SCENARIOS.find(s => s.id === id);
-      return sum + (scenario?.rewardPoints || 0);
-    }, 0);
-  });
-
-  /**
    * Export state for persistence
    */
   function exportState() {
@@ -318,7 +302,6 @@ export const useScenarioStore = defineStore('scenario', () => {
     timeProgress,
     scenarioProgress,
     completionPercentage,
-    totalPointsFromScenarios,
 
     // Methods
     initialize,

@@ -27,7 +27,8 @@ const WOODY_DOMINANCE = 3
 const WOODY_SHARE = 0.25
 const WOODY = new Set(['tree', 'shrub'])
 
-const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0])
+/** Joins names the way a sentence would: "a, b and c". */
+export const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0])
 
 function habitatOf(hex: HexState, plants: HexPlant[], kind: (id: string) => string): Habitat {
   const { moisture = 0.5, pollution = 0, canopy = 0 } = hex.biomeState ?? {}

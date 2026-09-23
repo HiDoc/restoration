@@ -78,11 +78,6 @@ const timeBgColor = computed(() => {
       </div>
     </div>
 
-    <!-- Reward -->
-    <div class="pt-2 border-t border-slate-700/50 flex items-center justify-between">
-      <span class="text-xs text-slate-400">Reward</span>
-      <span class="text-sm font-bold text-amber-400">{{ scenario.rewardPoints }} pts</span>
-    </div>
   </div>
 </template>
 

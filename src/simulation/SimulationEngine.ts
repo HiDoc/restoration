@@ -2,6 +2,8 @@
  * Main simulation engine orchestrating all systems
  */
 
+import catalogue from '../database/catalogue.json';
+import { buildFaunaDefinitions } from './faunaDefinitions';
 import { RNGManager } from './SeededRNG';
 import { EventJournal, EventType } from '@/simulation/EventJournal';
 import { WorldChunk, PhenologyStage, SpeciesInstance } from './WorldChunk';
@@ -11,6 +13,9 @@ import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, ty
 import { GeneticSystem, GeneticProfile } from './GeneticSystem';
 import { ResearchSystem } from './ResearchSystem';
 import { InterventionManager } from './InterventionManager';
+
+// Animals come from the same catalogue as the plants.
+const FAUNA = buildFaunaDefinitions(catalogue);
 
 export interface SimulationConfig {
   worldWidth: number;      // Number of chunks horizontally
@@ -1094,7 +1099,7 @@ export class SimulationEngine {
       ? runtime.request({
         op: 'init', config, tick: state.currentTick ?? 0, simTimeDays: savedDays,
         chunks: state.chunks.map((entry: [string, unknown]) => entry[1]),
-        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies()
+        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
       })
       : runtime.request({ op: 'import', state: state.rustState });
     if (!response.snapshot) throw new Error('Save is missing its simulation snapshot');
@@ -1274,7 +1279,7 @@ export class SimulationEngine {
       op: 'init',
       config: this.config,
       chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()),
-      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies()
+      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
     }));
   }
 
@@ -1287,7 +1292,7 @@ export class SimulationEngine {
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
       // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
       ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
-      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies() } : {})
+      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA } : {})
     });
     this.projectionSignature = signature;
     this.projectionEdited = false;
@@ -1310,7 +1315,7 @@ export class SimulationEngine {
           this.projection.set(state.id, chunk);
         }
         chunk.importState({ species: [], hybrids: [], ritualResidues: [], seedBank: [], ...state });
-        for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'canopyLayers', 'groundLight']) {
+        for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight']) {
           if (key in state) (chunk as any)[key] = state[key];
         }
         (chunk as any).simTimeDays = snapshot.simTimeDays;

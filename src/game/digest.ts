@@ -1,6 +1,6 @@
-import type { SimulationEvent } from '@/simulation/EventJournal'
+import { EventType, type SimulationEvent } from '@/simulation/EventJournal'
 
-export type DigestIcon = 'season' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather'
+export type DigestIcon = 'season' | 'sighting' | 'arrival' | 'interaction' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
 
 export interface DigestLine {
   icon: DigestIcon
@@ -16,6 +16,7 @@ export interface DigestInput {
   seasonAfter: string
   populationBefore: ReadonlyMap<string, number>
   populationAfter: ReadonlyMap<string, number>
+  /** Display name of a plant or animal. */
   nameOf: (speciesId: string) => string
 }
 
@@ -32,15 +33,18 @@ const CAUSES: Record<string, string> = {
   environmental_stress: 'harsh conditions',
 }
 
+// A digest is read at a glance; the rest is summarised in one line.
+const MAX_LINES = 8
+
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const last = <T>(items: readonly T[] | undefined): T | undefined => items?.[items.length - 1]
 const hexes = (count: number) => `${count} ${count === 1 ? 'hex' : 'hexes'}`
 
 /** Events of one type, grouped by species, in first-seen order. */
-function bySpecies(events: readonly SimulationEvent[], type: string): Map<string, SimulationEvent[]> {
+function bySpecies(events: readonly SimulationEvent[], type: EventType, key = 'speciesId'): Map<string, SimulationEvent[]> {
   const groups = new Map<string, SimulationEvent[]>()
   for (const event of events) {
-    const id = event.data?.speciesId
+    const id = event.data?.[key]
     if (event.type !== type || typeof id !== 'string') continue
     groups.set(id, [...(groups.get(id) ?? []), event])
   }
@@ -56,11 +60,15 @@ function mostCommon(values: string[]): string | undefined {
 /** What changed while time was advanced, most notable first, in plain words. */
 export function buildDigest({ events, seasonBefore, seasonAfter, populationBefore, populationAfter, nameOf }: DigestInput): DigestLine[] {
   const lines: DigestLine[] = []
-  const deaths = bySpecies(events, 'species_die')
-  const births = bySpecies(events, 'species_spawn')
+  const deaths = bySpecies(events, EventType.SPECIES_DIE)
+  const births = bySpecies(events, EventType.SPECIES_SPAWN)
 
   if (seasonBefore !== seasonAfter) {
     lines.push({ icon: 'season', text: `${capitalize(seasonBefore)} gave way to ${seasonAfter}.` })
+  }
+
+  for (const [id, found] of bySpecies(events, EventType.FIRST_SIGHTING, 'faunaId')) {
+    lines.push({ icon: 'sighting', text: `First sighting: ${nameOf(id)}!`, chunkId: found[0].chunkId })
   }
 
   for (const [id, before] of populationBefore) {
@@ -69,11 +77,25 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
     }
   }
 
-  for (const [type, icon, verb] of [['flowering_started', 'flower', 'came into flower'], ['seeds_ripe', 'seed', 'set seed']] as const) {
+  const pairs = new Map<string, SimulationEvent>()
+  for (const event of events) {
+    const key = `${event.data?.faunaId}|${event.data?.plantId}`
+    if (event.type === EventType.INTERACTION_OBSERVED && !pairs.has(key)) pairs.set(key, event)
+  }
+  for (const event of pairs.values()) {
+    lines.push({ icon: 'interaction', text: `Seen together: ${nameOf(event.data.faunaId)} ↔ ${nameOf(event.data.plantId)}.`, chunkId: event.chunkId })
+  }
+
+  for (const [type, icon, verb] of [[EventType.FLOWERING_STARTED, 'flower', 'came into flower'], [EventType.SEEDS_RIPE, 'seed', 'set seed']] as const) {
     for (const [id, found] of bySpecies(events, type)) {
       const places = new Set(found.map(event => event.chunkId))
       lines.push({ icon, text: `${nameOf(id)} ${verb} in ${hexes(places.size)}.`, chunkId: found[0].chunkId })
     }
+  }
+
+  for (const [id, found] of bySpecies(events, EventType.FAUNA_ARRIVED, 'faunaId')) {
+    const places = new Set(found.map(event => event.chunkId))
+    lines.push({ icon: 'arrival', text: `${nameOf(id)} arrived in ${hexes(places.size)}.`, chunkId: found[0].chunkId })
   }
 
   // Only changes large enough to notice: at least three plants and a fifth of the population.
@@ -94,8 +116,10 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
     }
   }
 
-  const weather = new Set(events.filter(event => event.type === 'weather_change').map(event => event.data?.type))
+  const weather = new Set(events.filter(event => event.type === EventType.WEATHER_CHANGE).map(event => event.data?.type))
   weather.forEach(kind => { if (WEATHER[kind]) lines.push({ icon: 'weather', text: WEATHER[kind] }) })
 
-  return lines
+  if (lines.length <= MAX_LINES) return lines
+  const hidden = lines.length - (MAX_LINES - 1)
+  return [...lines.slice(0, MAX_LINES - 1), { icon: 'more', text: `…and ${hidden} more changes.` }]
 }

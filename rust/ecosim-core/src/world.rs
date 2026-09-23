@@ -17,6 +17,16 @@ pub struct World {
     pub rng: Rng,
     pub components: Components,
     pub definitions: BTreeMap<String, SpeciesDefinition>,
+    #[serde(default)]
+    pub fauna_definitions: BTreeMap<String, FaunaDefinition>,
+    /// Fauna species seen anywhere so far, for first sightings.
+    #[serde(default)]
+    pub fauna_seen: BTreeSet<String>,
+    /// (habitat, animal, plant) interactions already reported this season, and which season that is.
+    #[serde(default)]
+    pub interactions_seen: BTreeSet<(Entity, String, String)>,
+    #[serde(default)]
+    pub interactions_season: u64,
     pub pending_commands: Vec<QueuedCommand>,
     #[serde(default)]
     pub weather: Vec<Weather>,
@@ -41,6 +51,10 @@ impl World {
             next_command_sequence: 0,
             components: Components::default(),
             definitions: BTreeMap::new(),
+            fauna_definitions: BTreeMap::new(),
+            fauna_seen: BTreeSet::new(),
+            interactions_seen: BTreeSet::new(),
+            interactions_season: 0,
             pending_commands: vec![],
             weather: vec![],
             events: vec![],
@@ -52,6 +66,27 @@ impl World {
             world.sync(chunks)?;
         }
         Ok(world)
+    }
+
+    pub fn set_fauna_definitions(
+        &mut self,
+        definitions: Vec<FaunaDefinition>,
+    ) -> Result<(), String> {
+        for def in &definitions {
+            if def.id.is_empty()
+                || !def.capacity_per_forage.is_finite()
+                || def.capacity_per_forage < 0.0
+                || def.temperature_range.min > def.temperature_range.max
+                || def
+                    .forage
+                    .iter()
+                    .any(|link| !(0.0..=1.0).contains(&link.strength))
+            {
+                return Err(format!("Invalid fauna definition: {}", def.id));
+            }
+        }
+        self.fauna_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
+        Ok(())
     }
 
     pub fn set_definitions(&mut self, definitions: Vec<SpeciesDefinition>) -> Result<(), String> {
@@ -265,6 +300,7 @@ impl World {
                     Reproduction {
                         stage: plant.phenology_stage,
                         reserve: plant.reproductive_output.max(0.0),
+                        pollinated: 0.0,
                     },
                 );
             }
@@ -315,6 +351,7 @@ impl World {
             Reproduction {
                 stage: "vegetative".into(),
                 reserve: 0.0,
+                pollinated: 0.0,
             },
         );
         id
@@ -489,8 +526,10 @@ impl World {
             self.growth_system();
             self.reproduction_system();
             self.germination_system();
+            self.clonal_system();
             self.diffusion_system();
             self.ecosystem_system();
+            self.fauna_system();
         }
         Ok(())
     }

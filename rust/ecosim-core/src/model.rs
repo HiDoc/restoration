@@ -176,7 +176,7 @@ pub struct ChunkSnapshot {
     pub extra: BTreeMap<String, Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Range {
     pub min: f64,
     pub max: f64,
@@ -203,6 +203,8 @@ pub struct SpeciesDefinition {
     pub pollination: String,
     /// Age before a plant can flower; 0 means biomass alone decides.
     pub maturity_days: f64,
+    /// New shoots per plant per growing day from runners, rhizomes or bulbs.
+    pub clonal_rate: f64,
     /// Catalogue phenology; when absent, `reproduction_seasons` drives a flower-then-fruit cycle.
     pub ecology: Option<Ecology>,
 }
@@ -238,9 +240,42 @@ impl Default for SpeciesDefinition {
             dispersal_range: 2.0,
             pollination: "self".into(),
             maturity_days: 0.0,
+            clonal_rate: 0.0,
             ecology: None,
         }
     }
+}
+
+/// An animal species: what it eats, where it can breed and when it is about.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FaunaDefinition {
+    pub id: String,
+    /// "bee", "butterfly", "hoverfly", "bird", …
+    pub group: String,
+    pub active_seasons: Vec<String>,
+    pub temperature_range: Range,
+    pub pollution_tolerance: f64,
+    /// Hexes it forages across; also how far it spreads.
+    pub foraging_range: u32,
+    /// Animals supported per unit of forage (one plant in the right stage × link strength).
+    pub capacity_per_forage: f64,
+    pub forage: Vec<FaunaLink>,
+    /// Larval host or nesting plants.
+    pub hosts: Vec<String>,
+    /// Without a host in range the population cannot breed (e.g. butterflies without larval food plants).
+    pub needs_host: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FaunaLink {
+    pub plant: String,
+    pub strength: f64,
+    /// "nectar" (plant flowering), "fruit" or "seed" (plant fruiting), "insects" (plant not dormant).
+    pub takes: String,
+    pub pollinates: bool,
+    pub disperses: bool,
 }
 
 /// Components live in independent stores; the renderer's chunk shape is only a projection.
@@ -268,6 +303,9 @@ pub struct Growth {
 pub struct Reproduction {
     pub stage: String,
     pub reserve: f64,
+    /// How well the current bloom was pollinated [0-1]; sets seed output when it fruits.
+    #[serde(default)]
+    pub pollinated: f64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Habitat {
@@ -288,6 +326,9 @@ pub struct Components {
     pub organisms: BTreeMap<Entity, Organism>,
     pub growth: BTreeMap<Entity, Growth>,
     pub reproduction: BTreeMap<Entity, Reproduction>,
+    /// Animal abundance per habitat per fauna species.
+    #[serde(default)]
+    pub fauna: BTreeMap<Entity, BTreeMap<String, f64>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

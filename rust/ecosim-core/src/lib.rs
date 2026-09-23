@@ -28,6 +28,11 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
         let mut initialized = World::new(config, chunks, definitions)?;
+        if let Some(fauna) = request.get("faunaDefinitions") {
+            initialized.set_fauna_definitions(
+                serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+            )?;
+        }
         initialized.tick = request.get("tick").and_then(Value::as_u64).unwrap_or(0);
         initialized.elapsed_minutes = request
             .get("simTimeDays")
@@ -71,6 +76,11 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
                     }
                     candidate.config.time_per_tick_minutes = minutes;
                 }
+            }
+            if let Some(fauna) = request.get("faunaDefinitions") {
+                candidate.set_fauna_definitions(
+                    serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+                )?;
             }
             if let Some(definitions) = request.get("speciesDefinitions") {
                 candidate.set_definitions(

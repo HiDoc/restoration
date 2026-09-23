@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS vegetal_species (
     seed_dispersal TEXT CHECK (seed_dispersal IN ('wind', 'animal', 'water', 'gravity', 'ballistic')),
     flowering_season TEXT,
     fruit_season TEXT,
-    dormant_season TEXT,         -- Season(s) spent dormant underground outside winter (e.g. spring ephemerals)
+    dormant_season TEXT,
+    clonal_method TEXT CHECK (clonal_method IN ('rhizome', 'stolon', 'bulb', 'tiller')), -- Vegetative spread, if any         -- Season(s) spent dormant underground outside winter (e.g. spring ephemerals)
     
     -- Interaction factors
     allelopathy REAL DEFAULT 0.0, -- Chemical inhibition of other plants

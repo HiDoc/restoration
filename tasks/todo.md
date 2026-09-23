@@ -179,13 +179,36 @@ Follow-ups found in A1:
       rebuild it from journal events with the knowledge store (A4).
 
 ### A2. Fauna that emerges
-- [ ] Rust fauna system: per-hex populations per fauna species. Arrival probability rises with in-flower nectar
-      plants, host plants, low pollution, temperature fit and neighbouring populations (the basis for later
-      connectivity). Emit `ArrivedInHex` / `LeftHex` / `FirstSighting`.
-- [ ] Rust interaction events: while a pollinator and a flowering plant share a hex, record visits (seeded
-      probability × `interaction_strength`) and emit `InteractionObserved`. Pollination success feeds the
-      existing reproduction factor (`systems.rs`, currently `0.3 + pollinator * 0.7`).
-- [ ] Replace the fake `swift`/`robin`/`owl` birds with catalogue birds driven by fruit and seed availability.
+Today `pollinatorDensity` is a formula (diversity, canopy, light, pollution) and birds are three fake kinds
+(swift/robin/owl from canopy and vitality). Replace both with animals that respond to what grows.
+
+- [x] **A2.1 Fauna definitions.** `src/simulation/faunaDefinitions.ts` builds them from the catalogue; sent with the
+      plant definitions. Birds forage 1 hex (2 if over 150 g); capacity per forage unit 0.6 for pollinators, 0.35
+      for birds; bird pollution tolerance defaults to 0.5 (not in the bird table).
+- [x] **A2.2 Populations (Rust).** `components.fauna` plus `fauna_system`: capacity from own forage + half the
+      average within range, logistic growth, immigration, colonisation from beyond the map, unseen overwintering,
+      larval-host requirement. Events `fauna_arrived`, `fauna_left`, `first_sighting`. Projection adds `fauna` and
+      derives `pollinatorDensity`/`birds`/`birdsActivity` from real animals (fake swift/robin/owl removed).
+- [x] **A2.3 Interactions.** Each bloom records how well it was pollinated while flowering (`pollinated`), which
+      sets seed set when it fruits, so spring bee visits fill autumn Hawthorn berries. Fruit-eating birds raise the
+      chance seed leaves the patch. `interaction_observed` once per hex, pair and season.
+- [x] **A2.4 Vegetative spread.** `clonal_method` column (Red Fescue and Bracken rhizomes, White Clover stolons,
+      Bluebell bulbs); `clonal_system` adds unchanged clones beside established plants, crowded like seedlings.
+- [x] **A2.5 Tests.** Rust: bees only come to flowers they feed on (and replay exactly), butterflies settle only
+      with their larval host, spring visits raise the autumn seed crop, runners spread a seedless plant.
+      TS: `fauna_definitions.spec.ts`; the balance test also requires Bumblebee, Common Blue and Blackbird within two
+      years (plants after two years: ~37% grass, 33% clover, 16% hawthorn, 15% bluebell). Dispersal test now uses
+      a clover patch across three seeds (grass alone seeds too rarely once rhizomes fill a chunk).
+- [x] **A2.6 Digest.** First sightings, pairs seen together, arrivals; at most 8 lines with "…and N more".
+
+Follow-ups found in A2:
+- [ ] Every "seen together" pair repeats each season; show only pairs new to the player once the knowledge store
+      exists (A4).
+- [ ] Pollinators reach all 36 hexes within a season of the centre flowering; revisit spread rates when the map
+      has distinct habitats.
+- [ ] Hex textures switch to wetland above 0.75 moisture, so most of the map turns to water every spring (A3).
+- [ ] Default game start: make the slice meadow the new-game world (today a new game has grass only, so only
+      finches come).
 
 ### A3. Consequence first, numbers last
 - [ ] Hex descriptor: a TS function maps biome state + flowering + fauna to a phrase ("A meadow in flower",

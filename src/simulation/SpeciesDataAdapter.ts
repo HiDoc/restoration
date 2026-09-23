@@ -15,6 +15,8 @@ const WOODY_COMPRESSION = 5
 const DEFAULT_SEED_PRODUCTION = 60 // 120 is the engine's reference rate
 const DEFAULT_SEED_DORMANCY_DAYS = 20
 const MATURITY_BIOMASS_FRACTION = 0.15
+// New shoots per plant per growing day by spreading habit.
+const CLONAL_RATE = { stolon: 0.006, rhizome: 0.004, tiller: 0.004, bulb: 0.002 } as const
 
 const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
 
@@ -106,6 +108,7 @@ export class SpeciesDataAdapter {
       growthRate: dbSpecies.growth_rate * clock,
       lifespanTicks: Math.round(dbSpecies.max_age * DAYS_PER_YEAR / clock),
       maturityDays: Math.round(dbSpecies.reproduction_age * DAYS_PER_YEAR / clock),
+      clonalRate: dbSpecies.clonal_method ? CLONAL_RATE[dbSpecies.clonal_method] : 0,
       reproductionThreshold: typeof dbSpecies.sim_reproduction_threshold === 'number'
         ? dbSpecies.sim_reproduction_threshold
         : dbSpecies.max_biomass * MATURITY_BIOMASS_FRACTION,

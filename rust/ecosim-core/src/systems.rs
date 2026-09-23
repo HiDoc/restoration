@@ -388,6 +388,8 @@ impl World {
             })
             .collect();
         let mut announcements = BTreeSet::new();
+        let visits = self.fauna_service(|link| link.pollinates, 4.0);
+        let dispersers = self.fauna_service(|link| link.disperses, 2.0);
         let mut offspring = vec![];
         for (entity, organism) in &self.components.organisms {
             let fallback = SpeciesDefinition::default();
@@ -403,6 +405,18 @@ impl World {
                 && growth.health > 0.4
                 && growth.age_days >= def.maturity_days;
             let stage = phenology_stage(def, season, season_progress, mature);
+            if stage == "flowering" {
+                // A new bloom starts unpollinated; visits while it flowers decide the later fruit.
+                if reproduction.stage != "flowering" {
+                    reproduction.pollinated = 0.0;
+                }
+                let visits = visits
+                    .get(&(position.chunk, organism.species_id.clone()))
+                    .copied()
+                    .unwrap_or(0.0)
+                    .min(1.0);
+                reproduction.pollinated = (reproduction.pollinated + visits * 0.05 * days).min(1.0);
+            }
             reproduction.stage = stage.into();
             let event = match stage {
                 "flowering" => "flowering_started",
@@ -424,13 +438,9 @@ impl World {
             if quality < def.reproduction_need || biome.moisture < 0.06 {
                 continue;
             }
-            let pollinator = self.components.habitats[&position.chunk]
-                .extra
-                .get("pollinatorDensity")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.4);
+            // Animal-pollinated plants set seed in proportion to how well their bloom was visited.
             let pollination = if def.pollination == "insect" || def.pollination == "bird" {
-                0.3 + pollinator * 0.7
+                0.3 + 0.7 * reproduction.pollinated
             } else {
                 1.0
             };
@@ -464,7 +474,13 @@ impl World {
         }
         for (chunk, x, y, species, maturity, dispersal, extra) in offspring {
             let mut target = chunk;
-            if dispersal >= 1.0 && self.rng.sample() < 0.25 {
+            // Fruit-eating birds carry seed out of the patch.
+            let carried = dispersers
+                .get(&(chunk, species.clone()))
+                .copied()
+                .unwrap_or(0.0)
+                .min(1.0);
+            if dispersal >= 1.0 && self.rng.sample() < 0.25 + 0.5 * carried {
                 let offset = [(1, 0), (-1, 0), (0, 1), (0, -1)][(self.rng.sample() * 4.0) as usize];
                 let h = &self.components.habitats[&chunk];
                 target = coordinates
@@ -556,6 +572,68 @@ impl World {
         }
     }
 
+    /// Runners, rhizomes and bulbs: established, growing plants add a genetically identical shoot beside
+    /// themselves, crowded out like seedlings.
+    pub(crate) fn clonal_system(&mut self) {
+        let days = self.days();
+        let capacity = self.config.max_population_per_chunk as f64;
+        let mut population = BTreeMap::<Entity, usize>::new();
+        let mut conspecifics = BTreeMap::<(Entity, String), usize>::new();
+        for (entity, organism) in &self.components.organisms {
+            let chunk = self.components.positions[entity].chunk;
+            *population.entry(chunk).or_default() += 1;
+            *conspecifics
+                .entry((chunk, organism.species_id.clone()))
+                .or_default() += 1;
+        }
+        let mut shoots = vec![];
+        for (entity, organism) in &self.components.organisms {
+            let Some(def) = self.definitions.get(&organism.species_id) else {
+                continue;
+            };
+            let growth = &self.components.growth[entity];
+            if def.clonal_rate <= 0.0
+                || self.components.reproduction[entity].stage == "dormant"
+                || growth.health < 0.5
+                || growth.age_days < def.maturity_days
+            {
+                continue;
+            }
+            let position = &self.components.positions[entity];
+            let count = population.entry(position.chunk).or_default();
+            let own = conspecifics
+                .entry((position.chunk, organism.species_id.clone()))
+                .or_default();
+            let room =
+                (1.0 - *count as f64 / capacity).max(0.0) * (1.0 - *own as f64 / capacity).max(0.0);
+            if *count < self.config.max_population_per_chunk
+                && self.rng.sample() < def.clonal_rate * days * room
+            {
+                *count += 1;
+                *own += 1;
+                let x = (position.x + (self.rng.sample() - 0.5) * 0.1).clamp(0.0, 1.0);
+                let y = (position.y + (self.rng.sample() - 0.5) * 0.1).clamp(0.0, 1.0);
+                shoots.push((
+                    position.chunk,
+                    organism.species_id.clone(),
+                    x,
+                    y,
+                    organism.extra.clone(),
+                ));
+            }
+        }
+        for (chunk, species, x, y, extra) in shoots {
+            let id = self.spawn(chunk, &species, x, y, 0.08);
+            // A clone carries its parent's genes unchanged.
+            self.components.organisms.get_mut(&id).unwrap().extra = extra;
+            self.emit(
+                "species_spawn",
+                chunk,
+                json!({"speciesId":species,"instanceId":self.components.organisms[&id].id,"source":"clonal"}),
+            );
+        }
+    }
+
     pub(crate) fn diffusion_system(&mut self) {
         let days = self.days();
         let coordinates: BTreeMap<_, _> = self
@@ -586,6 +664,223 @@ impl World {
             let biome = self.components.biomes.get_mut(&entity).unwrap();
             biome.apply("moisture", moisture);
             biome.apply("pollution", pollution);
+        }
+    }
+
+    /// How much of a service (pollination, seed carrying) each plant species gets per habitat from the animals
+    /// active there: Σ abundance × link strength / `saturation`.
+    fn fauna_service(
+        &self,
+        provides: impl Fn(&FaunaLink) -> bool,
+        saturation: f64,
+    ) -> BTreeMap<(Entity, String), f64> {
+        let season = self.season();
+        let mut service = BTreeMap::new();
+        for (habitat, populations) in &self.components.fauna {
+            for (id, abundance) in populations {
+                let Some(def) = self.fauna_definitions.get(id) else {
+                    continue;
+                };
+                if *abundance < 1.0 || !def.active_seasons.iter().any(|s| s == season) {
+                    continue;
+                }
+                for link in def.forage.iter().filter(|link| provides(link)) {
+                    *service.entry((*habitat, link.plant.clone())).or_insert(0.0) +=
+                        abundance * link.strength / saturation;
+                }
+            }
+        }
+        service
+    }
+
+    /// Animals follow their food: each species' abundance in a habitat grows towards what the plants in and
+    /// around it offer, spreads to neighbours, and arrives from beyond the map where food appears.
+    pub(crate) fn fauna_system(&mut self) {
+        if self.fauna_definitions.is_empty() {
+            return;
+        }
+        let days = self.days();
+        let season = self.season();
+        let season_index = self.elapsed_minutes / (self.config.season_length_ticks * 1440);
+        if season_index != self.interactions_season {
+            self.interactions_seen.clear();
+            self.interactions_season = season_index;
+        }
+        // What each plant species offers per habitat: (flowering, fruiting, not dormant).
+        let mut offer = BTreeMap::<(Entity, String), (f64, f64, f64)>::new();
+        for (entity, organism) in &self.components.organisms {
+            let chunk = self.components.positions[entity].chunk;
+            let stage = self.components.reproduction[entity].stage.as_str();
+            let o = offer
+                .entry((chunk, organism.species_id.clone()))
+                .or_default();
+            o.0 += f64::from(u8::from(stage == "flowering"));
+            o.1 += f64::from(u8::from(stage == "fruiting"));
+            o.2 += f64::from(u8::from(stage != "dormant"));
+        }
+        let offered = |habitat: Entity, link: &FaunaLink| -> f64 {
+            let (flowering, fruiting, active) = offer
+                .get(&(habitat, link.plant.clone()))
+                .copied()
+                .unwrap_or_default();
+            let plants = match link.takes.as_str() {
+                "nectar" => flowering,
+                "fruit" | "seed" => fruiting,
+                _ => active,
+            };
+            plants * link.strength
+        };
+        let coordinates: BTreeMap<_, _> = self
+            .components
+            .habitats
+            .iter()
+            .map(|(id, h)| ((h.x, h.y), *id))
+            .collect();
+        let previous = self.components.fauna.clone();
+        let mut events = vec![];
+        let mut next = BTreeMap::<Entity, BTreeMap<String, f64>>::new();
+        for (habitat, h) in &self.components.habitats {
+            let biome = &self.components.biomes[habitat];
+            let temperature = self.components.climates[habitat].temperature;
+            for def in self.fauna_definitions.values() {
+                let range = def.foraging_range as i32;
+                let nearby: Vec<Entity> = (-range..=range)
+                    .flat_map(|dx| (-range..=range).map(move |dy| (dx, dy)))
+                    .filter(|offset| *offset != (0, 0))
+                    .filter_map(|(dx, dy)| coordinates.get(&(h.x + dx, h.y + dy)).copied())
+                    .collect();
+                let forage = |habitat: Entity| -> f64 {
+                    def.forage.iter().map(|link| offered(habitat, link)).sum()
+                };
+                // Its own patch feeds it fully; flowers within foraging range count at half their average.
+                let nearby_food = if nearby.is_empty() {
+                    0.0
+                } else {
+                    nearby.iter().map(|n| forage(*n)).sum::<f64>() / nearby.len() as f64
+                };
+                let food = forage(*habitat) + 0.5 * nearby_food;
+                let host_nearby = def.hosts.iter().any(|plant| {
+                    std::iter::once(habitat)
+                        .chain(nearby.iter())
+                        .any(|n| offer.get(&(*n, plant.clone())).is_some_and(|o| o.2 > 0.0))
+                });
+                let breeding = match (def.needs_host, host_nearby) {
+                    (true, false) => 0.2,
+                    (false, true) => 1.3,
+                    _ => 1.0,
+                };
+                let pollution =
+                    (1.0 - biome.pollution / def.pollution_tolerance.max(0.05)).clamp(0.0, 1.0);
+                let capacity = food * def.capacity_per_forage * pollution * breeding;
+                let before = previous
+                    .get(habitat)
+                    .and_then(|p| p.get(&def.id))
+                    .copied()
+                    .unwrap_or(0.0);
+                let in_season = def.active_seasons.iter().any(|s| s == season);
+                let active = in_season
+                    && (def.temperature_range.min..=def.temperature_range.max)
+                        .contains(&temperature);
+                let mut after = if !in_season {
+                    // Overwintering unseen (queens, pupae, birds wintering elsewhere).
+                    before * (1.0 - 0.003 * days)
+                } else if !active {
+                    before
+                } else if capacity > 0.05 {
+                    let arriving = 0.03
+                        * days
+                        * nearby
+                            .iter()
+                            .filter_map(|n| previous.get(n).and_then(|p| p.get(&def.id)))
+                            .sum::<f64>();
+                    before + 0.12 * before * (1.0 - before / capacity) * days + arriving
+                } else {
+                    before * (1.0 - 0.03 * days)
+                };
+                if active
+                    && after < 1.0
+                    && capacity >= 1.0
+                    && self.rng.sample() < 0.003 * capacity * days
+                {
+                    after = after.max(1.5);
+                }
+                after = after.clamp(0.0, 1000.0);
+                if active && before < 1.0 && after >= 1.0 {
+                    events.push((*habitat, "fauna_arrived", def.id.clone(), String::new()));
+                } else if active && before >= 1.0 && after < 1.0 {
+                    events.push((*habitat, "fauna_left", def.id.clone(), String::new()));
+                }
+                if active && after >= 1.0 {
+                    for link in &def.forage {
+                        let key = (*habitat, def.id.clone(), link.plant.clone());
+                        if offered(*habitat, link) > 0.0
+                            && !self.interactions_seen.contains(&key)
+                            && self.rng.sample() < link.strength * 0.3 * days
+                        {
+                            self.interactions_seen.insert(key);
+                            events.push((
+                                *habitat,
+                                "interaction_observed",
+                                def.id.clone(),
+                                link.plant.clone(),
+                            ));
+                        }
+                    }
+                }
+                if after >= 0.05 {
+                    next.entry(*habitat)
+                        .or_default()
+                        .insert(def.id.clone(), after);
+                }
+            }
+        }
+        self.components.fauna = next;
+        for (habitat, kind, animal, plant) in events {
+            if kind == "fauna_arrived" && self.fauna_seen.insert(animal.clone()) {
+                self.emit("first_sighting", habitat, json!({ "faunaId": animal }));
+            }
+            let data = if plant.is_empty() {
+                json!({ "faunaId": animal })
+            } else {
+                json!({ "faunaId": animal, "plantId": plant })
+            };
+            self.emit(kind, habitat, data);
+        }
+        self.project_fauna();
+    }
+
+    /// Renderer fields: visible animals per habitat, plus the legacy pollinator and bird summaries.
+    fn project_fauna(&mut self) {
+        let season = self.season();
+        for (habitat, h) in &mut self.components.habitats {
+            let mut visible = serde_json::Map::new();
+            let mut birds = serde_json::Map::new();
+            let (mut pollinators, mut bird_total) = (0.0, 0.0);
+            for (id, abundance) in self.components.fauna.get(habitat).into_iter().flatten() {
+                let Some(def) = self.fauna_definitions.get(id) else {
+                    continue;
+                };
+                if *abundance < 1.0 || !def.active_seasons.iter().any(|s| s == season) {
+                    continue;
+                }
+                let count = abundance.floor();
+                visible.insert(id.clone(), json!(count));
+                if def.group == "bird" {
+                    birds.insert(id.clone(), json!(count));
+                    bird_total += count;
+                } else {
+                    pollinators += count;
+                }
+            }
+            h.extra.insert("fauna".into(), Value::Object(visible));
+            h.extra.insert("birds".into(), Value::Object(birds));
+            h.extra.insert("birdsTotal".into(), json!(bird_total));
+            h.extra
+                .insert("birdsActivity".into(), json!((bird_total / 5.0).min(1.0)));
+            h.extra.insert(
+                "pollinatorDensity".into(),
+                json!((pollinators / 10.0).min(1.0)),
+            );
         }
     }
 
@@ -639,22 +934,6 @@ impl World {
                 (biome.invasion + (0.3 - biome.vitality) * 0.001 * days).clamp(0.0, 1.0);
             let h = self.components.habitats.get_mut(entity).unwrap();
             let climate = &self.components.climates[entity];
-            let pollinator =
-                (0.1 + biome.diversity * 0.5 + biome.canopy * 0.1 + climate.light * 0.2)
-                    * (1.0 - biome.pollution);
-            let birds = json!({"swift":(1.0-biome.canopy)*pollinator,"robin":biome.vitality*0.6,"owl":biome.canopy*0.7});
-            let birds_total = birds
-                .as_object()
-                .unwrap()
-                .values()
-                .filter_map(Value::as_f64)
-                .sum::<f64>();
-            h.extra
-                .insert("pollinatorDensity".into(), json!(pollinator));
-            h.extra.insert("birds".into(), birds);
-            h.extra.insert("birdsTotal".into(), json!(birds_total));
-            h.extra
-                .insert("birdsActivity".into(), json!(birds_total * 0.8));
             h.extra.insert(
                 "groundLight".into(),
                 json!(climate.light * (1.0 - biome.canopy * 0.7)),

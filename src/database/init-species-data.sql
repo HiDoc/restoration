@@ -259,6 +259,11 @@ INSERT OR REPLACE INTO bird_species (
 -- Spring ephemerals: flower and set seed in spring, then die back to a dormant bulb until late winter.
 UPDATE vegetal_species SET fruit_season = 'late spring', dormant_season = 'summer-autumn' WHERE id = 'wild_bluebell';
 
+-- Vegetative spread: how each plant makes new shoots without seed.
+UPDATE vegetal_species SET clonal_method = 'rhizome' WHERE id IN ('common_grass', 'bracken_fern');
+UPDATE vegetal_species SET clonal_method = 'stolon' WHERE id = 'white_clover';
+UPDATE vegetal_species SET clonal_method = 'bulb' WHERE id = 'wild_bluebell';
+
 -- SIMULATION OVERRIDES (optional)
 INSERT OR REPLACE INTO simulation_species_overrides (
   species_id, seed_production, reproduction_threshold, seed_maturity_ticks, dispersal_range, reproduction_seasons, rarity

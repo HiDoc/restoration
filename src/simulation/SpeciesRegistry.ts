@@ -22,6 +22,7 @@ export interface SpeciesDefinition {
   growthRate: number;           // Base growth rate multiplier
   lifespanTicks: number;        // Maximum age in ticks
   maturityDays?: number;        // Age before first flowering; unset means biomass alone decides
+  clonalRate?: number;          // New shoots per plant per growing day (runners, rhizomes, bulbs)
   reproductionThreshold: number; // Minimum biomass to reproduce
   reproductionNeed: number;     // Environmental quality threshold to reproduce [0-1]
   seedProduction: number;       // Seeds per reproductive cycle

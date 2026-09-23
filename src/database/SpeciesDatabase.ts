@@ -60,6 +60,7 @@ export interface VegetalSpecies {
   flowering_season?: string
   fruit_season?: string
   dormant_season?: string
+  clonal_method?: 'rhizome' | 'stolon' | 'bulb' | 'tiller'
   
   // Interaction factors
   allelopathy: number

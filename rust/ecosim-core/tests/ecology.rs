@@ -323,3 +323,138 @@ fn summer_dormancy_lets_spring_ephemerals_ride_out_drought() {
     );
     assert!(alive(&sleeping) > 0);
 }
+
+fn clover(flowering: &[&str], fruiting: &[&str]) -> SpeciesDefinition {
+    SpeciesDefinition {
+        id: "clover".into(),
+        pollination: "insect".into(),
+        ecology: Some(Ecology {
+            flowering_seasons: flowering.iter().map(|s| s.to_string()).collect(),
+            fruiting_seasons: fruiting.iter().map(|s| s.to_string()).collect(),
+            dormant_seasons: vec![],
+        }),
+        ..SpeciesDefinition::default()
+    }
+}
+
+fn animal(id: &str, feeds_on: &str, hosts: &[&str], needs_host: bool) -> FaunaDefinition {
+    FaunaDefinition {
+        id: id.into(),
+        group: if needs_host { "butterfly" } else { "bee" }.into(),
+        active_seasons: vec!["spring".into(), "summer".into(), "autumn".into()],
+        temperature_range: Range {
+            min: -50.0,
+            max: 50.0,
+        },
+        pollution_tolerance: 1.0,
+        foraging_range: 1,
+        capacity_per_forage: 0.6,
+        forage: vec![FaunaLink {
+            plant: feeds_on.into(),
+            strength: 0.8,
+            takes: "nectar".into(),
+            pollinates: true,
+            disperses: false,
+        }],
+        hosts: hosts.iter().map(|s| s.to_string()).collect(),
+        needs_host,
+    }
+}
+
+fn with_fauna(seed: u32, plant: SpeciesDefinition, fauna: Vec<FaunaDefinition>) -> World {
+    let mut world = world_with(seed, plant);
+    world.set_fauna_definitions(fauna).unwrap();
+    world
+}
+
+fn peak_abundance(world: &mut World, id: &str, ticks: u32) -> f64 {
+    let mut peak: f64 = 0.0;
+    for _ in 0..ticks {
+        world.step(1).unwrap();
+        let total: f64 = world
+            .components
+            .fauna
+            .values()
+            .filter_map(|p| p.get(id))
+            .sum();
+        peak = peak.max(total);
+    }
+    peak
+}
+
+#[test]
+fn bees_come_only_to_flowers_they_feed_on() {
+    let bloom = || clover(&["spring", "summer"], &["summer"]);
+    let mut fed = with_fauna(11, bloom(), vec![animal("bee", "clover", &[], false)]);
+    let mut replay = fed.clone();
+    let mut hungry = with_fauna(11, bloom(), vec![animal("bee", "hawthorn", &[], false)]);
+    assert!(peak_abundance(&mut fed, "bee", 180) >= 1.0);
+    assert!(fed.events.iter().any(|e| e.kind == "first_sighting"));
+    assert!(fed.events.iter().any(|e| e.kind == "interaction_observed"));
+    assert_eq!(peak_abundance(&mut hungry, "bee", 180), 0.0);
+    replay.step(180).unwrap();
+    assert_eq!(state(&fed), state(&replay));
+}
+
+#[test]
+fn butterflies_settle_only_where_their_larval_host_grows() {
+    let bloom = || clover(&["spring", "summer"], &["summer"]);
+    let mut without_host = with_fauna(
+        12,
+        bloom(),
+        vec![animal("blue", "clover", &["vetch"], true)],
+    );
+    let mut with_host = with_fauna(
+        12,
+        bloom(),
+        vec![animal("blue", "clover", &["clover"], true)],
+    );
+    let lonely = peak_abundance(&mut without_host, "blue", 180);
+    let settled = peak_abundance(&mut with_host, "blue", 180);
+    assert!(lonely < 1.0, "{lonely}");
+    assert!(settled >= 1.0, "{settled}");
+}
+
+#[test]
+fn bees_visiting_spring_blooms_raise_the_autumn_seed_crop() {
+    // Flowers in spring, fruits in autumn: seed set depends on visits months earlier.
+    let orchard = || clover(&["spring"], &["autumn"]);
+    let mut visited = with_fauna(13, orchard(), vec![animal("bee", "clover", &[], false)]);
+    let mut unvisited = with_fauna(13, orchard(), vec![]);
+    visited.step(270).unwrap();
+    unvisited.step(270).unwrap();
+    let seeds = |w: &World| {
+        w.events
+            .iter()
+            .filter(|e| e.kind == "species_reproduce")
+            .count()
+    };
+    assert!(
+        seeds(&visited) > seeds(&unvisited),
+        "{} vs {}",
+        seeds(&visited),
+        seeds(&unvisited)
+    );
+}
+
+#[test]
+fn runners_spread_a_plant_that_sets_no_seed() {
+    let seedless = |clonal_rate: f64| SpeciesDefinition {
+        seed_production: 0.0,
+        clonal_rate,
+        ..SpeciesDefinition::default()
+    };
+    let mut runners = world_with(21, seedless(0.006));
+    let mut clumps = world_with(21, seedless(0.0));
+    let start = runners.components.organisms.len();
+    runners.step(180).unwrap();
+    clumps.step(180).unwrap();
+    let clonal_births = runners
+        .events
+        .iter()
+        .filter(|e| e.kind == "species_spawn" && e.data["source"] == "clonal")
+        .count();
+    assert!(clonal_births > 0);
+    assert!(runners.components.organisms.len() > start);
+    assert!(clumps.components.organisms.len() <= start);
+}

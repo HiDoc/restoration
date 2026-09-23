@@ -427,6 +427,7 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
+import catalogue from "@/database/catalogue.json";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
@@ -1109,13 +1110,18 @@ const digest = ref<null | { title: string; lines: DigestLine[] }>(null);
 const timeBlocked = computed(() => !!advancing.value || showYearEndModal.value || extinction.triggered || !!runtimeError.value);
 const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
   season: 'icon-leaf',
+  sighting: 'icon-observe',
+  arrival: 'icon-pollinators',
+  interaction: 'icon-diversity',
   flower: 'icon-plants',
   seed: 'icon-diversity',
   spread: 'icon-vitality',
   decline: 'icon-observe',
   lost: 'icon-observe',
   weather: 'icon-moisture',
+  more: 'icon-journal',
 };
+const FAUNA_NAMES = new Map([...catalogue.pollinators, ...catalogue.birds].map(animal => [animal.id, animal.common_name ?? animal.name]));
 // Ticks advanced per animation frame, so a week or season plays out as a short time-lapse.
 const TICKS_PER_FRAME = { week: 2, season: 6 } as const;
 
@@ -1158,7 +1164,7 @@ function advanceTime(span: 'week' | 'season') {
         seasonAfter: stats.seasonName,
         populationBefore: before.population,
         populationAfter: populationBySpecies(),
-        nameOf: id => registry.getSpecies(id)?.name ?? id,
+        nameOf: id => registry.getSpecies(id)?.name ?? FAUNA_NAMES.get(id) ?? id,
       }),
     };
   };

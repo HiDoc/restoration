@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildDigest, type DigestInput } from '@/game/digest'
 import type { SimulationEvent } from '@/simulation/EventJournal'
 
-const names: Record<string, string> = { white_clover: 'White Clover', hawthorn: 'Hawthorn', wild_bluebell: 'Bluebell', scots_pine: 'Scots Pine' }
+const names: Record<string, string> = { white_clover: 'White Clover', hawthorn: 'Hawthorn', wild_bluebell: 'Bluebell', scots_pine: 'Scots Pine', common_blue: 'Common Blue', blackbird: 'Blackbird' }
 const event = (type: string, data: Record<string, unknown>, chunkId = 'chunk_1_1'): SimulationEvent =>
   ({ tick: 1, timestamp: 0, type, data, chunkId }) as SimulationEvent
 
@@ -59,6 +59,31 @@ describe('buildDigest', () => {
       { icon: 'decline', text: 'Bluebell declined: 20 → 12 plants, mostly from drought.', chunkId: 'chunk_1_4' },
       { icon: 'spread', text: 'White Clover spread: 10 → 18 plants.', chunkId: 'chunk_5_5' },
     ])
+  })
+
+  it('reports first sightings, arrivals and each pair seen together once', () => {
+    const lines = digest({
+      events: [
+        event('first_sighting', { faunaId: 'common_blue' }, 'chunk_2_2'),
+        event('fauna_arrived', { faunaId: 'common_blue' }, 'chunk_2_2'),
+        event('fauna_arrived', { faunaId: 'common_blue' }, 'chunk_2_3'),
+        event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }, 'chunk_3_3'),
+        event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }, 'chunk_3_4'),
+      ],
+    })
+    expect(lines).toEqual([
+      { icon: 'sighting', text: 'First sighting: Common Blue!', chunkId: 'chunk_2_2' },
+      { icon: 'interaction', text: 'Seen together: Blackbird ↔ Hawthorn.', chunkId: 'chunk_3_3' },
+      { icon: 'arrival', text: 'Common Blue arrived in 2 hexes.', chunkId: 'chunk_2_2' },
+    ])
+  })
+
+  it('keeps the most notable lines and summarises the rest', () => {
+    const events = Array.from({ length: 12 }, (_, i) => event('first_sighting', { faunaId: `animal_${i}` }))
+    const lines = digest({ events, seasonAfter: 'summer' })
+    expect(lines).toHaveLength(8)
+    expect(lines[0].icon).toBe('season')
+    expect(lines[7]).toEqual({ icon: 'more', text: '…and 6 more changes.' })
   })
 
   it('mentions each kind of weather once', () => {

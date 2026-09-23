@@ -427,6 +427,7 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
+import { plantStartingMeadow } from "@/game/startingMeadow";
 import catalogue from "@/database/catalogue.json";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
@@ -595,6 +596,7 @@ function initializeWorld() {
     timePerTickMinutes: 1440,
   };
   engine.value = new SimulationEngine(config);
+  plantStartingMeadow(engine.value);
 
   historyFrames.value = [];
   selectedHistoryIndex.value = -1;

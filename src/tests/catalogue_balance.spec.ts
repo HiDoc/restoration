@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { SimulationEngine } from '@/simulation/SimulationEngine'
 import { EventType } from '@/simulation/EventJournal'
+import { STARTING_MEADOW, plantStartingMeadow } from '@/game/startingMeadow'
 
-// Milestone A's meadow: every plant here must hold its own for two game years, and draw its animals.
-const SLICE_PLANTS = ['common_grass', 'white_clover', 'wild_bluebell', 'hawthorn']
+// The new-game meadow: every plant must hold its own for two game years, and draw its animals.
+const SLICE_PLANTS = STARTING_MEADOW
 const SLICE_ANIMALS = ['buff_tailed_bumblebee', 'common_blue', 'blackbird']
 const YEARS = 2
 
@@ -18,7 +19,7 @@ describe('catalogue species balance', () => {
       worldWidth: 6, worldHeight: 6, chunkSize: 16, tickRate: 10, masterSeed: 7,
       maxActiveChunks: 36, seasonLengthTicks: 90, timePerTickMinutes: 1440,
     })
-    engine.applyScenarioConditions({ establishedSpecies: SLICE_PLANTS, initialSpecies: SLICE_PLANTS })
+    plantStartingMeadow(engine)
     engine.advance(360 * YEARS)
     for (const chunk of engine.readChunks().values()) {
       chunk.species.forEach(plant => alive.set(plant.speciesId, (alive.get(plant.speciesId) ?? 0) + 1))

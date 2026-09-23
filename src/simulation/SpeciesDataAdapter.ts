@@ -3,8 +3,19 @@
  * Bridges SQLite species database with the simulation registry
  */
 
-import { SpeciesDefinition, SpeciesCategory, CanopyLayer, RootDepth, PollinationType, SuccessionStage, SpeciesRarity, BiomeType } from './SpeciesRegistry'
-import { SpeciesDatabase, VegetalSpecies, BirdSpecies } from '../database/SpeciesDatabase'
+import { SpeciesDefinition, SpeciesCategory, CanopyLayer, RootDepth, PollinationType, SuccessionStage, SpeciesRarity, BiomeType, type Season } from './SpeciesRegistry'
+import { SpeciesDatabase, VegetalSpecies, BirdSpecies, type SpeciesInteraction } from '../database/SpeciesDatabase'
+
+// One tick is one day; the engine year is four 90-day seasons.
+const DAYS_PER_YEAR = 360
+
+const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+/** Catalogue season text ("late spring", "late spring-summer", "none") → engine seasons. */
+function parseSeason(text: string | undefined): Season[] {
+  const [from, to = from] = (text ?? '').split('-').map(part => SEASONS.indexOf(part.trim().split(' ').pop() as Season))
+  return from < 0 || to < from ? [] : SEASONS.slice(from, to + 1)
+}
 
 export class SpeciesDataAdapter {
   private database: SpeciesDatabase
@@ -82,7 +93,7 @@ export class SpeciesDataAdapter {
       category: this.convertSpeciesCategory(dbSpecies.type),
       maxBiomass: dbSpecies.max_biomass,
       growthRate: dbSpecies.growth_rate,
-      lifespanTicks: Math.round(dbSpecies.max_age * 365 / 7), // Convert years to weekly ticks
+      lifespanTicks: Math.round(dbSpecies.max_age * DAYS_PER_YEAR),
       reproductionThreshold: typeof dbSpecies.sim_reproduction_threshold === 'number'
         ? dbSpecies.sim_reproduction_threshold
         : dbSpecies.max_biomass * 0.3,
@@ -124,7 +135,13 @@ export class SpeciesDataAdapter {
       },
       rarity: dbSpecies.sim_rarity ? (dbSpecies.sim_rarity as any) : this.convertRarity(dbSpecies.max_biomass, dbSpecies.succession_stage),
       preferredBiomes: this.getPreferredBiomes(dbSpecies),
-      nativeRegions: this.generateNativeRegions(dbSpecies)
+      nativeRegions: this.generateNativeRegions(dbSpecies),
+      ecology: {
+        floweringSeasons: parseSeason(dbSpecies.flowering_season),
+        fruitingSeasons: parseSeason(dbSpecies.fruit_season),
+        nitrogenFixation: Boolean(dbSpecies.nitrogen_fixation),
+        allelopathy: dbSpecies.allelopathy
+      }
     }
   }
 
@@ -401,8 +418,8 @@ export class SpeciesDataAdapter {
    */
   async getSpeciesInteractions(speciesId: string): Promise<Array<{
     targetSpeciesId: string
-    targetType: 'vegetal' | 'bird'
-    interactionType: 'pollination' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral'
+    targetType: SpeciesInteraction['species_a_type']
+    interactionType: SpeciesInteraction['interaction_type']
     strength: number
   }>> {
     const interactions = await this.database.getSpeciesInteractions()

@@ -40,7 +40,7 @@ INSERT OR REPLACE INTO vegetal_species (
  0.4, 1.0, 0.8, 0.5,
  5.5, 7.5, 6.2, 0.2,
  0.5, 0.7, 0.6, 0.6,
- 'insect', 'animal', 'spring', 'autumn',
+ 'insect', 'animal', 'late spring-summer', 'summer-autumn',
  0.0, TRUE, TRUE,
  'white', 'green', 'ground'),
 
@@ -263,13 +263,30 @@ INSERT OR REPLACE INTO simulation_species_overrides (
 ('common_grass', 120, 0.05, 0, 2.0, '["spring","summer","autumn"]', 'common');
 
 -- SPECIES INTERACTIONS DATA
--- Pollination relationships
+-- POLLINATOR SPECIES DATA
+INSERT OR REPLACE INTO pollinator_species (
+    id, name, common_name, pollinator_group, flight_seasons, temp_min, temp_max, pollution_tolerance, foraging_range
+) VALUES
+('buff_tailed_bumblebee', 'Bombus terrestris', 'Buff-tailed Bumblebee', 'bee', '["spring","summer","autumn"]', 6.0, 32.0, 0.5, 2),
+('red_mason_bee', 'Osmia bicornis', 'Red Mason Bee', 'bee', '["spring"]', 10.0, 30.0, 0.4, 1),
+('common_blue', 'Polyommatus icarus', 'Common Blue', 'butterfly', '["spring","summer"]', 13.0, 32.0, 0.3, 1),
+('marmalade_hoverfly', 'Episyrphus balteatus', 'Marmalade Hoverfly', 'hoverfly', '["spring","summer","autumn"]', 10.0, 30.0, 0.6, 3);
+
+-- Pollination relationships (species_a = plant, species_b = pollinator)
 INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
-('white_clover', 'vegetal', 'blue_tit', 'bird', 'pollination', 0.3, 'Occasional nectar feeding'),
-('hawthorn', 'vegetal', 'blue_tit', 'bird', 'pollination', 0.6, 'Important spring nectar source'),
-('hawthorn', 'vegetal', 'great_tit', 'bird', 'pollination', 0.4, 'Spring flowering period overlap'),
-('wild_bluebell', 'vegetal', 'goldfinch', 'bird', 'pollination', 0.5, 'Early spring nectar'),
-('goldfinch', 'bird', 'white_clover', 'vegetal', 'pollination', 0.7, 'Primary food source in summer');
+('white_clover', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.8, 'Major summer nectar and pollen source'),
+('white_clover', 'vegetal', 'common_blue', 'pollinator', 'pollination', 0.5, 'Adults take nectar from clover flowers'),
+('white_clover', 'vegetal', 'marmalade_hoverfly', 'pollinator', 'pollination', 0.3, 'Visits open clover heads'),
+('wild_bluebell', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.7, 'Key early nectar for queens'),
+('pioneer_willow', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.6, 'Catkins give queens their first pollen of the year'),
+('pioneer_willow', 'vegetal', 'red_mason_bee', 'pollinator', 'pollination', 0.6, 'Early spring pollen for nest provisioning'),
+('hawthorn', 'vegetal', 'red_mason_bee', 'pollinator', 'pollination', 0.6, 'Pollinates hawthorn blossom in late spring'),
+('hawthorn', 'vegetal', 'marmalade_hoverfly', 'pollinator', 'pollination', 0.5, 'Feeds on the open, shallow flowers'),
+('hawthorn', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.4, 'Visits blossom alongside solitary bees');
+
+-- Larval host relationships (species_b caterpillars feed on species_a)
+INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
+('white_clover', 'vegetal', 'common_blue', 'pollinator', 'larval_host', 0.4, 'Caterpillars eat clovers; bird''s-foot trefoil is preferred where present');
 
 -- Seed dispersal relationships  
 INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
@@ -277,8 +294,7 @@ INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, sp
 ('hawthorn', 'vegetal', 'robin_european', 'bird', 'seed_dispersal', 0.6, 'Secondary disperser'),
 ('hawthorn', 'vegetal', 'song_thrush', 'bird', 'seed_dispersal', 0.7, 'Important autumn disperser'),
 ('english_oak', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.9, 'Primary acorn disperser and cacher'),
-('beech', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.8, 'Important beechnut disperser'),
-('wood_pigeon', 'bird', 'english_oak', 'vegetal', 'seed_dispersal', 0.6, 'Long-distance acorn dispersal');
+('beech', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.8, 'Important beechnut disperser');
 
 -- Nesting relationships
 INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
@@ -297,7 +313,9 @@ INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, sp
 ('bracken_fern', 'vegetal', 'wren', 'bird', 'feeding', 0.6, 'Ground insect foraging'),
 ('common_grass', 'vegetal', 'chaffinch', 'bird', 'feeding', 0.5, 'Seed feeding relationship'),
 ('common_grass', 'vegetal', 'goldfinch', 'bird', 'feeding', 0.7, 'Primary seed source'),
-('common_grass', 'vegetal', 'greenfinch', 'bird', 'feeding', 0.6, 'Grass seed specialist');
+('common_grass', 'vegetal', 'greenfinch', 'bird', 'feeding', 0.6, 'Grass seed specialist'),
+('hawthorn', 'vegetal', 'blue_tit', 'bird', 'feeding', 0.4, 'Forages insects among the blossom'),
+('english_oak', 'vegetal', 'wood_pigeon', 'bird', 'feeding', 0.6, 'Eats acorns but digests the seed, so a predator rather than a disperser');
 
 -- BIOME ASSOCIATIONS
 -- Forest biome associations

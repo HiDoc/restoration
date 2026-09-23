@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { RNGManager } from '@/simulation/SeededRNG'
 import { SimulationEngine } from '@/simulation/SimulationEngine'
-import { VegetationSystem } from '@/simulation/VegetationSystem'
 import { PhenologyStage } from '@/simulation/WorldChunk'
 
 describe('SimulationEngine year-end seed selection', () => {
@@ -19,7 +18,6 @@ describe('SimulationEngine year-end seed selection', () => {
     })
     engine.activateAllChunks()
 
-    const veg = new VegetationSystem(engine)
     const chunk = engine.getChunk(0, 0)!
 
     // Create a parent with explicit genetics
@@ -77,7 +75,7 @@ describe('SimulationEngine year-end seed selection', () => {
     })
 
     // Let one seed germinate and verify the seedling adopts the master genome
-    for (let i = 0; i < 5; i++) veg.update(chunk, 1)
+    engine.advance(5)
 
     const child = Array.from(chunk.species.values()).find((s) => s.id !== parentId && s.speciesId === 'common_grass') as any
     expect(child).toBeDefined()

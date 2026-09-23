@@ -121,16 +121,29 @@ CREATE TABLE IF NOT EXISTS bird_species (
 CREATE TABLE IF NOT EXISTS species_interactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     species_a_id TEXT NOT NULL,
-    species_a_type TEXT CHECK (species_a_type IN ('vegetal', 'bird')),
+    species_a_type TEXT CHECK (species_a_type IN ('vegetal', 'bird', 'pollinator')),
     species_b_id TEXT NOT NULL,
-    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird')),
-    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral')),
+    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird', 'pollinator')),
+    -- larval_host: species_b's caterpillars feed on species_a
+    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'larval_host', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral')),
     interaction_strength REAL DEFAULT 0.5, -- 0.0 to 1.0
     seasonal_modifier TEXT, -- JSON object with seasonal variations
-    notes TEXT,
-    
-    FOREIGN KEY (species_a_id) REFERENCES vegetal_species(id) ON DELETE CASCADE,
-    FOREIGN KEY (species_b_id) REFERENCES bird_species(id) ON DELETE CASCADE
+    notes TEXT
+    -- Rows are polymorphic (plant/bird/pollinator), so no foreign keys; species_a is always the plant.
+);
+
+-- Pollinator Species Table (bees, butterflies, hoverflies).
+-- What each one feeds on and breeds on lives in species_interactions (pollination / larval_host rows).
+CREATE TABLE IF NOT EXISTS pollinator_species (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,                 -- Scientific name
+    common_name TEXT,
+    pollinator_group TEXT CHECK (pollinator_group IN ('bee', 'butterfly', 'moth', 'hoverfly', 'beetle')),
+    flight_seasons TEXT NOT NULL,       -- JSON array of seasons adults are on the wing
+    temp_min REAL,                      -- Minimum air temperature for flight (°C)
+    temp_max REAL,
+    pollution_tolerance REAL,           -- 0.0 to 1.0
+    foraging_range INTEGER              -- Typical foraging distance in hexes
 );
 
 -- Biome Associations Table

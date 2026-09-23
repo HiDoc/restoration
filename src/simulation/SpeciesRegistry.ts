@@ -8,6 +8,8 @@ export interface SpeciesTrait {
   description: string;
 }
 
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
 export interface SpeciesDefinition {
   id: string;
   name: string;
@@ -22,7 +24,7 @@ export interface SpeciesDefinition {
   seedProduction: number;       // Seeds per reproductive cycle
   // Reproduction params
   seedMaturityTicks?: number;   // Ticks before a dropped seed attempts germination
-  reproductionSeasons?: Array<'spring'|'summer'|'autumn'|'winter'>; // Preferred seasons for flowering/fruiting
+  reproductionSeasons?: Season[]; // Preferred seasons for flowering/fruiting
   
   // Environmental tolerances
   temperatureRange: { min: number; max: number };
@@ -54,6 +56,15 @@ export interface SpeciesDefinition {
   rarity: SpeciesRarity;
   preferredBiomes: BiomeType[];
   nativeRegions: string[];      // Where this species naturally occurs
+
+  // Phenology and soil effects from the species catalogue. Nectar, fruit and larval-host links
+  // live in the catalogue's interactions, not here.
+  ecology?: {
+    floweringSeasons: Season[];
+    fruitingSeasons: Season[];
+    nitrogenFixation: boolean;
+    allelopathy: number;          // Suppression of neighbours [0-1]
+  };
 
   // Optional asexual (vegetative) reproduction parameters
   asexual?: {

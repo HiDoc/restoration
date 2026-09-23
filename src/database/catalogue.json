@@ -1,0 +1,1567 @@
+{
+  "plants": [
+    {
+      "id": "lady_fern",
+      "name": "Lady Fern",
+      "category": "fern",
+      "maxBiomass": 1.8,
+      "growthRate": 0.08,
+      "lifespanTicks": 9000,
+      "reproductionThreshold": 0.54,
+      "reproductionNeed": 0.5,
+      "seedProduction": 28,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -15,
+        "max": 22
+      },
+      "moistureRange": {
+        "min": 0.5,
+        "max": 0.9
+      },
+      "lightRequirement": 0.1,
+      "shadeToleranceMax": 0.9,
+      "pHRange": {
+        "min": 5,
+        "max": 7
+      },
+      "canopyLayer": "shrub",
+      "rootDepth": "shallow",
+      "dispersalRange": 4,
+      "pollination": "wind",
+      "succession": "mid",
+      "traits": [
+        {
+          "name": "shade_specialist",
+          "value": 0.9,
+          "description": "Thrives in low-light conditions"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "low_light"
+      ],
+      "visualProps": {
+        "color": "green",
+        "size": 0.18,
+        "shape": "frond",
+        "seasonalChanges": false
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "forest_understory"
+      ],
+      "ecology": {
+        "floweringSeasons": [],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0
+      }
+    },
+    {
+      "id": "silver_birch",
+      "name": "Silver Birch",
+      "category": "tree",
+      "maxBiomass": 8,
+      "growthRate": 0.3,
+      "lifespanTicks": 28800,
+      "reproductionThreshold": 2.4,
+      "reproductionNeed": 0.5,
+      "seedProduction": 6,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -25,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.3,
+        "max": 0.8
+      },
+      "lightRequirement": 0.5,
+      "shadeToleranceMax": 0.2,
+      "pHRange": {
+        "min": 5,
+        "max": 7.5
+      },
+      "canopyLayer": "canopy",
+      "rootDepth": "medium",
+      "dispersalRange": 8,
+      "pollination": "wind",
+      "succession": "early",
+      "traits": [
+        {
+          "name": "fast_growth",
+          "value": 1,
+          "description": "Grows rapidly in suitable conditions"
+        },
+        {
+          "name": "cold_hardy",
+          "value": 0.9,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "white",
+        "size": 0.8,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.2
+      }
+    },
+    {
+      "id": "hawthorn",
+      "name": "Common Hawthorn",
+      "category": "shrub",
+      "maxBiomass": 4,
+      "growthRate": 0.18,
+      "lifespanTicks": 21600,
+      "reproductionThreshold": 1.2,
+      "reproductionNeed": 0.6,
+      "seedProduction": 13,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -15,
+        "max": 30
+      },
+      "moistureRange": {
+        "min": 0.2,
+        "max": 0.8
+      },
+      "lightRequirement": 0.3,
+      "shadeToleranceMax": 0.6,
+      "pHRange": {
+        "min": 6,
+        "max": 8
+      },
+      "canopyLayer": "understory",
+      "rootDepth": "medium",
+      "dispersalRange": 6,
+      "pollination": "insect",
+      "succession": "early",
+      "traits": [
+        {
+          "name": "drought_tolerance",
+          "value": 0.8,
+          "description": "Can survive extended dry periods"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "drought",
+        "wind"
+      ],
+      "visualProps": {
+        "color": "white",
+        "size": 0.4,
+        "shape": "bush",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "temperate_zone"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.1
+      }
+    },
+    {
+      "id": "beech",
+      "name": "European Beech",
+      "category": "tree",
+      "maxBiomass": 18,
+      "growthRate": 0.06,
+      "lifespanTicks": 108000,
+      "reproductionThreshold": 5.3999999999999995,
+      "reproductionNeed": 0.8,
+      "seedProduction": 3,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -15,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.4,
+        "max": 0.8
+      },
+      "lightRequirement": 0.3,
+      "shadeToleranceMax": 0.8,
+      "pHRange": {
+        "min": 6,
+        "max": 7.5
+      },
+      "canopyLayer": "emergent",
+      "rootDepth": "deep",
+      "dispersalRange": 6,
+      "pollination": "wind",
+      "succession": "late",
+      "traits": [
+        {
+          "name": "shade_specialist",
+          "value": 0.8,
+          "description": "Thrives in low-light conditions"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "gray",
+        "size": 1.8,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "uncommon",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior",
+        "forest_understory"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.3
+      }
+    },
+    {
+      "id": "common_grass",
+      "name": "Red Fescue",
+      "category": "grass",
+      "maxBiomass": 0.3,
+      "growthRate": 0.15,
+      "lifespanTicks": 2880,
+      "reproductionThreshold": 0.05,
+      "reproductionNeed": 0.3,
+      "seedProduction": 120,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -15,
+        "max": 30
+      },
+      "moistureRange": {
+        "min": 0.2,
+        "max": 0.9
+      },
+      "lightRequirement": 0.3,
+      "shadeToleranceMax": 0.4,
+      "pHRange": {
+        "min": 5,
+        "max": 8.5
+      },
+      "canopyLayer": "herb",
+      "rootDepth": "extensive",
+      "dispersalRange": 2,
+      "pollination": "wind",
+      "succession": "pioneer",
+      "traits": [
+        {
+          "name": "drought_tolerance",
+          "value": 0.8,
+          "description": "Can survive extended dry periods"
+        },
+        {
+          "name": "cold_hardy",
+          "value": 0.9,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "drought",
+        "pollution"
+      ],
+      "visualProps": {
+        "color": "green",
+        "size": 0.03,
+        "shape": "blade",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "grassland"
+      ],
+      "nativeRegions": [
+        "disturbed_areas"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "summer"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.1
+      }
+    },
+    {
+      "id": "wild_bluebell",
+      "name": "Bluebell",
+      "category": "herb",
+      "maxBiomass": 0.6,
+      "growthRate": 0.1,
+      "lifespanTicks": 5400,
+      "reproductionThreshold": 0.18,
+      "reproductionNeed": 0.5,
+      "seedProduction": 83,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": 0,
+        "max": 20
+      },
+      "moistureRange": {
+        "min": 0.4,
+        "max": 0.8
+      },
+      "lightRequirement": 0.1,
+      "shadeToleranceMax": 0.9,
+      "pHRange": {
+        "min": 5.5,
+        "max": 7
+      },
+      "canopyLayer": "herb",
+      "rootDepth": "shallow",
+      "dispersalRange": 6,
+      "pollination": "insect",
+      "succession": "mid",
+      "traits": [
+        {
+          "name": "cold_hardy",
+          "value": 0.8,
+          "description": "Tolerates freezing temperatures"
+        },
+        {
+          "name": "shade_specialist",
+          "value": 0.9,
+          "description": "Thrives in low-light conditions"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "blue",
+        "size": 0.06,
+        "shape": "bloom",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "forest_understory"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "summer"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0
+      }
+    },
+    {
+      "id": "moss_cushion",
+      "name": "Cushion Moss",
+      "category": "moss",
+      "maxBiomass": 0.1,
+      "growthRate": 0.05,
+      "lifespanTicks": 7200,
+      "reproductionThreshold": 0.03,
+      "reproductionNeed": 0.6,
+      "seedProduction": 500,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -10,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.6,
+        "max": 1
+      },
+      "lightRequirement": 0.1,
+      "shadeToleranceMax": 0.9,
+      "pHRange": {
+        "min": 4,
+        "max": 6.5
+      },
+      "canopyLayer": "herb",
+      "rootDepth": "shallow",
+      "dispersalRange": 4,
+      "pollination": "wind",
+      "succession": "climax",
+      "traits": [
+        {
+          "name": "cold_hardy",
+          "value": 0.8,
+          "description": "Tolerates freezing temperatures"
+        },
+        {
+          "name": "shade_specialist",
+          "value": 0.9,
+          "description": "Thrives in low-light conditions"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "low_light"
+      ],
+      "visualProps": {
+        "color": "green",
+        "size": 0.01,
+        "shape": "carpet",
+        "seasonalChanges": false
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "forest_understory"
+      ],
+      "ecology": {
+        "floweringSeasons": [],
+        "fruitingSeasons": [],
+        "nitrogenFixation": false,
+        "allelopathy": 0
+      }
+    },
+    {
+      "id": "scots_pine",
+      "name": "Scots Pine",
+      "category": "tree",
+      "maxBiomass": 12,
+      "growthRate": 0.05,
+      "lifespanTicks": 144000,
+      "reproductionThreshold": 3.5999999999999996,
+      "reproductionNeed": 0.9,
+      "seedProduction": 4,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -30,
+        "max": 22
+      },
+      "moistureRange": {
+        "min": 0.2,
+        "max": 0.7
+      },
+      "lightRequirement": 0.5,
+      "shadeToleranceMax": 0.3,
+      "pHRange": {
+        "min": 4.5,
+        "max": 7.5
+      },
+      "canopyLayer": "emergent",
+      "rootDepth": "deep",
+      "dispersalRange": 8,
+      "pollination": "wind",
+      "succession": "climax",
+      "traits": [
+        {
+          "name": "drought_tolerance",
+          "value": 0.9,
+          "description": "Can survive extended dry periods"
+        },
+        {
+          "name": "cold_hardy",
+          "value": 0.9,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "drought",
+        "wind"
+      ],
+      "visualProps": {
+        "color": "brown",
+        "size": 1.2,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "rare",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.2
+      }
+    },
+    {
+      "id": "bracken_fern",
+      "name": "Bracken Fern",
+      "category": "fern",
+      "maxBiomass": 1.2,
+      "growthRate": 0.12,
+      "lifespanTicks": 4320,
+      "reproductionThreshold": 0.36,
+      "reproductionNeed": 0.4,
+      "seedProduction": 42,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -5,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.4,
+        "max": 0.9
+      },
+      "lightRequirement": 0.2,
+      "shadeToleranceMax": 0.8,
+      "pHRange": {
+        "min": 4.5,
+        "max": 7
+      },
+      "canopyLayer": "shrub",
+      "rootDepth": "shallow",
+      "dispersalRange": 4,
+      "pollination": "wind",
+      "succession": "early",
+      "traits": [
+        {
+          "name": "shade_specialist",
+          "value": 0.8,
+          "description": "Thrives in low-light conditions"
+        }
+      ],
+      "resistances": [
+        "low_light"
+      ],
+      "visualProps": {
+        "color": "green",
+        "size": 0.12,
+        "shape": "frond",
+        "seasonalChanges": false
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "forest_understory"
+      ],
+      "ecology": {
+        "floweringSeasons": [],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.4
+      }
+    },
+    {
+      "id": "english_oak",
+      "name": "English Oak",
+      "category": "tree",
+      "maxBiomass": 15,
+      "growthRate": 0.08,
+      "lifespanTicks": 72000,
+      "reproductionThreshold": 4.5,
+      "reproductionNeed": 0.7,
+      "seedProduction": 3,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -20,
+        "max": 28
+      },
+      "moistureRange": {
+        "min": 0.3,
+        "max": 0.8
+      },
+      "lightRequirement": 0.4,
+      "shadeToleranceMax": 0.4,
+      "pHRange": {
+        "min": 5.5,
+        "max": 7.5
+      },
+      "canopyLayer": "emergent",
+      "rootDepth": "deep",
+      "dispersalRange": 6,
+      "pollination": "wind",
+      "succession": "mid",
+      "traits": [
+        {
+          "name": "cold_hardy",
+          "value": 0.8,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "brown",
+        "size": 1.5,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "uncommon",
+      "preferredBiomes": [
+        "boreal_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0.1
+      }
+    },
+    {
+      "id": "pioneer_willow",
+      "name": "Goat Willow",
+      "category": "shrub",
+      "maxBiomass": 2.5,
+      "growthRate": 0.25,
+      "lifespanTicks": 9000,
+      "reproductionThreshold": 0.75,
+      "reproductionNeed": 0.4,
+      "seedProduction": 20,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -20,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.4,
+        "max": 1
+      },
+      "lightRequirement": 0.4,
+      "shadeToleranceMax": 0.3,
+      "pHRange": {
+        "min": 5.5,
+        "max": 8
+      },
+      "canopyLayer": "understory",
+      "rootDepth": "medium",
+      "dispersalRange": 4,
+      "pollination": "insect",
+      "succession": "pioneer",
+      "traits": [
+        {
+          "name": "fast_growth",
+          "value": 1,
+          "description": "Grows rapidly in suitable conditions"
+        },
+        {
+          "name": "cold_hardy",
+          "value": 0.8,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "gray",
+        "size": 0.25,
+        "shape": "bush",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "grassland"
+      ],
+      "nativeRegions": [
+        "disturbed_areas"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "spring"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0
+      }
+    },
+    {
+      "id": "white_clover",
+      "name": "White Clover",
+      "category": "herb",
+      "maxBiomass": 0.4,
+      "growthRate": 0.2,
+      "lifespanTicks": 1800,
+      "reproductionThreshold": 0.12,
+      "reproductionNeed": 0.2,
+      "seedProduction": 125,
+      "seedMaturityTicks": 0,
+      "temperatureRange": {
+        "min": -10,
+        "max": 28
+      },
+      "moistureRange": {
+        "min": 0.3,
+        "max": 0.9
+      },
+      "lightRequirement": 0.4,
+      "shadeToleranceMax": 0.5,
+      "pHRange": {
+        "min": 5.5,
+        "max": 7.5
+      },
+      "canopyLayer": "herb",
+      "rootDepth": "shallow",
+      "dispersalRange": 6,
+      "pollination": "insect",
+      "succession": "pioneer",
+      "traits": [
+        {
+          "name": "nitrogen_fixation",
+          "value": 0.8,
+          "description": "Enriches soil with nitrogen"
+        }
+      ],
+      "resistances": [
+        "drought"
+      ],
+      "visualProps": {
+        "color": "white",
+        "size": 0.04,
+        "shape": "bloom",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "grassland"
+      ],
+      "nativeRegions": [
+        "disturbed_areas"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring",
+          "summer"
+        ],
+        "fruitingSeasons": [
+          "summer",
+          "autumn"
+        ],
+        "nitrogenFixation": true,
+        "allelopathy": 0
+      }
+    }
+  ],
+  "birds": [
+    {
+      "id": "goldfinch",
+      "name": "Carduelis carduelis",
+      "common_name": "European Goldfinch",
+      "family": "Fringillidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 16,
+      "wingspan_cm": 23,
+      "length_cm": 12,
+      "diet_type": "granivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "small_flock",
+      "habitat_type": "mixed",
+      "canopy_preference": "midstory",
+      "territory_size_ha": 0.1,
+      "migration_pattern": "short_distance",
+      "breeding_season": "spring",
+      "clutch_size_min": 4,
+      "clutch_size_max": 6,
+      "temp_range_min": -10,
+      "temp_range_max": 25,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1500,
+      "pollinator_effectiveness": 0.3,
+      "seed_dispersal_effectiveness": 0.6,
+      "pest_control_effectiveness": 0.2,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[7,8,9,15,16,17]"
+    },
+    {
+      "id": "greenfinch",
+      "name": "Chloris chloris",
+      "common_name": "European Greenfinch",
+      "family": "Fringillidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 28,
+      "wingspan_cm": 27,
+      "length_cm": 15,
+      "diet_type": "granivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "small_flock",
+      "habitat_type": "mixed",
+      "canopy_preference": "midstory",
+      "territory_size_ha": 0.3,
+      "migration_pattern": "short_distance",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 6,
+      "temp_range_min": -10,
+      "temp_range_max": 28,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1600,
+      "pollinator_effectiveness": 0.1,
+      "seed_dispersal_effectiveness": 0.5,
+      "pest_control_effectiveness": 0.2,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[7,8,9,15,16,17]"
+    },
+    {
+      "id": "wood_pigeon",
+      "name": "Columba palumbus",
+      "common_name": "Common Wood Pigeon",
+      "family": "Columbidae",
+      "order_name": "Columbiformes",
+      "body_mass_g": 520,
+      "wingspan_cm": 78,
+      "length_cm": 42,
+      "diet_type": "herbivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "small_flock",
+      "habitat_type": "forest",
+      "canopy_preference": "canopy",
+      "territory_size_ha": 2,
+      "migration_pattern": "short_distance",
+      "breeding_season": "spring",
+      "clutch_size_min": 1,
+      "clutch_size_max": 3,
+      "temp_range_min": -5,
+      "temp_range_max": 30,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1200,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.8,
+      "pest_control_effectiveness": 0.1,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[7,8,9,16,17,18]"
+    },
+    {
+      "id": "blue_tit",
+      "name": "Cyanistes caeruleus",
+      "common_name": "Blue Tit",
+      "family": "Paridae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 11,
+      "wingspan_cm": 18,
+      "length_cm": 12,
+      "diet_type": "insectivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "small_flock",
+      "habitat_type": "forest",
+      "canopy_preference": "midstory",
+      "territory_size_ha": 0.1,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 7,
+      "clutch_size_max": 12,
+      "temp_range_min": -20,
+      "temp_range_max": 25,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1800,
+      "pollinator_effectiveness": 0.2,
+      "seed_dispersal_effectiveness": 0.1,
+      "pest_control_effectiveness": 0.9,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,9,16,17,18]"
+    },
+    {
+      "id": "robin_european",
+      "name": "Erithacus rubecula",
+      "common_name": "European Robin",
+      "family": "Muscicapidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 18,
+      "wingspan_cm": 22,
+      "length_cm": 14,
+      "diet_type": "omnivore",
+      "feeding_strategy": "ground",
+      "social_behavior": "solitary",
+      "habitat_type": "forest",
+      "canopy_preference": "understory",
+      "territory_size_ha": 0.3,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 6,
+      "temp_range_min": -15,
+      "temp_range_max": 25,
+      "elevation_min_m": 0,
+      "elevation_max_m": 2000,
+      "pollinator_effectiveness": 0.1,
+      "seed_dispersal_effectiveness": 0.3,
+      "pest_control_effectiveness": 0.7,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,16,17,18]"
+    },
+    {
+      "id": "chaffinch",
+      "name": "Fringilla coelebs",
+      "common_name": "Common Chaffinch",
+      "family": "Fringillidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 24,
+      "wingspan_cm": 26,
+      "length_cm": 15,
+      "diet_type": "granivore",
+      "feeding_strategy": "mixed",
+      "social_behavior": "small_flock",
+      "habitat_type": "forest",
+      "canopy_preference": "canopy",
+      "territory_size_ha": 0.2,
+      "migration_pattern": "short_distance",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 6,
+      "temp_range_min": -15,
+      "temp_range_max": 28,
+      "elevation_min_m": 0,
+      "elevation_max_m": 2000,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.4,
+      "pest_control_effectiveness": 0.3,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,16,17,18]"
+    },
+    {
+      "id": "jay",
+      "name": "Garrulus glandarius",
+      "common_name": "Eurasian Jay",
+      "family": "Corvidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 170,
+      "wingspan_cm": 55,
+      "length_cm": 34,
+      "diet_type": "omnivore",
+      "feeding_strategy": "mixed",
+      "social_behavior": "pair",
+      "habitat_type": "forest",
+      "canopy_preference": "canopy",
+      "territory_size_ha": 5,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 7,
+      "temp_range_min": -15,
+      "temp_range_max": 25,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1800,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.9,
+      "pest_control_effectiveness": 0.4,
+      "abundance_category": "uncommon",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,9,16,17]"
+    },
+    {
+      "id": "great_tit",
+      "name": "Parus major",
+      "common_name": "Great Tit",
+      "family": "Paridae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 20,
+      "wingspan_cm": 24,
+      "length_cm": 14,
+      "diet_type": "omnivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "small_flock",
+      "habitat_type": "forest",
+      "canopy_preference": "midstory",
+      "territory_size_ha": 0.15,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 5,
+      "clutch_size_max": 12,
+      "temp_range_min": -25,
+      "temp_range_max": 30,
+      "elevation_min_m": 0,
+      "elevation_max_m": 2200,
+      "pollinator_effectiveness": 0.1,
+      "seed_dispersal_effectiveness": 0.2,
+      "pest_control_effectiveness": 0.8,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,9,16,17,18]"
+    },
+    {
+      "id": "nuthatch",
+      "name": "Sitta europaea",
+      "common_name": "Eurasian Nuthatch",
+      "family": "Sittidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 23,
+      "wingspan_cm": 27,
+      "length_cm": 14,
+      "diet_type": "omnivore",
+      "feeding_strategy": "bark",
+      "social_behavior": "pair",
+      "habitat_type": "forest",
+      "canopy_preference": "midstory",
+      "territory_size_ha": 0.8,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 5,
+      "clutch_size_max": 9,
+      "temp_range_min": -20,
+      "temp_range_max": 20,
+      "elevation_min_m": 0,
+      "elevation_max_m": 2000,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.3,
+      "pest_control_effectiveness": 0.6,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[6,7,8,16,17,18]"
+    },
+    {
+      "id": "wren",
+      "name": "Troglodytes troglodytes",
+      "common_name": "Eurasian Wren",
+      "family": "Troglodytidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 10,
+      "wingspan_cm": 15,
+      "length_cm": 9.5,
+      "diet_type": "insectivore",
+      "feeding_strategy": "foliage",
+      "social_behavior": "solitary",
+      "habitat_type": "forest",
+      "canopy_preference": "understory",
+      "territory_size_ha": 0.05,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 5,
+      "clutch_size_max": 8,
+      "temp_range_min": -20,
+      "temp_range_max": 20,
+      "elevation_min_m": 0,
+      "elevation_max_m": 2500,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.1,
+      "pest_control_effectiveness": 0.8,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[5,6,7,8,17,18,19]"
+    },
+    {
+      "id": "blackbird",
+      "name": "Turdus merula",
+      "common_name": "Common Blackbird",
+      "family": "Turdidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 95,
+      "wingspan_cm": 36,
+      "length_cm": 25,
+      "diet_type": "omnivore",
+      "feeding_strategy": "ground",
+      "social_behavior": "pair",
+      "habitat_type": "forest",
+      "canopy_preference": "ground",
+      "territory_size_ha": 0.2,
+      "migration_pattern": "resident",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 5,
+      "temp_range_min": -10,
+      "temp_range_max": 30,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1500,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.5,
+      "pest_control_effectiveness": 0.4,
+      "abundance_category": "abundant",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[5,6,7,8,17,18,19]"
+    },
+    {
+      "id": "song_thrush",
+      "name": "Turdus philomelos",
+      "common_name": "Song Thrush",
+      "family": "Turdidae",
+      "order_name": "Passeriformes",
+      "body_mass_g": 75,
+      "wingspan_cm": 33,
+      "length_cm": 23,
+      "diet_type": "omnivore",
+      "feeding_strategy": "ground",
+      "social_behavior": "solitary",
+      "habitat_type": "forest",
+      "canopy_preference": "ground",
+      "territory_size_ha": 0.4,
+      "migration_pattern": "short_distance",
+      "breeding_season": "spring",
+      "clutch_size_min": 3,
+      "clutch_size_max": 6,
+      "temp_range_min": -5,
+      "temp_range_max": 25,
+      "elevation_min_m": 0,
+      "elevation_max_m": 1500,
+      "pollinator_effectiveness": 0,
+      "seed_dispersal_effectiveness": 0.4,
+      "pest_control_effectiveness": 0.6,
+      "abundance_category": "common",
+      "conservation_status": "LC",
+      "activity_period": "diurnal",
+      "foraging_time": "[5,6,7,18,19,20]"
+    }
+  ],
+  "pollinators": [
+    {
+      "id": "buff_tailed_bumblebee",
+      "name": "Bombus terrestris",
+      "common_name": "Buff-tailed Bumblebee",
+      "pollinator_group": "bee",
+      "flight_seasons": "[\"spring\",\"summer\",\"autumn\"]",
+      "temp_min": 6,
+      "temp_max": 32,
+      "pollution_tolerance": 0.5,
+      "foraging_range": 2
+    },
+    {
+      "id": "marmalade_hoverfly",
+      "name": "Episyrphus balteatus",
+      "common_name": "Marmalade Hoverfly",
+      "pollinator_group": "hoverfly",
+      "flight_seasons": "[\"spring\",\"summer\",\"autumn\"]",
+      "temp_min": 10,
+      "temp_max": 30,
+      "pollution_tolerance": 0.6,
+      "foraging_range": 3
+    },
+    {
+      "id": "red_mason_bee",
+      "name": "Osmia bicornis",
+      "common_name": "Red Mason Bee",
+      "pollinator_group": "bee",
+      "flight_seasons": "[\"spring\"]",
+      "temp_min": 10,
+      "temp_max": 30,
+      "pollution_tolerance": 0.4,
+      "foraging_range": 1
+    },
+    {
+      "id": "common_blue",
+      "name": "Polyommatus icarus",
+      "common_name": "Common Blue",
+      "pollinator_group": "butterfly",
+      "flight_seasons": "[\"spring\",\"summer\"]",
+      "temp_min": 13,
+      "temp_max": 32,
+      "pollution_tolerance": 0.3,
+      "foraging_range": 1
+    }
+  ],
+  "interactions": [
+    {
+      "id": 22,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": "Caterpillar control during breeding"
+    },
+    {
+      "id": 23,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "great_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Insect pest management"
+    },
+    {
+      "id": 24,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Aphid and small insect control"
+    },
+    {
+      "id": 27,
+      "species_a_id": "common_grass",
+      "species_a_type": "vegetal",
+      "species_b_id": "goldfinch",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Primary seed source"
+    },
+    {
+      "id": 25,
+      "species_a_id": "bracken_fern",
+      "species_a_type": "vegetal",
+      "species_b_id": "wren",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Ground insect foraging"
+    },
+    {
+      "id": 28,
+      "species_a_id": "common_grass",
+      "species_a_type": "vegetal",
+      "species_b_id": "greenfinch",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Grass seed specialist"
+    },
+    {
+      "id": 30,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "wood_pigeon",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Eats acorns but digests the seed, so a predator rather than a disperser"
+    },
+    {
+      "id": 26,
+      "species_a_id": "common_grass",
+      "species_a_type": "vegetal",
+      "species_b_id": "chaffinch",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": "Seed feeding relationship"
+    },
+    {
+      "id": 29,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.4,
+      "seasonal_modifier": null,
+      "notes": "Forages insects among the blossom"
+    },
+    {
+      "id": 10,
+      "species_a_id": "white_clover",
+      "species_a_type": "vegetal",
+      "species_b_id": "common_blue",
+      "species_b_type": "pollinator",
+      "interaction_type": "larval_host",
+      "interaction_strength": 0.4,
+      "seasonal_modifier": null,
+      "notes": "Caterpillars eat clovers; bird's-foot trefoil is preferred where present"
+    },
+    {
+      "id": 20,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "nuthatch",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": "Specialized cavity nester"
+    },
+    {
+      "id": 18,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Primary nesting tree"
+    },
+    {
+      "id": 19,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "great_tit",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Cavity nesting preference"
+    },
+    {
+      "id": 16,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "robin_european",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Dense thorny branches provide protection"
+    },
+    {
+      "id": 21,
+      "species_a_id": "scots_pine",
+      "species_a_type": "vegetal",
+      "species_b_id": "chaffinch",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Conifer nesting preference"
+    },
+    {
+      "id": 17,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "nesting",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": "Cavity nesting in older trees"
+    },
+    {
+      "id": 1,
+      "species_a_id": "white_clover",
+      "species_a_type": "vegetal",
+      "species_b_id": "buff_tailed_bumblebee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Major summer nectar and pollen source"
+    },
+    {
+      "id": 4,
+      "species_a_id": "wild_bluebell",
+      "species_a_type": "vegetal",
+      "species_b_id": "buff_tailed_bumblebee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Key early nectar for queens"
+    },
+    {
+      "id": 5,
+      "species_a_id": "pioneer_willow",
+      "species_a_type": "vegetal",
+      "species_b_id": "buff_tailed_bumblebee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Catkins give queens their first pollen of the year"
+    },
+    {
+      "id": 6,
+      "species_a_id": "pioneer_willow",
+      "species_a_type": "vegetal",
+      "species_b_id": "red_mason_bee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Early spring pollen for nest provisioning"
+    },
+    {
+      "id": 7,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "red_mason_bee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Pollinates hawthorn blossom in late spring"
+    },
+    {
+      "id": 2,
+      "species_a_id": "white_clover",
+      "species_a_type": "vegetal",
+      "species_b_id": "common_blue",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": "Adults take nectar from clover flowers"
+    },
+    {
+      "id": 8,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "marmalade_hoverfly",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": "Feeds on the open, shallow flowers"
+    },
+    {
+      "id": 9,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "buff_tailed_bumblebee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.4,
+      "seasonal_modifier": null,
+      "notes": "Visits blossom alongside solitary bees"
+    },
+    {
+      "id": 3,
+      "species_a_id": "white_clover",
+      "species_a_type": "vegetal",
+      "species_b_id": "marmalade_hoverfly",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.3,
+      "seasonal_modifier": null,
+      "notes": "Visits open clover heads"
+    },
+    {
+      "id": 14,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "jay",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": "Primary acorn disperser and cacher"
+    },
+    {
+      "id": 11,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "blackbird",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Primary disperser of hawthorn berries"
+    },
+    {
+      "id": 15,
+      "species_a_id": "beech",
+      "species_a_type": "vegetal",
+      "species_b_id": "jay",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Important beechnut disperser"
+    },
+    {
+      "id": 13,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "song_thrush",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Important autumn disperser"
+    },
+    {
+      "id": 12,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "robin_european",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Secondary disperser"
+    }
+  ]
+}

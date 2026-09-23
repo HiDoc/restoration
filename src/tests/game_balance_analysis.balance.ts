@@ -91,11 +91,12 @@ describe('Game Balance Analysis - 1000 Simulations', () => {
 
     // Create engine
     const engine = new SimulationEngine({
-      worldSize: { width: 5, height: 5 },
+      worldWidth: 5,
+      worldHeight: 5,
       chunkSize: 10,
-      difficulty,
-      enableSeasons: true,
-      enableHydrology: true
+      tickRate: 10,
+      masterSeed: 42,
+      maxActiveChunks: 25
     });
 
     engine.activateAllChunks();

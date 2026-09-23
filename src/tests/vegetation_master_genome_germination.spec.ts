@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { RNGManager } from '@/simulation/SeededRNG'
 import { SimulationEngine } from '@/simulation/SimulationEngine'
-import { VegetationSystem } from '@/simulation/VegetationSystem'
 
 describe('Vegetation master genome on germination', () => {
   beforeEach(() => RNGManager.initialize(2024))
@@ -17,7 +16,6 @@ describe('Vegetation master genome on germination', () => {
       seasonLengthTicks: 5,
     })
     engine.activateAllChunks()
-    const veg = new VegetationSystem(engine)
 
     // Choose a parent as selected seed source
     const center = engine.getChunk(1,1)!
@@ -31,10 +29,10 @@ describe('Vegetation master genome on germination', () => {
 
     // Process seed bank until a new seedling appears
     const before = Array.from(center.species.keys())
-    for (let i = 0; i < 10; i++) veg.update(center, 1)
-    const after = Array.from(center.species.keys())
+    engine.advance(10)
+    const after = Array.from(engine.getChunk(1, 1)!.species.keys())
     const newId = after.find(id => !before.includes(id))!
-    const child: any = (center as any).species.get(newId)
+    const child: any = engine.getChunk(1, 1)!.species.get(newId)
     expect(child).toBeDefined()
     const master = engine.getMasterGenome('common_grass')!
     expect(child.genetics.traits.get('drought_tolerance').value).toBeCloseTo(master.traits.get('drought_tolerance')!.value, 5)

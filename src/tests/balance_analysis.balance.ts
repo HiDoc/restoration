@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
-import { WeatherSystem } from '@/simulation/WeatherSystem';
-import { HydrologySystem } from '@/simulation/HydrologySystem';
-import { CanopySystem } from '@/simulation/CanopySystem';
-import { VegetationSystem } from '@/simulation/VegetationSystem';
-import { PollinatorSystem } from '@/simulation/PollinatorSystem';
-import { BirdsSystem } from '@/simulation/BirdsSystem';
 import { RNGManager } from '@/simulation/SeededRNG';
 import { DiscoveryMethod } from '@/simulation/ResearchSystem';
 import { useResearchStore } from '@/stores/researchStore';
@@ -70,16 +64,6 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
     };
 
     const engine = new SimulationEngine(config);
-    const weather = new WeatherSystem();
-    const hydrology = new HydrologySystem();
-    const canopy = new CanopySystem();
-    const vegetation = new VegetationSystem(engine);
-    const pollinators = new PollinatorSystem();
-    const birds = new BirdsSystem();
-
-    hydrology.initializeElevation(engine.getAllChunks());
-    pollinators.initialize(engine.getAllChunks());
-    birds.initialize(engine.getAllChunks());
     engine.activateAllChunks();
 
     // Initialize research system
@@ -101,22 +85,6 @@ describe('Balance Analysis - 1000 Simulation Suite', () => {
     for (let i = 0; i < ticks; i++) {
       engine.update();
       const tick = engine.getCurrentTick();
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
-
-      weather.update(tick, chunks);
-      hydrology.update(chunks, activeIds);
-
-      activeIds.forEach((id) => {
-        const chunk = chunks.get(id);
-        if (chunk) {
-          canopy.update(chunk);
-          vegetation.update(chunk, 1);
-        }
-      });
-
-      pollinators.update(chunks);
-      birds.update(chunks, tick);
 
       // BALANCE TUNING: Reduced observation frequency for realistic progression
       // Observe species every 50 ticks instead of every 10 (80% reduction)

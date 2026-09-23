@@ -84,6 +84,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
   const showTooltip = ref(false);
 
   // Computed
+  const tutorialActive = computed(() => tutorialEnabled.value && activeTooltip.value !== null);
   const tutorialProgress = computed(() => {
     if (TUTORIAL_STEPS.length === 0) return 1;
     return completedSteps.value.size / TUTORIAL_STEPS.length;
@@ -143,13 +144,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     hasSeenWelcome.value = true;
     tutorialEnabled.value = true;
     saveTutorialState();
-
-    // Show first tooltip after a delay
-    setTimeout(() => {
-      if (nextStep.value) {
-        showTooltipStep(nextStep.value);
-      }
-    }, 1000);
+    showNextTooltip();
   }
 
   /**
@@ -159,6 +154,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     showWelcomeModal.value = false;
     hasSeenWelcome.value = true;
     tutorialEnabled.value = false;
+    currentStepIndex.value = 0;
     showTooltip.value = false;
     activeTooltip.value = null;
     saveTutorialState();
@@ -180,6 +176,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     if (!tutorialEnabled.value) return;
 
     activeTooltip.value = step;
+    currentStepIndex.value = TUTORIAL_STEPS.indexOf(step);
     showTooltip.value = true;
   }
 
@@ -210,12 +207,8 @@ export const useTutorialStore = defineStore('tutorial', () => {
     completedSteps.value.add(stepId);
     saveTutorialState();
 
-    // Auto-show next tooltip after completing current
-    if (tutorialEnabled.value) {
-      setTimeout(() => {
-        showNextTooltip();
-      }, 500);
-    }
+    // The overlay animates its own entrance, so the next step can show immediately.
+    if (tutorialEnabled.value) showNextTooltip();
   }
 
   /**
@@ -223,8 +216,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
    */
   function completeCurrentStep() {
     if (activeTooltip.value) {
-      markStepComplete(activeTooltip.value.id);
+      const id = activeTooltip.value.id;
       hideTooltip();
+      markStepComplete(id);
     }
   }
 
@@ -360,6 +354,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     showTooltip,
 
     // Computed
+    tutorialActive,
     tutorialProgress,
     tutorialComplete,
     nextStep,

@@ -46,11 +46,12 @@ describe('Complete Gameplay Integration', () => {
 
     // Create a realistic game engine
     engine = new SimulationEngine({
-      worldSize: { width: 5, height: 5 },
+      worldWidth: 5,
+      worldHeight: 5,
       chunkSize: 10,
-      difficulty: 'normal',
-      enableSeasons: true,
-      enableHydrology: true
+      tickRate: 10,
+      masterSeed: 42,
+      maxActiveChunks: 25
     });
 
     // Activate chunks

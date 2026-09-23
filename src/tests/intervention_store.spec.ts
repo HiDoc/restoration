@@ -26,11 +26,12 @@ describe('InterventionStore', () => {
 
     // Create minimal engine for testing
     engine = new SimulationEngine({
-      worldSize: { width: 3, height: 3 },
+      worldWidth: 3,
+      worldHeight: 3,
       chunkSize: 5,
-      difficulty: 'normal',
-      enableSeasons: false,
-      enableHydrology: false
+      tickRate: 10,
+      masterSeed: 42,
+      maxActiveChunks: 9
     });
 
     // Activate all chunks so they're available for tests
@@ -142,7 +143,7 @@ describe('InterventionStore', () => {
 
       // Advance simulation by 5 ticks
       for (let i = 0; i < 5; i++) {
-        engine.step();
+        engine.tick();
       }
 
       expect(interventionStore.getRemainingCooldown('plant')).toBe(5); // 10 - 5 = 5 ticks remaining
@@ -161,7 +162,7 @@ describe('InterventionStore', () => {
 
       // Advance simulation by 5 ticks (full cooldown)
       for (let i = 0; i < 5; i++) {
-        engine.step();
+        engine.tick();
       }
 
       expect(interventionStore.isOnCooldown('irrigate')).toBe(false);
@@ -231,7 +232,7 @@ describe('InterventionStore', () => {
         x: 1,
         y: 1,
         type: 'plant',
-        data: { speciesId: 'meadow_fescue' }
+        data: { speciesId: 'common_grass' }
       };
 
       await interventionStore.executeIntervention(intervention);
@@ -275,7 +276,7 @@ describe('InterventionStore', () => {
 
       // Advance past cooldown
       for (let i = 0; i < 10; i++) {
-        engine.step();
+        engine.tick();
       }
 
       await interventionStore.executeIntervention({
@@ -283,7 +284,7 @@ describe('InterventionStore', () => {
         x: 1,
         y: 1,
         type: 'plant',
-        data: { speciesId: 'meadow_fescue' }
+        data: { speciesId: 'common_grass' }
       });
 
       expect(interventionStore.usageStats.byType['plant']).toBe(2);
@@ -296,7 +297,7 @@ describe('InterventionStore', () => {
         x: 0,
         y: 0,
         type: 'plant',
-        data: {}
+        data: { speciesId: 'common_grass' }
       });
 
       await interventionStore.executeIntervention({
@@ -319,7 +320,7 @@ describe('InterventionStore', () => {
         x: 0,
         y: 0,
         type: 'plant',
-        data: {}
+        data: { speciesId: 'common_grass' }
       });
 
       interventionStore.addPoints(50);

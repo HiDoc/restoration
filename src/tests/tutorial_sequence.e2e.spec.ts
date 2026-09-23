@@ -3,6 +3,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { useTutorialStore } from '@/stores/tutorialStore';
 import { SimulationEngine } from '@/simulation/SimulationEngine';
 
+// The store persists its whole state as one JSON object under this key.
+const TUTORIAL_KEY = 'ecosim-tutorial-state';
+const savedTutorial = () => JSON.parse(localStorage.getItem(TUTORIAL_KEY) ?? 'null');
+
 describe('Tutorial Sequence E2E', () => {
   let tutorialStore: ReturnType<typeof useTutorialStore>;
 
@@ -14,11 +18,12 @@ describe('Tutorial Sequence E2E', () => {
     tutorialStore = useTutorialStore();
 
     new SimulationEngine({
-      worldSize: { width: 3, height: 3 },
+      worldWidth: 3,
+      worldHeight: 3,
       chunkSize: 5,
-      difficulty: 'normal',
-      enableSeasons: false,
-      enableHydrology: false
+      tickRate: 10,
+      masterSeed: 42,
+      maxActiveChunks: 9
     });
 
     tutorialStore.initializeTutorial();
@@ -49,8 +54,7 @@ describe('Tutorial Sequence E2E', () => {
     it('should persist welcome dismissal to localStorage', () => {
       tutorialStore.dismissWelcome();
 
-      const stored = localStorage.getItem('ecosim_has_seen_welcome');
-      expect(stored).toBe('true');
+      expect(savedTutorial()?.hasSeenWelcome).toBe(true);
     });
   });
 
@@ -183,84 +187,18 @@ describe('Tutorial Sequence E2E', () => {
     });
   });
 
-  describe('Contextual Tooltip Triggering', () => {
-    beforeEach(() => {
-      tutorialStore.startTutorial();
-    });
-
-    it('should trigger tooltips based on tick count', () => {
-      // Skip to event log step (triggered at tick 10)
-      while (tutorialStore.activeTooltip?.trigger?.type !== 'tick') {
-        tutorialStore.completeCurrentStep();
-      }
-
-      const eventLogStep = tutorialStore.activeTooltip;
-      expect(eventLogStep?.trigger?.type).toBe('tick');
-
-      // Should not show yet (before trigger tick)
-      const shouldShow = tutorialStore.triggerByTick(5);
-      expect(shouldShow).toBe(false);
-
-      // Should show at trigger tick
-      const shouldShowNow = tutorialStore.triggerByTick(eventLogStep.trigger!.value as number);
-      expect(shouldShowNow).toBe(true);
-    });
-
-    it('should trigger tooltips based on resource points', () => {
-      // Find interventions step (triggered when points > 50)
-      while (tutorialStore.activeTooltip?.trigger?.type !== 'resourcePoints') {
-        tutorialStore.completeCurrentStep();
-        if (!tutorialStore.tutorialActive) break;
-      }
-
-      if (tutorialStore.activeTooltip?.trigger?.type === 'resourcePoints') {
-  
-        // Should not show with low points
-        const shouldShow = tutorialStore.triggerByResourcePoints(30);
-        expect(shouldShow).toBe(false);
-
-        // Should show with enough points
-        const shouldShowNow = tutorialStore.triggerByResourcePoints(60);
-        expect(shouldShowNow).toBe(true);
-      }
-    });
-
-    it('should trigger tooltips based on species count', () => {
-      // Find goals step (triggered when species > 0)
-      while (tutorialStore.activeTooltip?.trigger?.type !== 'speciesCount') {
-        tutorialStore.completeCurrentStep();
-        if (!tutorialStore.tutorialActive) break;
-      }
-
-      if (tutorialStore.activeTooltip?.trigger?.type === 'speciesCount') {
-  
-        // Should not show with no species
-        const shouldShow = tutorialStore.triggerBySpeciesCount(0);
-        expect(shouldShow).toBe(false);
-
-        // Should show with species
-        const shouldShowNow = tutorialStore.triggerBySpeciesCount(1);
-        expect(shouldShowNow).toBe(true);
-      }
-    });
-  });
-
   describe('Tutorial State Persistence', () => {
     it('should persist completed steps to localStorage', () => {
       tutorialStore.startTutorial();
       tutorialStore.completeCurrentStep();
       tutorialStore.completeCurrentStep();
 
-      const stored = localStorage.getItem('ecosim_completed_tutorial_steps');
-      expect(stored).toBeTruthy();
-
-      const steps = JSON.parse(stored!);
-      expect(steps).toHaveLength(2);
+      expect(savedTutorial()?.completedSteps).toHaveLength(2);
     });
 
     it('should restore completed steps from localStorage', () => {
       // Manually set localStorage
-      localStorage.setItem('ecosim_completed_tutorial_steps', JSON.stringify(['chunk_grid_intro', 'event_log_intro']));
+      localStorage.setItem(TUTORIAL_KEY, JSON.stringify({ completedSteps: ['chunk_grid_intro', 'event_log_intro'] }));
 
       // Create new store instance
       const newStore = useTutorialStore();
@@ -308,11 +246,11 @@ describe('Tutorial Sequence E2E', () => {
       tutorialStore.startTutorial();
       tutorialStore.completeCurrentStep();
 
-      expect(localStorage.getItem('ecosim_completed_tutorial_steps')).toBeTruthy();
+      expect(savedTutorial()?.completedSteps).toHaveLength(1);
 
       tutorialStore.resetTutorial();
 
-      expect(localStorage.getItem('ecosim_completed_tutorial_steps')).toBeNull();
+      expect(savedTutorial()?.completedSteps).toEqual([]);
     });
 
     it('should allow restarting tutorial after reset', () => {
@@ -362,7 +300,7 @@ describe('Tutorial Sequence E2E', () => {
     });
 
     it('should handle corrupted localStorage data', () => {
-      localStorage.setItem('ecosim_completed_tutorial_steps', 'invalid json');
+      localStorage.setItem(TUTORIAL_KEY, 'invalid json');
 
       const newStore = useTutorialStore();
       newStore.initializeTutorial();

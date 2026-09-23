@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
-import { WeatherSystem } from '@/simulation/WeatherSystem';
-import { HydrologySystem } from '@/simulation/HydrologySystem';
-import { CanopySystem } from '@/simulation/CanopySystem';
-import { VegetationSystem } from '@/simulation/VegetationSystem';
-import { PollinatorSystem } from '@/simulation/PollinatorSystem';
-import { BirdsSystem } from '@/simulation/BirdsSystem';
 import { RNGManager } from '@/simulation/SeededRNG';
+import { PhenologyStage } from '@/simulation/WorldChunk';
 import { DiscoveryMethod, TraitCategory } from '@/simulation/ResearchSystem';
 import { useResearchStore } from '@/stores/researchStore';
 import { createPinia, setActivePinia } from 'pinia';
@@ -16,21 +11,14 @@ import { createPinia, setActivePinia } from 'pinia';
  *
  * These tests verify the complete simulation behavior from initialization
  * through multiple update cycles, including all integrated systems:
- * - SimulationEngine orchestration
- * - Environmental systems (Weather, Hydrology, Canopy)
- * - Vegetation system (growth, reproduction, mortality)
+ * - SimulationEngine orchestration of the Rust core (climate, hydrology,
+ *   growth, reproduction, germination, dispersal)
  * - Research system (species discovery, trait unlocking)
  * - Year-end workflow (callbacks, seed selection)
  */
 
 describe('Simulation E2E Tests', () => {
   let engine: SimulationEngine;
-  let weather: WeatherSystem;
-  let hydrology: HydrologySystem;
-  let canopy: CanopySystem;
-  let vegetation: VegetationSystem;
-  let pollinators: PollinatorSystem;
-  let birds: BirdsSystem;
   let config: SimulationConfig;
 
   beforeEach(() => {
@@ -54,19 +42,8 @@ describe('Simulation E2E Tests', () => {
 
     // Initialize all systems
     engine = new SimulationEngine(config);
-    weather = new WeatherSystem();
-    hydrology = new HydrologySystem();
-    canopy = new CanopySystem();
-    vegetation = new VegetationSystem(engine);
-    pollinators = new PollinatorSystem();
-    birds = new BirdsSystem();
 
-    // Initialize hydrology elevation
-    hydrology.initializeElevation(engine.getAllChunks());
 
-    // Initialize pollinators and birds
-    pollinators.initialize(engine.getAllChunks());
-    birds.initialize(engine.getAllChunks());
 
     // Activate all chunks for testing
     engine.activateAllChunks();
@@ -85,27 +62,13 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should run complete update cycle across all systems', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = engine.getActiveChunkIds();
 
       // Run one complete cycle
       engine.update();
       const tick = engine.getCurrentTick();
 
-      // Update all environmental systems
-      weather.update(tick, chunks);
-      hydrology.update(chunks, activeIds);
 
-      activeIds.forEach((id) => {
-        const chunk = chunks.get(id);
-        if (chunk) {
-          canopy.update(chunk);
-          vegetation.update(chunk, 1);
-        }
-      });
 
-      pollinators.update(chunks);
-      birds.update(chunks, tick);
 
       // Verify tick advanced
       expect(engine.getCurrentTick()).toBe(1);
@@ -116,28 +79,14 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should maintain deterministic behavior over 100 ticks', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const speciesCountHistory: number[] = [];
 
       for (let i = 0; i < 100; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
 
         const stats = engine.getStatistics();
         speciesCountHistory.push(stats.totalSpecies);
@@ -206,7 +155,7 @@ describe('Simulation E2E Tests', () => {
         y: 0.5,
         biomass: 1.0,
         age: 50,
-        phenologyStage: 0,
+        phenologyStage: PhenologyStage.VEGETATIVE,
         health: 1.0,
         reproductiveOutput: 0,
       });
@@ -230,24 +179,24 @@ describe('Simulation E2E Tests', () => {
 
       chunk1.addSpecies({
         id: 'p1',
-        speciesId: 'species_a',
+        speciesId: 'common_grass',
         x: 0.5,
         y: 0.5,
         biomass: 1.0,
         age: 50,
-        phenologyStage: 0,
+        phenologyStage: PhenologyStage.VEGETATIVE,
         health: 1.0,
         reproductiveOutput: 0,
       });
 
       chunk2.addSpecies({
         id: 'p2',
-        speciesId: 'species_b',
+        speciesId: 'silver_birch',
         x: 0.5,
         y: 0.5,
         biomass: 1.0,
         age: 50,
-        phenologyStage: 0,
+        phenologyStage: PhenologyStage.VEGETATIVE,
         health: 1.0,
         reproductiveOutput: 0,
       });
@@ -276,7 +225,7 @@ describe('Simulation E2E Tests', () => {
         y: 0.5,
         biomass: 1.0,
         age: 50,
-        phenologyStage: 0,
+        phenologyStage: PhenologyStage.VEGETATIVE,
         health: 1.0,
         reproductiveOutput: 0,
       });
@@ -355,22 +304,12 @@ describe('Simulation E2E Tests', () => {
   describe('Environmental Systems Integration E2E', () => {
     it('should maintain environmental consistency across systems', () => {
       const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       // Run simulation for 20 ticks
       for (let i = 0; i < 20; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-          }
-        });
       }
 
       // Verify all chunks have valid environmental state
@@ -395,7 +334,6 @@ describe('Simulation E2E Tests', () => {
       // Run weather system for multiple ticks
       for (let i = 0; i < 30; i++) {
         engine.update();
-        weather.update(engine.getCurrentTick(), chunks);
       }
 
       // Verify temperatures changed
@@ -412,7 +350,6 @@ describe('Simulation E2E Tests', () => {
 
     it('should update hydrology moisture levels', () => {
       const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       // Record initial moisture
       const initialMoisture = new Map<string, number>();
@@ -420,10 +357,8 @@ describe('Simulation E2E Tests', () => {
         initialMoisture.set(id, chunk.biomeState.moisture);
       });
 
-      // Run hydrology updates
-      for (let i = 0; i < 20; i++) {
-        hydrology.update(chunks, activeIds);
-      }
+      // Hydrology runs inside the engine's Rust step
+      engine.advance(20);
 
       // Verify moisture is within valid range
       chunks.forEach((chunk) => {
@@ -435,26 +370,12 @@ describe('Simulation E2E Tests', () => {
 
   describe('Long-Running Simulation Scenarios', () => {
     it('should handle 500-tick simulation without errors', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       for (let i = 0; i < 500; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
       }
 
       expect(engine.getCurrentTick()).toBe(500);
@@ -465,25 +386,13 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should track species population dynamics over time', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const populationHistory: number[] = [];
 
       for (let i = 0; i < 200; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
         const stats = engine.getStatistics();
         populationHistory.push(stats.totalSpecies);
@@ -499,8 +408,6 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should maintain system performance over extended simulation', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const updateTimes: number[] = [];
 
@@ -508,21 +415,9 @@ describe('Simulation E2E Tests', () => {
         const startTime = performance.now();
 
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
 
         const endTime = performance.now();
         updateTimes.push(endTime - startTime);
@@ -545,10 +440,7 @@ describe('Simulation E2E Tests', () => {
       expect(testChunk.species.size).toBe(0);
 
       // Should not throw when updating empty chunk
-      expect(() => {
-        canopy.update(testChunk);
-        vegetation.update(testChunk, 1);
-      }).not.toThrow();
+      expect(() => engine.update()).not.toThrow();
     });
 
     it('should handle observation of non-existent species', () => {
@@ -568,7 +460,6 @@ describe('Simulation E2E Tests', () => {
       expect(() => {
         for (let i = 0; i < 10; i++) {
           engine.update();
-          vegetation.update(chunk, 1);
         }
       }).not.toThrow();
     });

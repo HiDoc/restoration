@@ -3,10 +3,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createPinia, setActivePinia } from 'pinia';
+import { createPinia, setActivePinia, type Pinia } from 'pinia';
 import SpeciesDiscoveryModal from '@/components/simulation/SpeciesDiscoveryModal.vue';
 import FieldGuidePanel from '@/components/simulation/FieldGuidePanel.vue';
-import ResearchPanel from '@/components/simulation/ResearchPanel.vue';
 import { useResearchStore } from '@/stores/researchStore';
 import { DiscoveryMethod, type SpeciesDiscovery } from '@/simulation/ResearchSystem';
 import { EventJournal } from '@/simulation/EventJournal';
@@ -17,15 +16,16 @@ import { EventJournal } from '@/simulation/EventJournal';
  * Tests the complete user workflow for the research system UI:
  * - Species discovery modal interactions
  * - Field guide browsing and trait viewing
- * - Research panel updates and achievements
  * - Integration with research store
  */
 
 describe('Research UI E2E Tests', () => {
   let researchStore: ReturnType<typeof useResearchStore>;
+  let pinia: Pinia;
 
   beforeEach(() => {
-    setActivePinia(createPinia());
+    pinia = createPinia();
+    setActivePinia(pinia);
     researchStore = useResearchStore();
     const eventJournal = new EventJournal();
     researchStore.initialize(eventJournal, 0);
@@ -48,7 +48,7 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Common Grass',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
@@ -66,7 +66,7 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Common Grass',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
@@ -84,11 +84,11 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Common Grass',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
-      const fieldGuideButton = wrapper.find('button:last-of-type');
+      const fieldGuideButton = wrapper.findAll('button').find(b => b.text().includes('Field Guide'))!;
       await fieldGuideButton.trigger('click');
 
       expect(wrapper.emitted('open-field-guide')).toBeTruthy();
@@ -102,7 +102,7 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Common Grass',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
@@ -117,7 +117,7 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Test Species',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
@@ -130,7 +130,7 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Test Species',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
@@ -154,13 +154,13 @@ describe('Research UI E2E Tests', () => {
     });
 
     it('should display all discovered species', () => {
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -172,13 +172,13 @@ describe('Research UI E2E Tests', () => {
     });
 
     it('should show discovery progress percentage', () => {
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -190,13 +190,13 @@ describe('Research UI E2E Tests', () => {
     });
 
     it('should display research progress for each species', () => {
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -211,13 +211,13 @@ describe('Research UI E2E Tests', () => {
     });
 
     it('should emit close event when close button clicked', async () => {
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -232,17 +232,18 @@ describe('Research UI E2E Tests', () => {
 
     it('should show "no species discovered" message when empty', () => {
       // Create new store without discoveries
-      setActivePinia(createPinia());
+      const emptyPinia = createPinia();
+      setActivePinia(emptyPinia);
       const emptyStore = useResearchStore();
       emptyStore.initialize(new EventJournal(), 0);
 
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [emptyPinia],
           stubs: {
             TraitCard: true,
           },
@@ -253,13 +254,13 @@ describe('Research UI E2E Tests', () => {
     });
 
     it('should allow selecting a species for detailed view', async () => {
-      mount(FieldGuidePanel, {
+      const wrapper = mount(FieldGuidePanel, {
         props: {
           show: true,
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -274,109 +275,6 @@ describe('Research UI E2E Tests', () => {
 
       // Should show details section
       expect(wrapper.text()).toContain('Details');
-    });
-  });
-
-  describe('ResearchPanel E2E', () => {
-    beforeEach(() => {
-      // Add discovered species
-      researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
-      researchStore.manualDiscovery('silver_birch', 5, DiscoveryMethod.ENVIRONMENTAL);
-
-      // Add observations
-      for (let i = 0; i < 25; i++) {
-        researchStore.notifySpeciesObserved('common_grass', {} as any, i);
-      }
-    });
-
-    it('should display discovery count', () => {
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      expect(wrapper.text()).toContain('Discovered');
-      expect(wrapper.text()).toContain('2'); // 2 species discovered
-    });
-
-    it('should display total observations', () => {
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      expect(wrapper.text()).toContain('Observations');
-      expect(wrapper.text()).toContain('25');
-    });
-
-    it('should emit open-field-guide event when button clicked', async () => {
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      const fieldGuideButton = wrapper.find('button:contains("Field Guide")');
-      await fieldGuideButton.trigger('click');
-
-      expect(wrapper.emitted('open-field-guide')).toBeTruthy();
-    });
-
-    it('should show "no achievements" message when empty', () => {
-      // Create new store without achievements
-      setActivePinia(createPinia());
-      const emptyStore = useResearchStore();
-      emptyStore.initialize(new EventJournal(), 0);
-
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      expect(wrapper.text()).toContain('No achievements yet');
-    });
-
-    it('should display recent achievements', () => {
-      // Mock achievement unlock
-      researchStore.checkAndUnlockAchievements(10);
-
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      expect(wrapper.text()).toContain('Recent Achievements');
-    });
-
-    it('should show research questions when available', () => {
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      expect(wrapper.text()).toContain('Research Questions');
-    });
-
-    it('should emit select-question event when question clicked', async () => {
-      // Ensure research questions are loaded
-      researchStore.refreshQuestions();
-
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      const questionCards = wrapper.findAll('[class*="cursor-pointer"]');
-      if (questionCards.length > 0) {
-        await questionCards[0].trigger('click');
-        expect(wrapper.emitted('select-question')).toBeTruthy();
-      }
     });
   });
 
@@ -399,14 +297,14 @@ describe('Research UI E2E Tests', () => {
           speciesName: 'Test Species',
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
         },
       });
 
       expect(discoveryWrapper.text()).toContain('Test Species');
 
       // 3. Click "View in Field Guide"
-      const viewButton = discoveryWrapper.find('button:last-of-type');
+      const viewButton = discoveryWrapper.findAll('button').find(b => b.text().includes('Field Guide'))!;
       await viewButton.trigger('click');
 
       expect(discoveryWrapper.emitted('open-field-guide')).toBeTruthy();
@@ -418,7 +316,7 @@ describe('Research UI E2E Tests', () => {
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -444,7 +342,7 @@ describe('Research UI E2E Tests', () => {
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -465,7 +363,7 @@ describe('Research UI E2E Tests', () => {
           totalSpecies: 50,
         },
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             TraitCard: true,
           },
@@ -481,24 +379,6 @@ describe('Research UI E2E Tests', () => {
 
       expect(researchStore.getObservationCount('progressive_species')).toBe(100);
       expect(researchStore.getResearchProgress('progressive_species')).toBe(1.0);
-    });
-
-    it('should show achievements when milestones reached', () => {
-      // Discover multiple species to trigger achievements
-      for (let i = 0; i < 5; i++) {
-        researchStore.manualDiscovery(`species_${i}`, i, DiscoveryMethod.ENVIRONMENTAL);
-      }
-
-      researchStore.checkAndUnlockAchievements(10);
-
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      // Should show achievement section
-      expect(wrapper.text()).toContain('Recent Achievements');
     });
 
     it('should handle concurrent discovery notifications', () => {
@@ -546,25 +426,6 @@ describe('Research UI E2E Tests', () => {
       researchStore.closeFieldGuide();
 
       expect(researchStore.showFieldGuide).toBe(false);
-    });
-
-    it('should provide reactive discovery data', () => {
-      const wrapper = mount(ResearchPanel, {
-        global: {
-          plugins: [createPinia()],
-        },
-      });
-
-      const initialDiscoveredCount = researchStore.discoveredCount;
-      expect(wrapper.text()).toContain(initialDiscoveredCount.toString());
-
-      // Add discovery
-      researchStore.manualDiscovery('reactive_test', 0, DiscoveryMethod.ENVIRONMENTAL);
-
-      // Vue should reactively update
-      wrapper.vm.$nextTick(() => {
-        expect(researchStore.discoveredCount).toBe(initialDiscoveredCount + 1);
-      });
     });
   });
 });

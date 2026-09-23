@@ -528,13 +528,10 @@ const selectedChunkForInspection = ref<any>(null);
 
 const chunkGrid = computed(() => {
   if (!engine.value) return [] as any[];
-  const chunks = engine.value.getChunksInArea(
-    0,
-    0,
-    width.value - 1,
-    height.value - 1
-  );
-  return chunks.sort((a, b) => a.y - b.y || a.x - b.x);
+  // Read-only access keeps ticks cheap; the engine refreshes these chunks in place when read.
+  return Array.from(engine.value.readChunks().values())
+    .filter(chunk => chunk.x < width.value && chunk.y < height.value)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
 });
 
 type HistoryFrame = { tick: number; capturedAt: string; grid: any[] };
@@ -600,7 +597,7 @@ function initializeWorld() {
   extinctionGraceUntilTick = 50;
   extinction.triggered = false;
   updateStats();
-  initSpeciesSnapshot(engine.value.getAllChunks());
+  initSpeciesSnapshot(engine.value.readChunks());
   seenWeather.clear();
   if (!db && typeof indexedDB !== "undefined") db = new SimDB();
 
@@ -637,30 +634,6 @@ function initializeWorld() {
   scenarioStore.reset();
   scenarioStore.initialize(engine.value);
 
-  // Set up goal evaluation callback (every tick)
-  engine.value.onTick((tick: number) => {
-    // Evaluate goals
-    const alreadyCompleted = new Set(goalsStore.completedGoals.map(goal => goal.goal.id));
-    const goalResults = goalsStore.evaluateGoals(tick);
-
-    // Check for newly completed goals and award points
-    goalResults.forEach(result => {
-      if (result.completed && !alreadyCompleted.has(result.goal.id)) {
-        // Award points to intervention store
-        interventionStore.addPoints(result.goal.rewardPoints);
-      }
-    });
-
-    // Evaluate scenario if active
-    if (scenarioStore.hasActiveScenario) {
-      const completedGoalIds = goalsStore.completedGoals.map(g => g.goal.id);
-      scenarioStore.evaluateScenario(completedGoalIds);
-    }
-
-    // Update tutorial tooltips based on tick
-    tutorialStore.triggerByTick(tick);
-  });
-
   // Register year-end callback
   engine.value.onYearEnd(onYearEnd);
 
@@ -672,12 +645,30 @@ function initializeWorld() {
   loop.setSuspended(document.hidden);
 }
 
+/**
+ * Goals, scenario and tutorial react to the world the player sees, so they run once per displayed tick rather
+ * than inside the engine loop, where reading statistics would pull a full-world snapshot on every tick.
+ */
+function evaluateProgress(tick: number) {
+  const alreadyCompleted = new Set(goalsStore.completedGoals.map(goal => goal.goal.id));
+  goalsStore.evaluateGoals(tick).forEach(result => {
+    if (result.completed && !alreadyCompleted.has(result.goal.id)) {
+      interventionStore.addPoints(result.goal.rewardPoints);
+    }
+  });
+  if (scenarioStore.hasActiveScenario) {
+    scenarioStore.evaluateScenario(goalsStore.completedGoals.map(g => g.goal.id));
+  }
+  tutorialStore.triggerByTick(tick);
+}
+
 function updateOnce() {
   if (!engine.value || showYearEndModal.value || runtimeError.value) return;
 
   // Rust owns the full ecology schedule. Vue only observes the completed tick.
   engine.value.update();
-  const chunks = engine.value.getAllChunks();
+  evaluateProgress(engine.value.getCurrentTick());
+  const chunks = engine.value.readChunks();
   updateStats();
   detectSpeciesChanges(chunks);
   detectWeatherEvents();
@@ -715,7 +706,7 @@ function updateStats() {
   updateYearProgress();
 
   if (stats.currentTick >= extinctionGraceUntilTick) {
-    const hasViableSeeds = Array.from(engine.value.getAllChunks().values()).some(chunk =>
+    const hasViableSeeds = Array.from(engine.value.readChunks().values()).some(chunk =>
       chunk.seedBank.some(seed => seed.viability > 0)
     );
     if (stats.totalSpecies <= 0 && !hasViableSeeds) {
@@ -871,12 +862,12 @@ function onSelectChunk(payload: { x: number; y: number }) {
     void interventionStore.executeIntervention(intervention).then(success => {
       if (success) {
         updateStats();
-        detectSpeciesChanges(engine.value!.getAllChunks());
+        detectSpeciesChanges(engine.value!.readChunks());
       }
     });
   } else {
-    // Open chunk inspector for detailed view
-    const chunk = engine.value?.getChunk(payload.x, payload.y);
+    // Nouveau map shows an inline tooltip; open the full modal on demand.
+    const chunk = engine.value?.readChunk(payload.x, payload.y);
     if (chunk) {
       selectedChunkForInspection.value = chunk;
       showChunkInspector.value = viewMode.value === 'contemplative';
@@ -1002,7 +993,7 @@ async function loadLatestSnapshot() {
     events.value = [];
     seenWeather.clear();
     updateStats();
-    initSpeciesSnapshot(engine.value.getAllChunks());
+    initSpeciesSnapshot(engine.value.readChunks());
     updateHybridizationData();
     captureHistory(stats.currentTick);
     saveNotice.value = legacy
@@ -1286,7 +1277,7 @@ async function restartAfterExtinction() {
   pushEvent('🌱 Simulation restarted after extinction.');
 }
 
-function initSpeciesSnapshot(chunks: Map<string, any>) {
+function initSpeciesSnapshot(chunks: ReadonlyMap<string, any>) {
   prevSpecies.clear();
   chunks.forEach((chunk, id) => {
     const m = new Map<string, string>();
@@ -1297,7 +1288,7 @@ function initSpeciesSnapshot(chunks: Map<string, any>) {
   });
 }
 
-function detectSpeciesChanges(chunks: Map<string, any>) {
+function detectSpeciesChanges(chunks: ReadonlyMap<string, any>) {
   const reg = SpeciesRegistry.getInstance();
   chunks.forEach((chunk, id) => {
     const oldMap = prevSpecies.get(id) || new Map<string, string>();

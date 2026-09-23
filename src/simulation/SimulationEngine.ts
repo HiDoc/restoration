@@ -47,6 +47,12 @@ export class SimulationEngine {
   // Interactions system (optional, available when DB adapter is set)
   private runtime: RustSimulationRuntime;
   private runtimeSnapshot?: RuntimeSnapshot;
+  // Rust owns the world; `projection` mirrors it as WorldChunks. Refreshing the mirror is a full-world JSON
+  // copy, so it happens lazily on read, except while callers hold mutable chunks (see grantMutableAccess).
+  private projection: Map<string, WorldChunk> = new Map();
+  private projectionStale = false;
+  private projectionEdited = false;
+  private mutableAccess = false;
   private projectionSignature = '';
   private runtimeMinutes = 1440;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -68,7 +74,6 @@ export class SimulationEngine {
   private readonly centerSeedsPerChunk: number = 3;
   
   // World state
-  private chunks: Map<string, WorldChunk> = new Map();
   private activeChunks: Set<string> = new Set();
   
   // Timing
@@ -96,6 +101,35 @@ export class SimulationEngine {
   private estimatedChunkMs = 0.1; // EWMA estimate of per-chunk update time (ms)
   private lastUpdatedChunks = 0;  // How many chunks were updated last tick
   private scheduledLimit = 0;     // Planned chunks for current tick
+
+  /** The projection as of the latest Rust tick. */
+  private get chunks(): Map<string, WorldChunk> {
+    this.refreshProjection();
+    return this.projection;
+  }
+
+  private refreshProjection(): void {
+    if (this.projectionStale) this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  }
+
+  private chunkAt(x: number, y: number): WorldChunk | null {
+    return this.chunks.get(`chunk_${x}_${y}`) ?? null;
+  }
+
+  /**
+   * Callers of the mutable accessors may edit chunks in place (the legacy editing API). From then on the engine
+   * refreshes the projection every tick and diffs it for edits, a full-world copy per tick. Read-only callers
+   * use readChunk/readChunks, which keep ticks cheap.
+   */
+  private grantMutableAccess(): void {
+    if (this.mutableAccess) return;
+    this.mutableAccess = true;
+    this.projectionSignature = this.signature();
+  }
+
+  private signature(): string {
+    return encodeSimulationState(Array.from(this.chunks.values(), chunk => chunk.exportState()));
+  }
 
   constructor(config: SimulationConfig) {
     this.config = { ...config };
@@ -140,7 +174,7 @@ export class SimulationEngine {
         
         this.chunks.set(chunk.id, chunk);
         // Provide neighbor access hook for seeding between chunks
-        (chunk as any).__getChunk = (cx: number, cy: number) => this.getChunk(cx, cy);
+        (chunk as any).__getChunk = (cx: number, cy: number) => this.chunkAt(cx, cy);
         // Provide event emission hook for systems operating on chunks
         (chunk as any).__emitEvent = (type: EventType, data: any) => {
           this.eventJournal.recordEvent(type, data, chunk.id)
@@ -233,6 +267,7 @@ export class SimulationEngine {
 
   /** Use the adapter to seed a few starting species per chunk according to biome. */
   private seedInitialSpeciesFromAdapter(): void {
+    this.projectionEdited = true;
     if (!this.speciesAdapter) return;
     const rng = this.rngManager.getRNG('initial_seeding');
     const registry = SpeciesRegistry.getInstance();
@@ -280,6 +315,7 @@ export class SimulationEngine {
 
   /** Ensure at least 3 Common Grass individuals in each chunk on init. */
   private ensureCommonGrassBaseline(): void {
+    this.projectionEdited = true;
     const registry = SpeciesRegistry.getInstance();
     const grass = registry.getSpecies('common_grass');
     if (!grass) return;
@@ -551,6 +587,8 @@ export class SimulationEngine {
     this.simTimeDays = 0;
     this.currentYearIndex = 0;
     this.lastYearEndCheck = 0;
+    this.projectionStale = false;
+    this.projectionEdited = false;
     this.chunks.clear();
     this.activeChunks.clear();
     this.masterGenomes.clear();
@@ -595,7 +633,7 @@ export class SimulationEngine {
     // Legacy editor/scenario APIs may mutate projections between ticks. Import those
     // edits explicitly, without advancing RNG, before the authoritative ECS step.
     this.syncRuntime();
-    this.applyRuntimeResponse(this.runtime.request({ op: 'step', ticks: 1 }));
+    this.applyRuntimeResponse(this.runtime.request({ op: 'step', ticks: 1, snapshot: this.mutableAccess }));
     const newYearIndex = Math.floor(this.simTimeDays / this.yearLengthDays);
     if (newYearIndex > this.currentYearIndex) {
       this.applyPendingSelectionsAtYearBoundary(newYearIndex);
@@ -603,12 +641,13 @@ export class SimulationEngine {
       this.syncRuntime();
     }
     this.checkYearEnd();
-    this.lastUpdatedChunks = this.chunks.size;
-    this.scheduledLimit = this.chunks.size;
+    // Chunk count is fixed by the world size; reading it must not pull a snapshot.
+    this.lastUpdatedChunks = this.projection.size;
+    this.scheduledLimit = this.projection.size;
     this.tickCallbacks.forEach(callback => callback(this.currentTick));
     const updateTime = performance.now() - updateStart;
     this.updateTimes.push(updateTime);
-    this.estimatedChunkMs = updateTime / Math.max(1, this.chunks.size);
+    this.estimatedChunkMs = updateTime / Math.max(1, this.projection.size);
     if (this.updateTimes.length > this.maxUpdateTimeHistory) this.updateTimes.shift();
   }
 
@@ -620,7 +659,7 @@ export class SimulationEngine {
     for (let x = cx - radius; x <= cx + radius; x++) {
       for (let y = cy - radius; y <= cy + radius; y++) {
         if (x < 0 || x >= this.config.worldWidth || y < 0 || y >= this.config.worldHeight) continue
-        const ch = this.getChunk(x, y)
+        const ch = this.chunkAt(x, y)
         if (ch) chunks.push(ch)
       }
     }
@@ -632,6 +671,7 @@ export class SimulationEngine {
     speciesId: string,
     opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number; applyMasterToExisting?: boolean }
   ): void {
+    this.projectionEdited = true
     const chunks = this.getCenterAreaChunks(this.centerSeedAreaRadius)
     const seedsPerChunk = Math.max(1, opts?.seedsPerChunk ?? 3)
     const maturity = Math.max(1, Math.floor(opts?.maturityTicks ?? 2))
@@ -729,14 +769,25 @@ export class SimulationEngine {
    * Get chunk by coordinates
    */
   getChunk(x: number, y: number): WorldChunk | null {
-    const chunkId = `chunk_${x}_${y}`;
-    return this.chunks.get(chunkId) || null;
+    this.grantMutableAccess();
+    return this.chunkAt(x, y);
+  }
+
+  /** Read-only chunk as of the latest tick. Unlike getChunk, it never makes ticks slower. */
+  readChunk(x: number, y: number): Readonly<WorldChunk> | null {
+    return this.chunkAt(x, y);
+  }
+
+  /** Read-only chunks as of the latest tick. Unlike getAllChunks, it never makes ticks slower. */
+  readChunks(): ReadonlyMap<string, Readonly<WorldChunk>> {
+    return this.chunks;
   }
 
   /**
    * Get all chunks in an area
    */
   getChunksInArea(x1: number, y1: number, x2: number, y2: number): WorldChunk[] {
+    this.grantMutableAccess();
     const chunks: WorldChunk[] = [];
     const minX = Math.max(0, Math.min(x1, x2));
     const maxX = Math.min(this.config.worldWidth - 1, Math.max(x1, x2));
@@ -745,7 +796,7 @@ export class SimulationEngine {
     
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
-        const chunk = this.getChunk(x, y);
+        const chunk = this.chunkAt(x, y);
         if (chunk) chunks.push(chunk);
       }
     }
@@ -890,6 +941,7 @@ export class SimulationEngine {
     initialSpecies?: string[];
   }): void {
     const { biomeStates, clearSpecies, initialSpecies } = conditions;
+    this.projectionEdited = true;
 
     // Apply biome states to all chunks
     if (biomeStates) {
@@ -942,6 +994,7 @@ export class SimulationEngine {
   }
 
   getChunksMap(): Map<string, WorldChunk> {
+    this.grantMutableAccess();
     return this.chunks;
   }
 
@@ -1080,6 +1133,7 @@ export class SimulationEngine {
   }
 
   getAllChunks(): Map<string, WorldChunk> {
+    this.grantMutableAccess();
     return this.chunks;
   }
 
@@ -1184,6 +1238,7 @@ export class SimulationEngine {
   }
 
   private initializeRuntime(): void {
+    this.projectionEdited = false; // init sends the whole projection
     this.applyRuntimeResponse(this.runtime.request({
       op: 'init',
       config: this.config,
@@ -1193,16 +1248,18 @@ export class SimulationEngine {
   }
 
   private syncRuntime(includeDefinitions = false): void {
-    const chunks = Array.from(this.chunks.values(), chunk => chunk.exportState());
-    const signature = encodeSimulationState(chunks);
-    if (!includeDefinitions && signature === this.projectionSignature && this.runtimeMinutes === this.timePerTickMinutes) return;
+    const signature = this.mutableAccess ? this.signature() : '';
+    const edited = this.projectionEdited || signature !== this.projectionSignature;
+    if (!includeDefinitions && !edited && this.runtimeMinutes === this.timePerTickMinutes) return;
     this.runtime.request({
       op: 'sync',
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
-      chunks,
+      // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
+      ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
       ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies() } : {})
     });
     this.projectionSignature = signature;
+    this.projectionEdited = false;
     this.runtimeMinutes = this.timePerTickMinutes;
   }
 
@@ -1212,27 +1269,32 @@ export class SimulationEngine {
       this.runtimeSnapshot = snapshot;
       this.currentTick = snapshot.tick;
       this.simTimeDays = snapshot.simTimeDays;
+      this.projectionStale = false;
       const seen = new Set<string>();
       for (const state of snapshot.chunks) {
         seen.add(state.id);
-        let chunk = this.chunks.get(state.id);
+        let chunk = this.projection.get(state.id);
         if (!chunk) {
           chunk = new WorldChunk(state.x, state.y, state.rngSeed ?? 0);
-          this.chunks.set(state.id, chunk);
+          this.projection.set(state.id, chunk);
         }
         chunk.importState({ species: [], hybrids: [], ritualResidues: [], seedBank: [], ...state });
         for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'canopyLayers', 'groundLight']) {
           if (key in state) (chunk as any)[key] = state[key];
         }
         (chunk as any).simTimeDays = snapshot.simTimeDays;
-        (chunk as any).__getChunk = (x: number, y: number) => this.getChunk(x, y);
+        (chunk as any).__getChunk = (x: number, y: number) => this.chunkAt(x, y);
         (chunk as any).__emitEvent = (type: EventType, data: unknown) => this.emitEvent(type, data, chunk!.id);
       }
-      for (const id of this.chunks.keys()) if (!seen.has(id)) this.chunks.delete(id);
-      this.eventJournal.setCurrentTick(this.currentTick);
-      this.projectionSignature = encodeSimulationState(Array.from(this.chunks.values(), chunk => chunk.exportState()));
+      for (const id of this.projection.keys()) if (!seen.has(id)) this.projection.delete(id);
+      this.projectionSignature = this.mutableAccess ? this.signature() : '';
       this.runtimeMinutes = this.timePerTickMinutes;
+    } else if (response.tick !== undefined) {
+      this.currentTick = response.tick;
+      this.simTimeDays = response.simTimeDays ?? this.simTimeDays;
+      this.projectionStale = true;
     }
+    this.eventJournal.setCurrentTick(this.currentTick);
     for (const event of response.events ?? []) {
       const action = event.data as Partial<PlayerIntervention> | undefined;
       const type = event.type === 'player_intervention' && action?.type ? `player_${action.type}` : event.type;
@@ -1242,10 +1304,14 @@ export class SimulationEngine {
 
   getEventJournal(): EventJournal { return this.eventJournal; }
 
-  getActiveWeatherEvents(): any[] { return this.runtimeSnapshot?.weatherEvents ?? []; }
+  getActiveWeatherEvents(): any[] {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.weatherEvents ?? [];
+  }
 
   getHybridizationStatistics(): { totalHybrids: number; hybridizationEvents: number } {
-    return { totalHybrids: this.getStatistics().totalHybrids, hybridizationEvents: this.runtimeSnapshot?.hybridizationEvents ?? 0 };
+    const totalHybrids = this.getStatistics().totalHybrids;
+    return { totalHybrids, hybridizationEvents: this.runtimeSnapshot?.hybridizationEvents ?? 0 };
   }
 
   /** Reproducibility fingerprint excludes UI pacing and diagnostic timing. */

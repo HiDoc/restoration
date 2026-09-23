@@ -70,7 +70,7 @@ async function initPixi() {
 
 function drawChunk() {
   if (!app || !engine) return
-  const chunk = engine.getChunk(0,0)
+  const chunk = engine.readChunk(0,0)
   if (!chunk) return
 
   // Update/add sprites for species

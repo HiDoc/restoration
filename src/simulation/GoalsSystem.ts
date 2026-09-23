@@ -227,7 +227,7 @@ const SUCCESSION_GOALS: Goal[] = [
     difficulty: 'normal',
     evaluator: (engine) => {
       // Check if any chunks have significant canopy
-      const chunks = Array.from(engine.getAllChunks().values());
+      const chunks = Array.from(engine.readChunks().values());
       const forestChunks = chunks.filter(chunk =>
         chunk.biomeState.canopy > 0.5
       );

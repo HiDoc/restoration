@@ -137,7 +137,7 @@ describe('Complete Gameplay Integration', () => {
       // ============================================
       console.log('\nPhase 4: Using Interventions');
 
-      const chunks = Array.from(engine.getAllChunks().values());
+      const chunks = Array.from(engine.readChunks().values());
       expect(chunks.length).toBeGreaterThan(0);
 
       const initialPoints = interventionStore.resourcePoints;
@@ -319,7 +319,7 @@ describe('Complete Gameplay Integration', () => {
       console.log('\nTest 2: Cooldown enforcement');
       interventionStore.addPoints(100); // Restore points
 
-      const chunks = Array.from(engine.getAllChunks().values());
+      const chunks = Array.from(engine.readChunks().values());
       if (chunks.length > 0) {
         const intervention: PlayerIntervention = {
           chunkId: chunks[0].id,
@@ -380,7 +380,7 @@ describe('Complete Gameplay Integration', () => {
 
           // Try to use intervention every 15 ticks if affordable
           if (tick % 15 === 0) {
-            const chunks = Array.from(engine.getAllChunks().values());
+            const chunks = Array.from(engine.readChunks().values());
             if (chunks.length > 0 && interventionStore.canAfford('irrigate') && !interventionStore.isOnCooldown('irrigate')) {
               const intervention: PlayerIntervention = {
                 chunkId: chunks[tick % chunks.length].id,

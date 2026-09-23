@@ -65,6 +65,10 @@ impl Serialize for PlantExtras<'_> {
 }
 
 impl World {
+    pub(crate) fn sim_time_days(&self) -> f64 {
+        self.elapsed_minutes as f64 / 1440.0
+    }
+
     pub(crate) fn snapshot_view(&self) -> Snapshot<'_> {
         let mut by_chunk = BTreeMap::<Entity, Vec<(&str, Plant<'_>)>>::new();
         for (entity, organism) in &self.components.organisms {
@@ -114,7 +118,7 @@ impl World {
             .collect();
         Snapshot {
             tick: self.tick,
-            sim_time_days: self.elapsed_minutes as f64 / 1440.0,
+            sim_time_days: self.sim_time_days(),
             season: self.season(),
             year: self.elapsed_minutes / (self.config.season_length_ticks * 1440 * 4),
             chunks,

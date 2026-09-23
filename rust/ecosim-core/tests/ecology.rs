@@ -223,3 +223,25 @@ fn changing_tick_duration_does_not_retroactively_age_organisms() {
     simulation.step(1).unwrap();
     assert_eq!(simulation.components.growth[&entity].age_days, 6.0);
 }
+
+#[test]
+fn step_without_snapshot_reports_time_and_events_only() {
+    let mut light = Some(world(9));
+    let mut full = Some(world(9));
+    let response = dispatch(&mut light, json!({"op":"step","ticks":30,"snapshot":false})).unwrap();
+    dispatch(&mut full, json!({"op":"step","ticks":30})).unwrap();
+    assert_eq!(response["tick"], json!(30));
+    assert_eq!(response["simTimeDays"], json!(30.0));
+    assert!(response.get("snapshot").is_none());
+    assert!(response["events"]
+        .as_array()
+        .is_some_and(|events| !events.is_empty()));
+    // Skipping the projection must not change the simulation, and a later snapshot still reads it.
+    assert_eq!(
+        state(light.as_ref().unwrap()),
+        state(full.as_ref().unwrap())
+    );
+    let snapshot = dispatch(&mut light, json!({"op":"snapshot"})).unwrap();
+    assert_eq!(snapshot["snapshot"]["tick"], json!(30));
+    assert_eq!(snapshot["events"], json!([]));
+}

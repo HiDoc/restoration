@@ -270,7 +270,7 @@ function flowArrow(chunk: ChunkGridEntry, engine: any): string {
   if (!engine) return '•';
   const here = (chunk as any).pollinatorDensity ?? 0;
   const nx = (dx: number, dy: number) => {
-    const cc = engine.getChunk(chunk.x + dx, chunk.y + dy);
+    const cc = engine.readChunk(chunk.x + dx, chunk.y + dy);
     return (cc as any)?.pollinatorDensity ?? here;
   };
   const diffs = [

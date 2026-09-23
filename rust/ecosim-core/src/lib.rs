@@ -95,6 +95,16 @@ struct SnapshotResponse<'a> {
     events: &'a [Event],
 }
 
+/// Step result without the world projection, for callers that read chunks only occasionally.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StepResponse<'a> {
+    ok: bool,
+    tick: u64,
+    sim_time_days: f64,
+    events: &'a [Event],
+}
+
 #[derive(Serialize)]
 struct ExportResponse<'a> {
     ok: bool,
@@ -111,6 +121,10 @@ pub fn dispatch_bytes(
         .as_str()
         .ok_or("Request requires an op")?
         .to_owned();
+    let with_snapshot = request
+        .get("snapshot")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     execute(world, request)?;
     buffer.clear();
     let world = world
@@ -130,14 +144,26 @@ pub fn dispatch_bytes(
         )
         .map_err(|error| error.to_string());
     }
-    let result = serde_json::to_writer(
-        buffer,
-        &SnapshotResponse {
-            ok: true,
-            snapshot: world.snapshot_view(),
-            events: &world.events,
-        },
-    )
+    let result = if op == "step" && !with_snapshot {
+        serde_json::to_writer(
+            buffer,
+            &StepResponse {
+                ok: true,
+                tick: world.tick,
+                sim_time_days: world.sim_time_days(),
+                events: &world.events,
+            },
+        )
+    } else {
+        serde_json::to_writer(
+            buffer,
+            &SnapshotResponse {
+                ok: true,
+                snapshot: world.snapshot_view(),
+                events: &world.events,
+            },
+        )
+    }
     .map_err(|error| error.to_string());
     world.events.clear();
     result

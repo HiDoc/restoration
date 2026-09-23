@@ -65,6 +65,9 @@ export interface RuntimeResponse {
   ok: boolean;
   error?: string;
   snapshot?: RuntimeSnapshot;
+  // A `step` with `snapshot: false` reports only time and events.
+  tick?: number;
+  simTimeDays?: number;
   events?: Array<{ tick: number; type: string; chunkId?: string; data: unknown }>;
   state?: unknown;
 }

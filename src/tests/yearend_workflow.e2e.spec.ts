@@ -19,6 +19,10 @@ import { PhenologyStage } from '@/simulation/WorldChunk';
  * - Year transition and continuation
  */
 
+// Tests that edit chunks through getChunk keep the engine in its edit-safe mode, which refreshes the whole
+// world every tick, so simulating a full year takes several seconds.
+const YEAR_WITH_EDITS_MS = 30_000;
+
 describe('Year-End Workflow E2E Tests', () => {
   let engine: SimulationEngine;
   let config: SimulationConfig;
@@ -320,7 +324,7 @@ describe('Year-End Workflow E2E Tests', () => {
 
       // Species should still exist after year transition
       expect(yearEndSpeciesCount).toBeGreaterThan(0);
-    });
+    }, YEAR_WITH_EDITS_MS);
   });
 
   describe('Complete Year-End User Workflow', () => {
@@ -391,7 +395,7 @@ describe('Year-End Workflow E2E Tests', () => {
         await confirmButton.trigger('click');
         expect(wrapper.emitted('confirm')).toBeTruthy();
       }
-    });
+    }, YEAR_WITH_EDITS_MS);
 
     it('should handle year-end with no species (extinction scenario)', async () => {
       const yearEndCallback = vi.fn();

@@ -1,6 +1,6 @@
 <template>
   <div v-if="show" class="sci-modal-overlay" @click.self="closeModal">
-    <div class="sci-modal max-w-4xl w-full max-h-screen-90 overflow-y-auto border border-sky-500/25 bg-gradient-to-br from-emerald-950/85 via-slate-950/70 to-slate-950 shadow-2xl">
+    <div class="sci-modal max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-sky-500/25 bg-gradient-to-br from-emerald-950/85 via-slate-950/70 to-slate-950 shadow-2xl">
       <div class="sci-modal-header relative border-b border-emerald-400/25 bg-gradient-to-br from-emerald-900/40 via-slate-900/40 to-slate-950/60 px-8 py-10 text-slate-100">
         <div class="pointer-events-none absolute -top-6 right-6 hidden h-40 w-40 sm:block" aria-hidden="true">
           <span class="absolute right-6 top-4 block h-28 w-28 rounded-full border border-emerald-200/40 blur-[0.5px]"></span>

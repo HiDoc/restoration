@@ -1,5 +1,19 @@
 <template>
+  <div v-if="tessellated" ref="mapHost" class="flex h-full w-full items-center justify-center overflow-hidden">
+    <section class="hex-map" role="grid" :style="mapStyle">
+      <ChunkHex
+        v-for="chunk in chunkGrid"
+        :key="`${chunk.x}-${chunk.y}`"
+        v-bind="hexBindings(chunk)"
+        :style="tilePosition(chunk)"
+        @hover="setHovered"
+        @unhover="clearHovered"
+        @select="$emit('select', $event)"
+      />
+    </section>
+  </div>
   <section
+    v-else
     class="hex-board"
     :class="{ 'contemplative-board': contemplative }"
     role="grid"
@@ -15,15 +29,7 @@
       <ChunkHex
         v-for="chunk in column.chunks"
         :key="`${chunk.x}-${chunk.y}`"
-        :chunk="chunk"
-        :viz-mode="vizMode"
-        :show-labels="showLabels"
-        :pollinators="pollinators"
-        :engine="engine"
-        :is-selected="isSelected(chunk)"
-        :is-hovered="isHovered(chunk)"
-        :contemplative="contemplative"
-        :season-name="seasonName"
+        v-bind="hexBindings(chunk)"
         @hover="setHovered"
         @unhover="clearHovered"
         @select="$emit('select', $event)"
@@ -33,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { VizMode } from './types';
 import ChunkHex from './ChunkHex.vue';
 import { buildChunkColumns, type ChunkGridEntry } from './chunkGridLayout';
@@ -41,6 +47,8 @@ import { useSeasonalAtmosphere } from '@/composables/useSeasonalAtmosphere';
 
 const HEX_WIDTH = 148;
 const HEX_HEIGHT = HEX_WIDTH * Math.sqrt(3) / 2;
+// Terrain tiles are pointy-top hexes (78x92 in the UI kit); tessellated rows step by 3/4 of a tile's height.
+const TILE_RATIO = 92 / 78;
 
 const props = defineProps<{
   chunkGrid: ChunkGridEntry[];
@@ -55,6 +63,8 @@ const props = defineProps<{
   selected?: { x: number; y: number } | null;
   contemplative?: boolean;
   seasonName?: string;
+  /** Pointy-top tessellation scaled to fill the parent (odd rows shifted right). */
+  tessellated?: boolean;
 }>();
 
 defineEmits<{ (e: 'select', payload: { x: number; y: number }): void }>();
@@ -79,6 +89,67 @@ const boardStyle = computed(() => {
 
   return base;
 });
+
+const hexBindings = (chunk: ChunkGridEntry) => ({
+  chunk,
+  vizMode: props.vizMode,
+  showLabels: props.showLabels,
+  pollinators: props.pollinators,
+  engine: props.engine,
+  isSelected: isSelected(chunk),
+  isHovered: isHovered(chunk),
+  contemplative: props.contemplative,
+  seasonName: props.seasonName,
+});
+
+const bounds = computed(() => {
+  const xs = props.chunkGrid.map((c) => c.x);
+  const ys = props.chunkGrid.map((c) => c.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return { minX, minY, cols: Math.max(...xs) - minX + 1, rows: Math.max(...ys) - minY + 1 };
+});
+
+const mapHost = ref<HTMLElement | null>(null);
+const hostSize = ref({ width: 0, height: 0 });
+const observer = typeof ResizeObserver !== 'undefined'
+  ? new ResizeObserver(([entry]) => {
+      hostSize.value = { width: entry.contentRect.width, height: entry.contentRect.height };
+    })
+  : null;
+watch(mapHost, (el, old) => {
+  if (old) observer?.unobserve(old);
+  if (el) observer?.observe(el);
+});
+onBeforeUnmount(() => observer?.disconnect());
+
+const tileWidth = computed(() => {
+  const { cols, rows } = bounds.value;
+  const { width, height } = hostSize.value;
+  if (!width || !height) return HEX_WIDTH;
+  return Math.min(width / (cols + 0.5), height / ((0.75 * (rows - 1) + 1) * TILE_RATIO));
+});
+
+const mapStyle = computed(() => {
+  const w = tileWidth.value;
+  const h = w * TILE_RATIO;
+  const { cols, rows } = bounds.value;
+  return {
+    '--hex-width': `${w}px`,
+    '--hex-height': `${h}px`,
+    width: `${(cols + 0.5) * w}px`,
+    height: `${(0.75 * (rows - 1) + 1) * h}px`,
+  };
+});
+
+function tilePosition(chunk: ChunkGridEntry) {
+  const w = tileWidth.value;
+  const row = chunk.y - bounds.value.minY;
+  return {
+    left: `${(chunk.x - bounds.value.minX + (row % 2) * 0.5) * w}px`,
+    top: `${row * 0.75 * w * TILE_RATIO}px`,
+  };
+}
 
 const hovered = ref<{ x: number; y: number } | null>(null);
 
@@ -111,6 +182,32 @@ function clearHovered() {
     height: 100%;
     padding: 2rem;
     border-radius: 0;
+  }
+
+  .hex-map {
+    position: relative;
+  }
+
+  /* Tiles carry their own drawn hex border; clip everything else to the hex. */
+  .hex-map .hex-cell {
+    position: absolute;
+    background-color: transparent !important;
+    background-size: 100% 100% !important;
+    border-radius: 0;
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  }
+
+  .hex-map .hex-cell:hover {
+    translate: none !important;
+    filter: brightness(1.12) saturate(1.1);
+  }
+
+  .hex-map .hex-content {
+    display: none !important;
+  }
+
+  .hex-map .hex-outline {
+    display: block;
   }
 
   .hex-column {

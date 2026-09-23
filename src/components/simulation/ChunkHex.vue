@@ -11,6 +11,10 @@
     @click="emit('select', { x: chunk.x, y: chunk.y })"
   >
     <div class="hex-overlay absolute inset-0 pointer-events-none transition-colors duration-200" :style="{ backgroundColor: overlayColor }"></div>
+    <!-- Selection rim, shown only by tessellated maps (see ChunkGrid .hex-map) -->
+    <svg v-if="isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="rgba(244,215,122,0.06)" stroke="#f4d77a" stroke-width="6" vector-effect="non-scaling-stroke" />
+    </svg>
 
     <!-- Analytical View Badges -->
     <div v-if="!contemplative" class="hex-content pointer-events-none absolute inset-3 flex items-center justify-center text-[0.65rem] text-slate-100 drop-shadow">
@@ -70,13 +74,14 @@ import { SpeciesRegistry } from '@/simulation/SpeciesRegistry';
 import type { VizMode } from './types';
 import type { ChunkGridEntry } from './chunkGridLayout';
 import { getHexOverlayColor } from '@/composables/useSeasonalAtmosphere';
+import { nv } from './nouveauAssets';
 
 const textureMap = {
-  grassland: '/assets/terrain/grassland.png',
-  forest: '/assets/terrain/forest.png',
-  wetland: '/assets/terrain/wetland.png',
-  savanna: '/assets/terrain/savanna.png',
-  wasteland: '/assets/terrain/wasteland.png',
+  grassland: nv('hex-grassland'),
+  forest: nv('hex-forest'),
+  wetland: nv('hex-water'),
+  savanna: nv('hex-savanna'),
+  wasteland: nv('hex-degraded'),
 } as const;
 
 const props = defineProps<{
@@ -174,6 +179,14 @@ function baseFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
       return `rgba(248,113,113,${0.25 + (bs.pollution ?? 0) * 0.4})`;
     case 'diversity':
       return `rgba(192,132,252,${0.25 + (bs.diversity ?? 0) * 0.4})`;
+    case 'temperature': {
+      const t = Math.max(0, Math.min(1, (((chunk as any).climateState?.temperature ?? 14) as number) / 30));
+      return `rgba(251,146,60,${0.25 + t * 0.4})`;
+    }
+    case 'species': {
+      const n = Math.max(0, Math.min(1, countSpecies(chunk) / 12));
+      return `rgba(45,212,191,${0.25 + n * 0.4})`;
+    }
     case 'succession':
       return `rgba(251,191,36,${0.25 + (bs.succession ?? 0) * 0.4})`;
     case 'pollinators':
@@ -195,6 +208,14 @@ function overlayFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
       return `rgba(248,113,113,${0.18 + (bs.pollution ?? 0) * 0.35})`;
     case 'diversity':
       return `rgba(192,132,252,${0.18 + (bs.diversity ?? 0) * 0.35})`;
+    case 'temperature': {
+      const t = Math.max(0, Math.min(1, (((chunk as any).climateState?.temperature ?? 14) as number) / 30));
+      return `rgba(251,146,60,${0.18 + t * 0.35})`;
+    }
+    case 'species': {
+      const n = Math.max(0, Math.min(1, countSpecies(chunk) / 12));
+      return `rgba(45,212,191,${0.18 + n * 0.35})`;
+    }
     case 'succession':
       return `rgba(251,191,36,${0.18 + (bs.succession ?? 0) * 0.35})`;
     case 'pollinators':
@@ -329,6 +350,10 @@ function determineBiomeType(biomeState: any): string {
 
   .hex-content {
     border-radius: 14%;
+  }
+
+  .hex-outline {
+    display: none;
   }
 
   .hex-overlay {

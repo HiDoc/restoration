@@ -52,132 +52,240 @@
 
     <!-- Analytical View (Original Layout) -->
     <template v-else>
-      <!-- Fixed Header - Compact -->
-      <header class="flex-shrink-0 flex items-center justify-between gap-4 border-b border-sky-400/25 bg-slate-900/70 px-4 py-2 shadow-lg">
-        <div class="flex items-center gap-4 min-w-0">
-          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sky-200/80">
-            <span>{{ (stats as any).seasonName ?? 'Season' }}</span>
-            <span class="text-xs font-normal text-sky-300/70">Y{{ currentYear }}</span>
-          </div>
-          <div class="flex items-center gap-2 min-w-[120px]">
-            <div class="h-1.5 flex-1 rounded-full bg-slate-800">
-              <div
-                class="h-1.5 rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 to-lime-400 transition-all"
-                :style="{ width: `${Math.round((yearProgress ?? 0) * 100)}%` }"
-              ></div>
-            </div>
-            <span class="text-xs text-slate-300/80 whitespace-nowrap">{{ Math.round((yearProgress ?? 0) * 100) }}%</span>
-          </div>
+    <div class="nouveau flex min-h-0 flex-1 flex-col">
+      <!-- Masthead -->
+      <header class="nv-masthead flex flex-shrink-0 flex-wrap items-center gap-x-5 gap-y-2 px-3 py-1.5 sm:flex-nowrap sm:px-5">
+        <img :src="nv('logo')" alt="EcoSim — Living systems, brighter tomorrows" class="h-16 w-auto sm:h-24" />
+        <div class="nv-serif leading-tight">
+          <p class="text-3xl text-[#f6eeda]">{{ seasonLabel }}</p>
+          <p class="nv-nums text-base text-[#e8d5a3]/85">Year {{ currentYear }} · Day {{ simDays }}</p>
         </div>
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <span class="text-xs text-slate-300/80">T{{ stats.currentTick }}</span>
-          <button type="button" class="sci-btn px-2 py-1 text-xs" :disabled="options.tickMs >= 1000" aria-label="Slower simulation" @click="decreaseSpeed">−</button>
-          <span class="text-xs tabular-nums">×{{ Number((100 / options.tickMs).toFixed(2)) }}</span>
-          <button type="button" class="sci-btn px-2 py-1 text-xs" :disabled="options.tickMs <= 10" aria-label="Faster simulation" @click="increaseSpeed">+</button>
-          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isRunning || showYearEndModal || extinction.triggered || !!runtimeError" @click="stepOnce">Step one day</button>
-          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isSaving" @click="saveSnapshot">{{ isSaving ? 'Saving…' : 'Save' }}</button>
-          <button type="button" class="sci-btn px-3 py-1.5 text-xs" :disabled="isLoadingSnapshot" @click="loadLatestSnapshot">{{ isLoadingSnapshot ? 'Loading…' : 'Load' }}</button>
-          <button type="button" class="sci-btn px-3 py-1.5 text-xs" @click="scenarioStore.openScenarioSelector()">Scenarios</button>
-          <button
-            type="button"
-            :disabled="showYearEndModal || extinction.triggered || !!runtimeError"
-            class="sci-btn flex items-center gap-2 border border-sky-400/60 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-sky-100 transition-colors hover:border-sky-300 hover:bg-sky-900/40"
-            @click="toggleRunState"
-          >
-            <span>{{ isRunning ? '⏸' : '▶' }}</span>
-            {{ isRunning ? 'Pause' : 'Play' }}
-          </button>
-          <button
-            type="button"
-            class="sci-btn flex items-center gap-2 border border-amber-400/60 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-colors hover:border-amber-300 hover:bg-amber-900/40"
-            @click="toggleViewMode"
-            title="Switch to Contemplative View"
-          >
-            <span>🌿</span>
-          </button>
+        <div class="relative order-last mx-auto sm:order-none" role="img" :aria-label="`Season: ${seasonLabel}`">
+          <img :src="nv('seasons')" alt="" class="h-16 w-auto sm:h-[5.5rem]" />
+          <span class="nv-season-mark" :style="{ left: `${4.6 + seasonIndex * 22.8}%` }" aria-hidden="true"></span>
+        </div>
+        <p class="nv-serif ml-auto hidden text-right text-lg italic leading-tight text-[#e8d5a3]/85 lg:block">“Small changes.<br />Living worlds.”</p>
+        <div class="ml-auto flex items-center gap-1.5 lg:ml-0">
+          <button type="button" class="research-panel nv-img-btn" title="Field guide" aria-label="Open field guide" @click="researchStore.openFieldGuide()"><img :src="nv('btn-journal')" alt="" /></button>
+          <button type="button" class="nv-img-btn" title="Contemplative view" aria-label="Switch to contemplative view" @click="toggleViewMode"><img :src="nv('btn-settings')" alt="" /></button>
+          <button type="button" class="nv-img-btn" title="Scenarios" aria-label="Choose scenario" @click="scenarioStore.openScenarioSelector()"><img :src="nv('btn-map')" alt="" /></button>
         </div>
       </header>
 
-    <!-- Extinction Alert - Positioned Above Content -->
-    <div
-      v-if="extinction.triggered"
-      class="flex-shrink-0 flex items-center justify-between gap-3 border-b border-rose-400/30 bg-gradient-to-r from-rose-900/70 via-amber-900/20 to-transparent px-4 py-2 text-rose-100"
-      role="status"
-    >
-      <span class="text-sm font-semibold">💀 All species collapsed at tick {{ extinction.sinceTick }}</span>
-      <div class="flex items-center gap-2">
-        <button
-          class="sci-btn text-xs border border-rose-300/60 bg-rose-900/60 text-rose-100 px-3 py-1 transition-colors hover:border-rose-200 hover:bg-rose-700/60"
-          @click="restartAfterExtinction"
-        >
-          🔄 Restart
-        </button>
-        <button
-          class="sci-btn text-xs border border-rose-300/40 bg-rose-900/50 text-rose-100 px-3 py-1 transition-colors hover:border-rose-200 hover:bg-rose-700/50"
-          @click="loadLatestSnapshot"
-        >
-          📥 Load
-        </button>
+      <div v-if="extinction.triggered" class="nv-panel mx-3 mt-2 flex flex-shrink-0 items-center justify-between gap-3 px-4 py-2" role="status">
+        <span class="text-sm font-bold text-[#8f3a24]">All species collapsed on day {{ extinction.sinceTick }}</span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="nv-btn" @click="restartAfterExtinction">Restart</button>
+          <button type="button" class="nv-btn" @click="loadLatestSnapshot">Load save</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Main Content - Fixed Height Grid with new panels -->
-    <main class="flex-1 grid grid-cols-[1fr_300px_280px_280px_280px] gap-3 px-3 py-3 overflow-hidden">
-      <!-- Chunk Grid - Takes remaining space -->
-      <section class="sci-panel flex flex-col border border-emerald-400/25 bg-gradient-to-br from-emerald-950/75 via-slate-950/65 to-slate-950/80 p-3 shadow-xl overflow-hidden chunk-grid-container">
-        <h2 class="text-xs font-semibold uppercase tracking-wide text-emerald-100 mb-2 flex-shrink-0">Chunk Grid</h2>
-        <div class="flex-1 overflow-hidden">
-          <ChunkGrid
-            :chunk-grid="displayChunkGrid"
-            :width="width"
-            :show-labels="options.showLabels"
-            :viz-mode="options.vizMode"
-            :engine="engine"
-            :selected="selected"
-            @select="onSelectChunk"
-          />
-        </div>
-      </section>
+      <main class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)_18rem] lg:overflow-hidden xl:grid-cols-[8.75rem_15rem_minmax(0,1fr)_18rem]">
+        <img :src="nv('portrait-strip')" alt="" class="nv-portrait hidden h-full min-h-0 w-full object-cover object-top xl:block" />
 
-      <!-- Goals + Event Feed - Stacked in one column -->
-      <aside class="flex flex-col gap-3 overflow-hidden event-log-container">
-        <!-- Goals Panel -->
-        <div class="flex-1 overflow-hidden goals-panel">
-          <GoalsPanel />
-        </div>
+        <!-- Workflow, overlays, time, interventions -->
+        <aside class="flex min-h-0 flex-col gap-2 lg:overflow-y-auto">
+          <section class="nv-ornate">
+            <h2 class="nv-heading text-center text-lg">Guided Workflow</h2>
+            <ol class="mt-2 grid gap-1.5">
+              <li v-for="(step, i) in workflowSteps" :key="step.title" class="nv-step" :aria-current="activeStep === i ? 'step' : undefined">
+                <span class="nv-step-num">{{ i + 1 }}</span>
+                <img :src="nv(step.icon)" alt="" class="h-7 w-7 flex-shrink-0 object-contain" />
+                <div>
+                  <p class="text-[0.95rem] font-bold leading-tight">{{ step.title }}</p>
+                  <p class="nv-small nv-muted">{{ step.text }}</p>
+                </div>
+              </li>
+            </ol>
+          </section>
 
-        <!-- Event Feed - Compact -->
-        <div class="sci-panel flex flex-col border border-sky-400/25 bg-gradient-to-br from-slate-950/70 via-slate-950/60 to-slate-950/75 p-3 shadow-lg overflow-hidden" style="max-height: 300px;">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-sky-200 mb-2 flex-shrink-0">Events</h2>
-          <div class="flex-1 overflow-y-auto overflow-x-hidden">
-            <EventLog :events="events" />
+          <section class="nv-panel p-3">
+            <h3 class="nv-subheading">Overlays</h3>
+            <ul class="mt-1 grid gap-1">
+              <li v-for="overlay in overlayOptions" :key="overlay.id" class="flex items-center justify-between gap-2">
+                <span class="flex items-center gap-2 text-sm"><img :src="nv(overlay.icon)" alt="" class="h-5 w-5 object-contain" />{{ overlay.label }}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  class="nv-toggle"
+                  :aria-checked="options.vizMode === overlay.id"
+                  :aria-label="`${overlay.label} overlay`"
+                  @click="setOverlay(overlay.id)"
+                />
+              </li>
+            </ul>
+          </section>
+
+          <section class="nv-panel p-3">
+            <h3 class="nv-subheading">Time Controls</h3>
+            <div class="mt-1 flex items-center gap-1">
+              <button type="button" class="nv-btn nv-time-btn" title="Slower" aria-label="Slower simulation" :disabled="options.tickMs >= 1000" @click="decreaseSpeed">◀◀</button>
+              <button
+                type="button"
+                class="nv-btn nv-time-btn"
+                :title="isRunning ? 'Pause' : 'Play'"
+                :aria-label="isRunning ? 'Pause simulation' : 'Play simulation'"
+                :disabled="showYearEndModal || extinction.triggered || !!runtimeError"
+                @click="toggleRunState"
+              >{{ isRunning ? '❚❚' : '▶' }}</button>
+              <button
+                type="button"
+                class="nv-btn nv-time-btn"
+                title="Step one day"
+                aria-label="Step one day"
+                :disabled="isRunning || showYearEndModal || extinction.triggered || !!runtimeError"
+                @click="stepOnce"
+              >▶❚</button>
+              <button type="button" class="nv-btn nv-time-btn" title="Faster" aria-label="Faster simulation" :disabled="options.tickMs <= 10" @click="increaseSpeed">▶▶</button>
+              <span class="nv-nums ml-auto text-sm">{{ speedLabel }}</span>
+            </div>
+            <input
+              type="range"
+              class="nv-range mt-2"
+              min="-1"
+              :max="historyFrames.length - 1"
+              :value="selectedHistoryIndex"
+              :aria-label="selectedHistoryIndex === -1 ? 'Live view' : `History frame ${selectedHistoryIndex}`"
+              @input="onScrubHistory(($event.target as HTMLInputElement).valueAsNumber)"
+            />
+            <p class="nv-small nv-muted nv-nums text-center">{{ selectedHistoryIndex === -1 ? 'Live' : `Memory, day ${historyFrames[selectedHistoryIndex]?.tick ?? ''}` }}</p>
+          </section>
+
+          <section class="intervention-panel nv-panel p-3">
+            <h3 class="nv-subheading">Interventions</h3>
+            <div class="mt-1 grid grid-cols-4 gap-1">
+              <button
+                v-for="action in interventionActions"
+                :key="action.id"
+                type="button"
+                class="nv-btn flex flex-col items-center gap-0.5 px-0.5 py-1.5"
+                :title="action.hint"
+                :aria-pressed="interventionStore.selectedIntervention === action.id"
+                @click="toggleIntervention(action.id)"
+              >
+                <img :src="nv(action.icon)" alt="" class="h-6 w-6 object-contain" />
+                <span>{{ action.label }}</span>
+              </button>
+            </div>
+            <label class="nv-small nv-muted mt-1.5 block" for="nv-plant-species">Species to plant</label>
+            <select id="nv-plant-species" v-model="interventionStore.selectedPlantSpecies" class="nv-btn mt-0.5 w-full">
+              <option v-for="species in plantSpeciesOptions" :key="species.id" :value="species.id">{{ species.name }}</option>
+            </select>
+            <p v-if="interventionStore.selectedIntervention" class="nv-small mt-1 text-center font-bold">Click a hex to apply · {{ interventionStore.resourcePoints }} points</p>
+          </section>
+        </aside>
+
+        <!-- Hex world map -->
+        <section class="chunk-grid-container relative min-h-[26rem] lg:min-h-0">
+          <div class="nv-map-frame h-full min-h-[26rem] lg:min-h-0">
+            <ChunkGrid
+              :chunk-grid="displayChunkGrid"
+              :width="width"
+              :show-labels="false"
+              :viz-mode="options.vizMode"
+              :engine="engine"
+              :selected="selected"
+              :season-name="(stats as any).seasonName ?? 'Spring'"
+              tessellated
+              @select="onSelectChunk"
+            />
           </div>
-        </div>
-      </aside>
 
-      <!-- Research Panel - Fixed width, scrollable content -->
-      <aside class="sci-panel overflow-hidden research-panel">
-        <ResearchPanel
-          @open-field-guide="researchStore.openFieldGuide()"
-          @select-question="(q) => console.log('Selected question:', q)"
-        />
-      </aside>
+          <div v-if="tooltipChunk" class="nv-panel-dark absolute right-3 top-3 w-64 p-3 sm:right-5 sm:top-5" role="status">
+            <div class="flex items-start justify-between gap-2">
+              <p class="font-bold">{{ tooltipBiome }}</p>
+              <span class="nv-nums whitespace-nowrap text-sm opacity-80">({{ tooltipChunk.x }}, {{ tooltipChunk.y }})</span>
+            </div>
+            <p class="nv-small opacity-85">{{ tooltipFlavor }}</p>
+            <dl class="nv-nums mt-2 grid gap-1 text-sm">
+              <div v-for="row in tooltipRows" :key="row.label" class="nv-tooltip-row">
+                <dt class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-4 w-4 object-contain" />{{ row.label }}</dt>
+                <dd class="flex items-center gap-2">
+                  <span>{{ row.value }}</span>
+                  <span v-if="row.bar !== undefined" class="nv-bar inline-block w-16" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
+                </dd>
+              </div>
+            </dl>
+            <div class="mt-2 flex items-center justify-between gap-2">
+              <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
+              <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
+            </div>
+          </div>
 
-      <!-- Hybridization Panel - Fixed width, scrollable content -->
-      <aside class="sci-panel overflow-hidden">
-        <HybridizationPanel
-          :lineages="hybridizationLineages"
-          :stats="hybridizationStats"
-          @open-tree="showHybridizationTree = true"
-          @view-hybrid="viewHybrid"
-        />
-      </aside>
+          <img :src="nv('compass')" alt="Hex world: interconnect, explore, preserve" class="nv-compass absolute bottom-2 left-2 hidden w-36 md:block" />
+          <p class="nv-pill absolute bottom-3 right-3 hidden md:block" aria-hidden="true">Every habitat matters</p>
+        </section>
 
-      <!-- Intervention Panel - NEW! Fixed width, scrollable content -->
-      <aside class="sci-panel overflow-hidden intervention-panel">
-        <InterventionPanel :engine="engine" />
-      </aside>
-    </main>
+        <!-- World overview, events, scenario -->
+        <aside class="flex min-h-0 flex-col gap-2 lg:overflow-y-auto">
+          <section class="nv-ornate">
+            <h2 class="nv-heading">World Overview</h2>
+            <div class="nv-nums mt-1.5 grid gap-1 text-sm">
+              <div v-for="row in overviewRows" :key="row.label" class="nv-row">
+                <span class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-5 w-5 object-contain" />{{ row.label }}</span>
+                <span class="flex items-center gap-2">
+                  <span v-if="row.bar !== undefined" class="nv-bar inline-block w-20" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
+                  <strong class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section ref="eventsCard" class="event-log-container nv-panel p-3">
+            <div class="flex items-center justify-between">
+              <h2 class="nv-heading">Recent Events</h2>
+              <button type="button" class="nv-link" @click="showAllEvents = !showAllEvents">{{ showAllEvents ? '← Less' : 'See All →' }}</button>
+            </div>
+            <ul class="mt-1.5 grid">
+              <li v-if="recentEvents.length === 0" class="nv-small nv-muted">No events yet. Press play to start the season.</li>
+              <li v-for="event in recentEvents" :key="event.id" class="nv-row items-start py-1 text-[0.8rem]">
+                <img :src="nv(eventIcon(event.message))" alt="" class="mt-0.5 h-5 w-5 flex-shrink-0 object-contain" />
+                <span class="min-w-0 flex-1 leading-snug">{{ event.message }}</span>
+                <span class="nv-muted nv-nums flex-shrink-0">Day {{ event.tick }}</span>
+              </li>
+            </ul>
+          </section>
+
+          <section ref="scenarioCard" class="goals-panel nv-panel flex-1 p-3">
+            <div class="flex items-center justify-between">
+              <h2 class="nv-heading">Current Scenario</h2>
+              <button type="button" class="nv-link" @click="scenarioStore.openScenarioSelector()">Change</button>
+            </div>
+            <div class="mt-1.5 flex gap-2.5">
+              <img :src="nv('scenario')" alt="" class="h-16 w-16 flex-shrink-0 rounded border border-[#8a6d1f] object-cover" />
+              <div class="min-w-0">
+                <p class="font-bold leading-tight">{{ scenarioStore.activeScenario?.name ?? 'Temperate Recovery' }}</p>
+                <p class="nv-small nv-muted">{{ scenarioStore.activeScenario?.description ?? 'Restore a degraded landscape and rebuild biodiversity.' }}</p>
+              </div>
+            </div>
+            <div v-if="scenarioStore.hasActiveScenario && scenarioStore.timeRemaining !== null" class="nv-small nv-nums mt-2 flex items-center gap-2">
+              <span class="nv-muted">Time left</span>
+              <span class="nv-bar nv-bar-gold inline-block flex-1"><span :style="{ width: `${Math.round((1 - scenarioStore.timeProgress) * 100)}%` }"></span></span>
+              <span>{{ scenarioStore.timeRemaining }} days</span>
+            </div>
+            <div class="mt-2 flex items-center justify-between border-t border-[#8a6d1f]/30 pt-1.5">
+              <h3 class="nv-heading">Goals</h3>
+              <button type="button" class="nv-link" @click="showAllGoals = !showAllGoals">{{ showAllGoals ? 'Less' : 'View All' }}</button>
+            </div>
+            <ul class="mt-1 grid gap-1">
+              <li v-if="scenarioGoals.length === 0" class="nv-small nv-muted">No active goals yet.</li>
+              <li v-for="goal in scenarioGoals" :key="goal.goal.id" class="nv-row text-[0.8rem]">
+                <span class="flex min-w-0 items-center gap-1.5">
+                  <span class="nv-check" :aria-checked="goal.completed" role="checkbox" aria-readonly="true"></span>
+                  <span class="truncate">{{ goal.goal.title }}</span>
+                </span>
+                <span class="nv-nums flex-shrink-0">{{ formatGoalValue(goal) }}<span v-if="goal.completed" class="text-[#2a5238]"> ✓</span></span>
+              </li>
+            </ul>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="nv-dock-band flex min-w-0 flex-shrink-0 items-end">
+        <img :src="nv('dock-left')" alt="Nature adapts, so can we" class="hidden h-[4.25rem] w-auto flex-shrink-0 xl:block" />
+        <BottomDock class="min-w-0 flex-1" :active="dockTab" @select="onDockSelect" />
+        <img :src="nv('dock-right')" alt="A healthy tomorrow takes root today" class="hidden h-[4.25rem] w-auto flex-shrink-0 xl:block" />
+      </footer>
 
     <!-- Hybridization Tree Modal (for analytical view) -->
     <div
@@ -185,7 +293,7 @@
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
       @click.self="showHybridizationTree = false"
     >
-      <div class="w-[90vw] h-[90vh] overflow-auto">
+      <div class="nv-skin nv-frame max-h-[90vh] w-[90vw] overflow-auto bg-slate-950">
         <div class="flex justify-end mb-2">
           <button
             class="sci-btn text-xs py-1 px-3"
@@ -199,6 +307,7 @@
           :stats="hybridizationStats"
         />
       </div>
+    </div>
     </div>
     </template>
 
@@ -258,8 +367,9 @@
     />
 
     <!-- Scenario Progress HUD -->
+    <!-- The nouveau layout shows this in its Current Scenario card -->
     <ScenarioProgress
-      v-if="scenarioStore.hasActiveScenario"
+      v-if="scenarioStore.hasActiveScenario && viewMode === 'contemplative'"
       :scenario="scenarioStore.activeScenario"
       :time-remaining="scenarioStore.timeRemaining"
       :time-progress="scenarioStore.timeProgress"
@@ -274,8 +384,8 @@
       @close="showChunkInspector = false"
       @apply-intervention="applyInterventionFromInspector"
     />
-    <p v-if="saveNotice" class="fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
-    <div v-if="extinction.triggered && viewMode === 'contemplative'" class="fixed bottom-6 left-6 z-[110] rounded-lg bg-slate-950 px-4 py-3 text-sm" role="status">
+    <p v-if="saveNotice" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
+    <div v-if="extinction.triggered && viewMode === 'contemplative'" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] rounded-lg bg-slate-950 px-4 py-3 text-sm" role="status">
       No living plants or viable seeds remain.
       <button type="button" class="sci-btn ml-3 px-3 py-1" @click="restartAfterExtinction">Restart</button>
       <button type="button" class="sci-btn ml-2 px-3 py-1" @click="loadLatestSnapshot">Load</button>
@@ -298,17 +408,12 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 // Components
 import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
-import EventLog from "@/components/simulation/EventLog.vue";
 import SpeciesDiscoveryModal from "@/components/simulation/SpeciesDiscoveryModal.vue";
 import FieldGuidePanel from "@/components/simulation/FieldGuidePanel.vue";
-import ResearchPanel from "@/components/simulation/ResearchPanel.vue";
-import HybridizationPanel from "@/components/simulation/HybridizationPanel.vue";
 import HybridizationTree from "@/components/simulation/HybridizationTree.vue";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
-
-// New gameplay components
-import InterventionPanel from "@/components/simulation/InterventionPanel.vue";
-import GoalsPanel from "@/components/simulation/GoalsPanel.vue";
+import BottomDock from "@/components/simulation/BottomDock.vue";
+import { nv } from "@/components/simulation/nouveauAssets";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
@@ -377,7 +482,7 @@ const loop = new FixedStepLoop(updateOnce, {
 });
 
 // View mode state (contemplative/analytical)
-const viewMode = ref<'contemplative' | 'analytical'>('contemplative');
+const viewMode = ref<'contemplative' | 'analytical'>('analytical');
 
 const stats = reactive({
   currentTick: 0,
@@ -719,11 +824,6 @@ function updateHybridizationData() {
   };
 }
 
-function viewHybrid(speciesId: string) {
-  // Open the field guide to show hybrid details
-  researchStore.openFieldGuide(speciesId);
-}
-
 function pushEvent(msg: string) {
   const entry: SimulationEventEntry = {
     id: ++eventCounter,
@@ -779,7 +879,7 @@ function onSelectChunk(payload: { x: number; y: number }) {
     const chunk = engine.value?.getChunk(payload.x, payload.y);
     if (chunk) {
       selectedChunkForInspection.value = chunk;
-      showChunkInspector.value = true;
+      showChunkInspector.value = viewMode.value === 'contemplative';
     }
   }
 }
@@ -972,6 +1072,193 @@ function decreaseSpeed() {
 function increaseSpeed() {
   const speeds = [10, 50, 100, 200, 500, 1000];
   options.tickMs = [...speeds].reverse().find(speed => speed < options.tickMs) ?? speeds[0];
+}
+
+// ---- Nouveau UI state ----
+const dockTab = ref('overview');
+const showAllEvents = ref(false);
+const showAllGoals = ref(false);
+const eventsCard = ref<HTMLElement | null>(null);
+const scenarioCard = ref<HTMLElement | null>(null);
+
+const seasonIndex = computed(() =>
+  Math.max(0, ['spring', 'summer', 'autumn', 'winter'].indexOf(String((stats as any).seasonName ?? 'spring').toLowerCase()))
+);
+const seasonLabel = computed(() => {
+  const raw = String((stats as any).seasonName ?? 'Spring');
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+});
+const simDays = computed(() => Math.floor((stats as any).simDays ?? stats.currentTick));
+const cleanliness = computed(() => Math.max(0, Math.min(1, 1 - (stats.avgPollution || 0))));
+const speedLabel = computed(() => {
+  const mult = 100 / options.tickMs;
+  return `×${Number.isInteger(mult) ? mult : mult.toFixed(2)}`;
+});
+
+const workflowSteps = [
+  { title: 'Observe', text: 'Explore the world and analyze patterns.', icon: 'icon-observe' },
+  { title: 'Hypothesize', text: 'Plan interventions and set goals.', icon: 'icon-hypothesize' },
+  { title: 'Test', text: 'Apply changes and watch the results.', icon: 'icon-test' },
+];
+// Selecting a hex means the player is forming a plan; arming an intervention means they are testing it.
+const activeStep = computed(() => (interventionStore.selectedIntervention ? 2 : selected.value ? 1 : 0));
+
+const overlayOptions: Array<{ id: VizMode; label: string; icon: string }> = [
+  { id: 'vitality', label: 'Vitality', icon: 'icon-vitality' },
+  { id: 'moisture', label: 'Moisture', icon: 'icon-moisture' },
+  { id: 'pollution', label: 'Pollution', icon: 'icon-pollution' },
+  { id: 'temperature', label: 'Temperature', icon: 'icon-temperature' },
+  { id: 'diversity', label: 'Diversity', icon: 'icon-diversity' },
+  { id: 'species', label: 'Species', icon: 'icon-species' },
+];
+
+const interventionActions = [
+  { id: 'plant' as const, label: 'Plant', icon: 'icon-plants', hint: 'Plant the selected species in a hex' },
+  { id: 'irrigate' as const, label: 'Restore', icon: 'icon-restore', hint: 'Restore water to a hex' },
+  { id: 'cleanse' as const, label: 'Clean', icon: 'icon-clean', hint: 'Cleanse pollution from a hex' },
+  { id: 'hybridize' as const, label: 'Modify', icon: 'icon-modify', hint: 'Hybridize species in a hex' },
+];
+
+interface StatRow { label: string; icon: string; value: string | number; bar?: number; barClass?: string }
+
+function eventIcon(message: string): string {
+  if (/rain|water|drought|moist/i.test(message)) return 'icon-moisture';
+  if (/bird/i.test(message)) return 'icon-birds';
+  if (/pollinat|bee/i.test(message)) return 'icon-pollinators';
+  if (/pollut|died|death|collapse|extinct/i.test(message)) return 'icon-pollution';
+  return 'icon-leaf';
+}
+
+function setOverlay(mode: VizMode) {
+  options.vizMode = options.vizMode === mode ? 'rgb' : mode;
+}
+
+function toggleIntervention(type: (typeof interventionActions)[number]['id']) {
+  interventionStore.selectIntervention(interventionStore.selectedIntervention === type ? null : type);
+}
+
+function onScrubHistory(index: number) {
+  selectedHistoryIndex.value = Math.max(-1, Math.min(historyFrames.value.length - 1, index));
+}
+
+function onDockSelect(key: string) {
+  dockTab.value = key;
+  if (key === 'overview') options.vizMode = 'rgb';
+  else if (key === 'species') options.vizMode = 'species';
+  else if (key === 'climate') options.vizMode = 'temperature';
+  else if (key === 'hydro') options.vizMode = 'moisture';
+  else if (key === 'interactions') showHybridizationTree.value = true;
+  else if (key === 'goals') scenarioCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  else if (key === 'events') eventsCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  else if (key === 'settings') options.showLabels = !options.showLabels;
+}
+
+function fmt01(value: number | undefined): string {
+  if (!Number.isFinite(value)) return '—';
+  return (value as number).toFixed(2);
+}
+
+// Engine messages lead with an emoji; the kit icon from eventIcon() replaces it here.
+const recentEvents = computed(() => {
+  const list = showAllEvents.value ? events.value.slice(-12) : events.value.slice(-5);
+  return list.map((event) => ({ ...event, message: event.message.replace(/^[^\p{L}\p{N}]+/u, '') })).reverse();
+});
+
+const scenarioGoals = computed(() => {
+  const list = goalsStore.activeGoals;
+  return showAllGoals.value ? list : list.slice(0, 4);
+});
+
+function formatGoalValue(goal: { goal: { category: string; targetValue: number }; currentValue: number }): string {
+  const pct = goal.goal.category === 'ecosystem_health' || goal.goal.category === 'pollution';
+  const cur = pct ? `${Math.round(goal.currentValue * 100)}%` : `${Math.round(goal.currentValue)}`;
+  const tgt = pct ? `${Math.round(goal.goal.targetValue * 100)}%` : `${Math.round(goal.goal.targetValue)}`;
+  return `${cur} / ${tgt}`;
+}
+
+const birdKinds = computed(() => {
+  const kinds = new Set<string>();
+  for (const chunk of chunkGrid.value as any[]) {
+    const birds = (chunk as any).birds as Record<string, number> | undefined;
+    if (birds) for (const key of Object.keys(birds)) kinds.add(key);
+  }
+  return kinds.size;
+});
+
+const pollinatorSites = computed(() =>
+  (chunkGrid.value as any[]).filter((chunk) => ((chunk as any).pollinatorDensity ?? 0) > 0.2).length
+);
+
+function countChunkSpecies(chunk: any): number {
+  const raw = (chunk as any)?.species;
+  if (raw instanceof Map) return raw.size;
+  if (Array.isArray(raw)) return raw.length;
+  if (raw && typeof raw.size === 'number') return raw.size;
+  return 0;
+}
+
+const tooltipChunk = computed(() => selectedChunkForInspection.value as any | null);
+const tooltipRows = computed<StatRow[]>(() => {
+  const chunk = tooltipChunk.value;
+  const { vitality = 0, moisture = 0, pollution = 0 } = chunk?.biomeState ?? {};
+  const temperature = chunk?.climateState?.temperature;
+  const species = countChunkSpecies(chunk);
+  const density = chunk?.pollinatorDensity ?? 0;
+  const birds = chunk?.birds as Record<string, number> | undefined;
+  return [
+    { label: 'Vitality', icon: 'icon-vitality', value: fmt01(vitality), bar: vitality, barClass: 'nv-bar-leaf' },
+    { label: 'Moisture', icon: 'icon-moisture', value: fmt01(moisture), bar: moisture, barClass: 'nv-bar-water' },
+    { label: 'Pollution', icon: 'icon-pollution', value: fmt01(pollution), bar: pollution, barClass: 'nv-bar-stone' },
+    Number.isFinite(temperature)
+      ? { label: 'Temperature', icon: 'icon-temperature', value: `${Math.round(temperature)}°C`, bar: Math.max(0, Math.min(1, temperature / 35)), barClass: 'nv-bar-gold' }
+      : { label: 'Temperature', icon: 'icon-temperature', value: '—' },
+    { label: 'Diversity', icon: 'icon-diversity', value: `${species} species` },
+    { label: 'Plants', icon: 'icon-plants', value: species },
+    { label: 'Pollinators', icon: 'icon-pollinators', value: density > 0.05 ? Math.max(1, Math.round(density * 10)) : 0 },
+    // Bird values are activity densities, so report how many kinds are present.
+    { label: 'Birds', icon: 'icon-birds', value: birds ? Object.values(birds).filter((n) => Number(n) > 0).length : 0 },
+  ];
+});
+
+const overviewRows = computed<StatRow[]>(() => [
+  { label: 'Vitality', icon: 'icon-vitality', value: fmt01(stats.avgVitality), bar: stats.avgVitality, barClass: 'nv-bar-leaf' },
+  { label: 'Cleanliness', icon: 'icon-moisture', value: fmt01(cleanliness.value), bar: cleanliness.value, barClass: 'nv-bar-water' },
+  { label: 'Total Species', icon: 'icon-species', value: stats.totalSpecies },
+  { label: 'Plants', icon: 'icon-plants', value: stats.totalSpecies },
+  { label: 'Birds', icon: 'icon-birds', value: birdKinds.value },
+  { label: 'Pollinators', icon: 'icon-pollinators', value: pollinatorSites.value },
+]);
+const tooltipBiome = computed(() => {
+  const biome = tooltipChunk.value?.biomeState ?? {};
+  const { moisture = 0.5, pollution = 0, canopy = 0 } = biome;
+  if (pollution > 0.65) return 'Blighted Land';
+  if (moisture > 0.75) return 'Wetland';
+  if (canopy > 0.4 && moisture > 0.45) return 'Temperate Forest';
+  if (canopy > 0.4) return 'Woodland';
+  if (moisture < 0.3) return 'Dry Savanna';
+  return 'Meadow Grassland';
+});
+const tooltipFlavor = computed(() => {
+  const biome = tooltipBiome.value;
+  if (biome === 'Temperate Forest') return 'A rich, balanced habitat with high biodiversity.';
+  if (biome === 'Blighted Land') return 'A struggling habitat choked by pollution.';
+  if (biome === 'Wetland') return 'A saturated refuge teeming with life.';
+  if (biome === 'Dry Savanna') return 'A parched expanse awaiting renewal.';
+  return 'An open habitat finding its balance.';
+});
+
+const plantSpeciesOptions = computed(() => {
+  try {
+    return SpeciesRegistry.getInstance().getAllSpecies();
+  } catch {
+    return [];
+  }
+});
+
+function clearSelection() {
+  selected.value = null;
+  selectedChunkForInspection.value = null;
+  showChunkInspector.value = false;
 }
 
 function saveViewModePreference() {

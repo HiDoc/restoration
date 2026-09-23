@@ -52,7 +52,7 @@ const TUTORIAL_STEPS: TooltipStep[] = [
     title: 'Interventions',
     content: 'Use these tools to shape your ecosystem. Each intervention costs points and has a cooldown period.',
     targetElement: '.intervention-panel',
-    placement: 'left',
+    placement: 'right',
     trigger: 'manual'
   },
   {
@@ -60,7 +60,7 @@ const TUTORIAL_STEPS: TooltipStep[] = [
     title: 'Research & Discovery',
     content: 'Discover new species through observation. Unlock detailed traits as you study them.',
     targetElement: '.research-panel',
-    placement: 'left',
+    placement: 'bottom',
     trigger: 'event'
   }
 ];

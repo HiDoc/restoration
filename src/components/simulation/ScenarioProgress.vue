@@ -38,7 +38,7 @@ const timeBgColor = computed(() => {
 <template>
   <div
     v-if="scenario"
-    class="fixed top-4 left-4 z-30 bg-slate-900/90 backdrop-blur-sm border-2 border-blue-400/40 rounded-lg shadow-2xl p-4 max-w-xs"
+    class="nv-skin nv-frame fixed top-4 left-4 z-30 bg-slate-900/90 backdrop-blur-sm border-2 border-blue-400/40 rounded-lg shadow-2xl p-4 max-w-xs"
   >
     <!-- Scenario name -->
     <div class="flex items-center gap-2 mb-3">

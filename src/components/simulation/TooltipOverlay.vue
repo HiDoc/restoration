@@ -17,7 +17,7 @@ const emit = defineEmits<{
 
 const tooltipRef = ref<HTMLElement | null>(null);
 const position = ref({ top: 0, left: 0 });
-const actualPlacement = ref<TooltipPlacement>(props.placement || 'right');
+const actualPlacement = computed<TooltipPlacement>(() => props.placement || 'right');
 
 // Calculate position based on target element
 function updatePosition() {
@@ -37,7 +37,8 @@ function updatePosition() {
   }
 
   const targetRect = targetElement.getBoundingClientRect();
-  const tooltipRect = tooltipRef.value.getBoundingClientRect();
+  // Layout size, not getBoundingClientRect(): the entry animation scales the tooltip while we measure.
+  const tooltipRect = { width: tooltipRef.value.offsetWidth, height: tooltipRef.value.offsetHeight };
 
   let top = 0;
   let left = 0;
@@ -103,13 +104,13 @@ onUnmounted(() => {
   }
 });
 
-// Arrow position based on placement
+// Arrow position based on placement; -4 (16px) clears the kit frame's border.
 const arrowClasses = computed(() => {
   switch (actualPlacement.value) {
-    case 'top': return 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45';
-    case 'bottom': return 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45';
-    case 'left': return 'right-0 top-1/2 -translate-y-1/2 translate-x-1/2 rotate-45';
-    case 'right': return 'left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 rotate-45';
+    case 'top': return '-bottom-4 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45';
+    case 'bottom': return '-top-4 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45';
+    case 'left': return '-right-4 top-1/2 -translate-y-1/2 translate-x-1/2 rotate-45';
+    case 'right': return '-left-4 top-1/2 -translate-y-1/2 -translate-x-1/2 rotate-45';
     default: return '';
   }
 });
@@ -147,11 +148,11 @@ function handleSkip() {
           }"
           class="tooltip-container pointer-events-auto max-w-sm"
         >
-          <div class="bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 border-2 border-emerald-400/50 rounded-lg shadow-2xl p-4 relative">
+          <div class="nv-skin nv-frame bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 border-2 border-emerald-400/50 rounded-lg shadow-2xl p-4 relative">
             <!-- Arrow pointer -->
             <div
               v-if="targetSelector"
-              :class="['absolute w-4 h-4 bg-emerald-900 border-emerald-400/50', arrowClasses]"
+              :class="['absolute w-4 h-4 bg-slate-950 border-amber-500', arrowClasses]"
               style="border-width: 2px 0 0 2px;"
             ></div>
 

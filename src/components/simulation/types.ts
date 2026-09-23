@@ -3,6 +3,8 @@ export type VizMode =
   | 'vitality'
   | 'moisture'
   | 'pollution'
+  | 'temperature'
   | 'diversity'
+  | 'species'
   | 'succession'
   | 'pollinators';

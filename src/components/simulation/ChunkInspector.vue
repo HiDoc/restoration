@@ -76,7 +76,7 @@ function applyIntervention(action: string) {
     <Transition name="inspector-slide">
       <div
         v-if="show && chunk"
-        class="fixed right-0 top-0 bottom-0 w-96 bg-slate-900/95 backdrop-blur-sm border-l-2 border-cyan-400/40 shadow-2xl z-40 overflow-y-auto"
+        class="nv-skin nv-frame fixed right-0 top-0 bottom-0 w-96 bg-slate-900/95 backdrop-blur-sm border-l-2 border-cyan-400/40 shadow-2xl z-40 overflow-y-auto"
       >
         <!-- Header -->
         <div class="sticky top-0 bg-slate-900/95 border-b border-cyan-400/30 p-4 flex items-center justify-between">

@@ -15,6 +15,11 @@
     <svg v-if="isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="rgba(244,215,122,0.06)" stroke="#f4d77a" stroke-width="6" vector-effect="non-scaling-stroke" />
     </svg>
+    <!-- Animals present, drawn by tessellated maps (see ChunkGrid .hex-map) -->
+    <span v-for="sprite in sprites" :key="sprite.key" class="hex-sprite pointer-events-none" :class="`hex-sprite--${sprite.group}`" :style="sprite.style" aria-hidden="true">
+      <img v-if="sprite.icon" :src="sprite.icon" alt="" />
+      <svg v-else viewBox="0 0 20 16"><path d="M10 8C6 1 1 1 1.5 5.5 2 9 6 10 10 8Zm0 0c4-7 9-7 8.5-2.5C18 9 14 10 10 8Z" /><path d="M10 8C7 11 4 14 6 15s3-3 4-7Zm0 0c3 3 6 6 4 7s-3-3-4-7Z" opacity=".8" /></svg>
+    </span>
 
     <!-- Analytical View Badges -->
     <div v-if="!contemplative" class="hex-content pointer-events-none absolute inset-3 flex items-center justify-center text-[0.65rem] text-slate-100 drop-shadow">
@@ -75,14 +80,28 @@ import type { VizMode } from './types';
 import type { ChunkGridEntry } from './chunkGridLayout';
 import { getHexOverlayColor } from '@/composables/useSeasonalAtmosphere';
 import { nv } from './nouveauAssets';
+import { describeHex, type Habitat } from '@/game/hexDescription';
 
-const textureMap = {
-  grassland: nv('hex-grassland'),
-  forest: nv('hex-forest'),
-  wetland: nv('hex-water'),
-  savanna: nv('hex-savanna'),
-  wasteland: nv('hex-degraded'),
-} as const;
+// Kit tile and legacy biome name (used by the calm view's seasonal tint) for each habitat.
+const HABITAT_LOOK: Record<Habitat, { tile: string; biome: string }> = {
+  woodland: { tile: nv('hex-forest'), biome: 'forest' },
+  scrub: { tile: nv('hex-grassland'), biome: 'grassland' }, // the grassland tile shows scattered trees
+  meadow: { tile: nv('hex-grassland'), biome: 'grassland' },
+  dry_grassland: { tile: nv('hex-savanna'), biome: 'savanna' },
+  blighted: { tile: nv('hex-degraded'), biome: 'wasteland' },
+  bare: { tile: nv('hex-degraded'), biome: 'wasteland' },
+};
+
+// Animals drawn per hex: a few sprites hint at abundance without cluttering the map.
+const MAX_SPRITES = 6;
+const SPRITE_ICON: Record<string, string> = { bird: nv('icon-birds'), bee: nv('icon-pollinators'), hoverfly: nv('icon-pollinators') };
+
+/** Stable 32-bit hash, so a hex's sprites keep their places between renders. */
+function hash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
 
 const props = defineProps<{
   chunk: ChunkGridEntry;
@@ -113,8 +132,25 @@ const tooltip = computed(() => {
   return `(${props.chunk.x},${props.chunk.y}) v:${fmt(biome.vitality)} m:${fmt(biome.moisture)} p:${fmt(biome.pollution)} d:${fmt((biome as any).diversity)} pol:${fmt((props.chunk as any).pollinatorDensity)}`;
 });
 
+const description = computed(() => describeHex(props.chunk as any));
+const look = computed(() => HABITAT_LOOK[description.value.habitat]);
+
+const sprites = computed(() =>
+  description.value.animals
+    .flatMap(animal => Array.from({ length: Math.min(3, Math.ceil(animal.count / 3)) }, (_, i) => {
+      const h = hash(`${props.chunk.x},${props.chunk.y}:${animal.id}:${i}`);
+      return {
+        key: `${animal.id}-${i}`,
+        group: animal.group,
+        icon: SPRITE_ICON[animal.group],
+        style: { left: `${18 + (h % 60)}%`, top: `${22 + ((h >>> 8) % 52)}%`, animationDelay: `${-((h >>> 16) % 3000) / 1000}s` },
+      };
+    }))
+    .slice(0, MAX_SPRITES)
+);
+
 const hexBackground = computed(() => {
-  const texture = biomeTexture(props.chunk);
+  const texture = look.value.tile;
   const baseColor = baseFill(props.chunk, props.vizMode);
   return {
     backgroundImage: texture ? `url(${texture})` : undefined,
@@ -128,9 +164,7 @@ const hexBackground = computed(() => {
 const overlayColor = computed(() => {
   if (props.contemplative) {
     // Use naturalistic colors in contemplative mode
-    const biomeState = props.chunk.biomeState || {};
-    const biomeType = determineBiomeType(biomeState);
-    return getHexOverlayColor(biomeType, props.seasonName || 'spring', biomeState.vitality || 0.5);
+    return getHexOverlayColor(look.value.biome, props.seasonName || 'spring', props.chunk.biomeState?.vitality || 0.5);
   }
   return overlayFill(props.chunk, props.vizMode);
 });
@@ -147,11 +181,7 @@ const birdsBadge = computed(() => birdsLabel(props.chunk));
 
 const seedCountValue = computed(() => seedCount(props.chunk));
 
-const biomeTypeName = computed(() => {
-  const biomeState = props.chunk.biomeState || {};
-  const type = determineBiomeType(biomeState);
-  return type.charAt(0).toUpperCase() + type.slice(1);
-});
+const biomeTypeName = computed(() => description.value.title);
 
 const pollinatorInfo = computed(() => {
   const density = (props.chunk as any).pollinatorDensity ?? 0;
@@ -159,14 +189,6 @@ const pollinatorInfo = computed(() => {
   return `Pollinators: ${Math.round(density * 100)}%`;
 });
 
-function biomeTexture(chunk: ChunkGridEntry): string | null {
-  const { moisture = 0, pollution = 0, canopy = 0 } = chunk.biomeState ?? {};
-  if (pollution > 0.65) return textureMap.wasteland;
-  if (moisture > 0.75) return textureMap.wetland;
-  if (canopy > 0.55) return textureMap.forest;
-  if (moisture < 0.3) return textureMap.savanna;
-  return textureMap.grassland;
-}
 
 function baseFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
   const bs = chunk.biomeState ?? {};
@@ -327,14 +349,6 @@ function abbrev(name: string): string {
   return clean.slice(0, 3).toUpperCase();
 }
 
-function determineBiomeType(biomeState: any): string {
-  const { moisture = 0, pollution = 0, canopy = 0 } = biomeState;
-  if (pollution > 0.65) return 'wasteland';
-  if (moisture > 0.75) return 'wetland';
-  if (canopy > 0.55) return 'forest';
-  if (moisture < 0.3) return 'savanna';
-  return 'grassland';
-}
 </script>
 
 <style>
@@ -352,7 +366,8 @@ function determineBiomeType(biomeState: any): string {
     border-radius: 14%;
   }
 
-  .hex-outline {
+  .hex-outline,
+  .hex-sprite {
     display: none;
   }
 

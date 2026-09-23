@@ -210,6 +210,61 @@ function clearHovered() {
     display: block;
   }
 
+  /* Animals on the map: bees loop, butterflies drift and flap, birds hop now and then. */
+  .hex-map .hex-sprite {
+    display: block;
+    position: absolute;
+    width: 12%;
+    aspect-ratio: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+    animation: sprite-buzz 2.4s ease-in-out infinite;
+  }
+  .hex-map .hex-sprite img,
+  .hex-map .hex-sprite svg {
+    width: 100%;
+    height: 100%;
+  }
+  .hex-map .hex-sprite--butterfly {
+    width: 14%;
+    color: #6f9fd8;
+    fill: currentColor;
+    animation: sprite-drift 5s ease-in-out infinite;
+  }
+  .hex-map .hex-sprite--butterfly svg {
+    animation: sprite-flap 0.35s ease-in-out infinite alternate;
+  }
+  .hex-map .hex-sprite--bird {
+    width: 15%;
+    animation: sprite-hop 3.2s ease-in-out infinite;
+  }
+
+  @keyframes sprite-buzz {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(18%, -14%); }
+    50% { transform: translate(-10%, -22%); }
+    75% { transform: translate(-16%, 6%); }
+  }
+  @keyframes sprite-drift {
+    0%, 100% { transform: translate(0, 0) rotate(-6deg); }
+    50% { transform: translate(45%, -30%) rotate(8deg); }
+  }
+  @keyframes sprite-flap {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0.35); }
+  }
+  @keyframes sprite-hop {
+    0%, 70%, 100% { transform: translateY(0); }
+    78% { transform: translateY(-30%); }
+    86% { transform: translateY(0); }
+    92% { transform: translateY(-15%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hex-map .hex-sprite,
+    .hex-map .hex-sprite svg {
+      animation: none;
+    }
+  }
+
   .hex-column {
     display: flex;
     flex-direction: column;

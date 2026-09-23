@@ -752,13 +752,15 @@ impl World {
                 let forage = |habitat: Entity| -> f64 {
                     def.forage.iter().map(|link| offered(habitat, link)).sum()
                 };
-                // Its own patch feeds it fully; flowers within foraging range count at half their average.
+                // Animals live where they feed: their own patch counts fully and food within range at half its average;
+                // a patch with no food of its own sees only passing visitors.
                 let nearby_food = if nearby.is_empty() {
                     0.0
                 } else {
                     nearby.iter().map(|n| forage(*n)).sum::<f64>() / nearby.len() as f64
                 };
-                let food = forage(*habitat) + 0.5 * nearby_food;
+                let own = forage(*habitat);
+                let food = own + if own > 0.0 { 0.5 } else { 0.1 } * nearby_food;
                 let host_nearby = def.hosts.iter().any(|plant| {
                     std::iter::once(habitat)
                         .chain(nearby.iter())

@@ -100,8 +100,12 @@
           </section>
 
           <section class="nv-panel p-3">
-            <h3 class="nv-subheading">Overlays</h3>
-            <ul class="mt-1 grid gap-1">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="nv-subheading">Measurements</h3>
+              <button type="button" role="switch" class="nv-toggle" :aria-checked="showMeasurements" aria-label="Show measurements" @click="toggleMeasurements" />
+            </div>
+            <p v-if="!showMeasurements" class="nv-small nv-muted mt-1">Soil, water and pollution readings, and map overlays.</p>
+            <ul v-else class="mt-1 grid gap-1">
               <li v-for="overlay in overlayOptions" :key="overlay.id" class="flex items-center justify-between gap-2">
                 <span class="flex items-center gap-2 text-sm"><img :src="nv(overlay.icon)" alt="" class="h-5 w-5 object-contain" />{{ overlay.label }}</span>
                 <button
@@ -186,13 +190,27 @@
             />
           </div>
 
-          <div v-if="tooltipChunk" class="nv-panel-dark absolute right-3 top-3 w-64 p-3 sm:right-5 sm:top-5" role="status">
+          <div v-if="tooltipChunk && hexStory" class="nv-panel-dark absolute right-3 top-3 w-64 p-3 sm:right-5 sm:top-5" role="status">
             <div class="flex items-start justify-between gap-2">
-              <p class="font-bold">{{ tooltipBiome }}</p>
+              <p class="font-bold">{{ hexStory.title }}</p>
               <span class="nv-nums whitespace-nowrap text-sm opacity-80">({{ tooltipChunk.x }}, {{ tooltipChunk.y }})</span>
             </div>
-            <p class="nv-small opacity-85">{{ tooltipFlavor }}</p>
-            <dl class="nv-nums mt-2 grid gap-1 text-sm">
+            <p class="nv-small opacity-85">{{ hexStory.phrase }}</p>
+            <h4 v-if="hexStory.plants.length" class="nv-small mt-2 uppercase tracking-[0.15em] opacity-70">Plants</h4>
+            <ul class="grid gap-0.5 text-sm">
+              <li v-for="plant in hexStory.plants.slice(0, 5)" :key="plant.id" class="nv-tooltip-row">
+                <span class="flex items-center gap-2"><img :src="nv(ACTIVITY_ICONS[plant.activity])" alt="" class="h-4 w-4 object-contain" />{{ plant.name }}</span>
+                <span class="nv-small opacity-80">{{ ACTIVITY_WORDS[plant.activity] }} · {{ plant.count }}</span>
+              </li>
+            </ul>
+            <h4 v-if="hexStory.animals.length" class="nv-small mt-2 uppercase tracking-[0.15em] opacity-70">Animals</h4>
+            <ul class="grid gap-0.5 text-sm">
+              <li v-for="animal in hexStory.animals.slice(0, 4)" :key="animal.id" class="nv-tooltip-row">
+                <span class="flex items-center gap-2"><img :src="nv(animal.group === 'bird' ? 'icon-birds' : 'icon-pollinators')" alt="" class="h-4 w-4 object-contain" />{{ animal.name }}</span>
+                <span class="nv-small nv-nums opacity-80">{{ animal.count }}</span>
+              </li>
+            </ul>
+            <dl v-if="showMeasurements" class="nv-nums mt-2 grid gap-1 border-t border-[#c9a227]/30 pt-2 text-sm">
               <div v-for="row in tooltipRows" :key="row.label" class="nv-tooltip-row">
                 <dt class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-4 w-4 object-contain" />{{ row.label }}</dt>
                 <dd class="flex items-center gap-2">
@@ -220,7 +238,7 @@
                 <span class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-5 w-5 object-contain" />{{ row.label }}</span>
                 <span class="flex items-center gap-2">
                   <span v-if="row.bar !== undefined" class="nv-bar inline-block w-20" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
-                  <strong class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
+                  <strong v-if="showMeasurements || row.bar === undefined" class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
                 </span>
               </div>
             </div>
@@ -428,7 +446,8 @@ import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { plantStartingMeadow } from "@/game/startingMeadow";
-import catalogue from "@/database/catalogue.json";
+import { describeHex, type PlantActivity } from "@/game/hexDescription";
+import { speciesInfo } from "@/game/speciesInfo";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
@@ -1123,7 +1142,6 @@ const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
   weather: 'icon-moisture',
   more: 'icon-journal',
 };
-const FAUNA_NAMES = new Map([...catalogue.pollinators, ...catalogue.birds].map(animal => [animal.id, animal.common_name ?? animal.name]));
 // Ticks advanced per animation frame, so a week or season plays out as a short time-lapse.
 const TICKS_PER_FRAME = { week: 2, season: 6 } as const;
 
@@ -1157,7 +1175,6 @@ function advanceTime(span: 'week' | 'season') {
       return;
     }
     advancing.value = null;
-    const registry = SpeciesRegistry.getInstance();
     digest.value = {
       title: span === 'week' ? 'A week passes' : `${seasonLabel.value} arrives`,
       lines: buildDigest({
@@ -1166,7 +1183,7 @@ function advanceTime(span: 'week' | 'season') {
         seasonAfter: stats.seasonName,
         populationBefore: before.population,
         populationAfter: populationBySpecies(),
-        nameOf: id => registry.getSpecies(id)?.name ?? FAUNA_NAMES.get(id) ?? id,
+        nameOf: id => speciesInfo(id).name,
       }),
     };
   };
@@ -1211,6 +1228,13 @@ function eventIcon(message: string): string {
   if (/pollinat|bee/i.test(message)) return 'icon-pollinators';
   if (/pollut|died|death|collapse|extinct/i.test(message)) return 'icon-pollution';
   return 'icon-leaf';
+}
+
+// Measurements (soil, water, pollution readings and overlays) stay out of the way until asked for.
+const showMeasurements = ref(false);
+function toggleMeasurements() {
+  showMeasurements.value = !showMeasurements.value;
+  if (!showMeasurements.value) options.vizMode = 'rgb';
 }
 
 function setOverlay(mode: VizMode) {
@@ -1260,35 +1284,30 @@ function formatGoalValue(goal: { goal: { category: string; targetValue: number }
   return `${cur} / ${tgt}`;
 }
 
-const birdKinds = computed(() => {
-  const kinds = new Set<string>();
+// What lives on the map now: kinds of plants and animals, and how many plants.
+const life = computed(() => {
+  const plants = new Set<string>(), birds = new Set<string>(), pollinators = new Set<string>();
+  let plantCount = 0;
   for (const chunk of chunkGrid.value as any[]) {
-    const birds = (chunk as any).birds as Record<string, number> | undefined;
-    if (birds) for (const key of Object.keys(birds)) kinds.add(key);
+    chunk.species?.forEach((plant: { speciesId: string }) => { plants.add(plant.speciesId); plantCount += 1; });
+    for (const [id, count] of Object.entries((chunk.fauna ?? {}) as Record<string, number>)) {
+      if (count >= 1) (speciesInfo(id).kind === 'bird' ? birds : pollinators).add(id);
+    }
   }
-  return kinds.size;
+  return { plantKinds: plants.size, plantCount, birdKinds: birds.size, pollinatorKinds: pollinators.size };
 });
 
-const pollinatorSites = computed(() =>
-  (chunkGrid.value as any[]).filter((chunk) => ((chunk as any).pollinatorDensity ?? 0) > 0.2).length
-);
-
-function countChunkSpecies(chunk: any): number {
-  const raw = (chunk as any)?.species;
-  if (raw instanceof Map) return raw.size;
-  if (Array.isArray(raw)) return raw.length;
-  if (raw && typeof raw.size === 'number') return raw.size;
-  return 0;
-}
 
 const tooltipChunk = computed(() => selectedChunkForInspection.value as any | null);
+const hexStory = computed(() => (tooltipChunk.value ? describeHex(tooltipChunk.value) : null));
+const ACTIVITY_WORDS: Record<PlantActivity, string> = { flowering: 'in flower', fruiting: 'fruiting', dormant: 'resting', growing: 'growing' };
+const ACTIVITY_ICONS: Record<PlantActivity, string> = { flowering: 'icon-plants', fruiting: 'icon-diversity', dormant: 'icon-leaf', growing: 'icon-vitality' };
+
+/** Measurements shown with the lens on; plants and animals are in the description above them. */
 const tooltipRows = computed<StatRow[]>(() => {
   const chunk = tooltipChunk.value;
   const { vitality = 0, moisture = 0, pollution = 0 } = chunk?.biomeState ?? {};
   const temperature = chunk?.climateState?.temperature;
-  const species = countChunkSpecies(chunk);
-  const density = chunk?.pollinatorDensity ?? 0;
-  const birds = chunk?.birds as Record<string, number> | undefined;
   return [
     { label: 'Vitality', icon: 'icon-vitality', value: fmt01(vitality), bar: vitality, barClass: 'nv-bar-leaf' },
     { label: 'Moisture', icon: 'icon-moisture', value: fmt01(moisture), bar: moisture, barClass: 'nv-bar-water' },
@@ -1296,41 +1315,17 @@ const tooltipRows = computed<StatRow[]>(() => {
     Number.isFinite(temperature)
       ? { label: 'Temperature', icon: 'icon-temperature', value: `${Math.round(temperature)}°C`, bar: Math.max(0, Math.min(1, temperature / 35)), barClass: 'nv-bar-gold' }
       : { label: 'Temperature', icon: 'icon-temperature', value: '—' },
-    { label: 'Diversity', icon: 'icon-diversity', value: `${species} species` },
-    { label: 'Plants', icon: 'icon-plants', value: species },
-    { label: 'Pollinators', icon: 'icon-pollinators', value: density > 0.05 ? Math.max(1, Math.round(density * 10)) : 0 },
-    // Bird values are activity densities, so report how many kinds are present.
-    { label: 'Birds', icon: 'icon-birds', value: birds ? Object.values(birds).filter((n) => Number(n) > 0).length : 0 },
   ];
 });
 
 const overviewRows = computed<StatRow[]>(() => [
   { label: 'Vitality', icon: 'icon-vitality', value: fmt01(stats.avgVitality), bar: stats.avgVitality, barClass: 'nv-bar-leaf' },
   { label: 'Cleanliness', icon: 'icon-moisture', value: fmt01(cleanliness.value), bar: cleanliness.value, barClass: 'nv-bar-water' },
-  { label: 'Total Species', icon: 'icon-species', value: stats.totalSpecies },
-  { label: 'Plants', icon: 'icon-plants', value: stats.totalSpecies },
-  { label: 'Birds', icon: 'icon-birds', value: birdKinds.value },
-  { label: 'Pollinators', icon: 'icon-pollinators', value: pollinatorSites.value },
+  { label: 'Plant species', icon: 'icon-species', value: life.value.plantKinds },
+  { label: 'Plants', icon: 'icon-plants', value: life.value.plantCount },
+  { label: 'Bird species', icon: 'icon-birds', value: life.value.birdKinds },
+  { label: 'Pollinator species', icon: 'icon-pollinators', value: life.value.pollinatorKinds },
 ]);
-const tooltipBiome = computed(() => {
-  const biome = tooltipChunk.value?.biomeState ?? {};
-  const { moisture = 0.5, pollution = 0, canopy = 0 } = biome;
-  if (pollution > 0.65) return 'Blighted Land';
-  if (moisture > 0.75) return 'Wetland';
-  if (canopy > 0.4 && moisture > 0.45) return 'Temperate Forest';
-  if (canopy > 0.4) return 'Woodland';
-  if (moisture < 0.3) return 'Dry Savanna';
-  return 'Meadow Grassland';
-});
-const tooltipFlavor = computed(() => {
-  const biome = tooltipBiome.value;
-  if (biome === 'Temperate Forest') return 'A rich, balanced habitat with high biodiversity.';
-  if (biome === 'Blighted Land') return 'A struggling habitat choked by pollution.';
-  if (biome === 'Wetland') return 'A saturated refuge teeming with life.';
-  if (biome === 'Dry Savanna') return 'A parched expanse awaiting renewal.';
-  return 'An open habitat finding its balance.';
-});
-
 const plantSpeciesOptions = computed(() => {
   try {
     return SpeciesRegistry.getInstance().getAllSpecies();

@@ -211,11 +211,26 @@ Follow-ups found in A2:
       finches come).
 
 ### A3. Consequence first, numbers last
-- [ ] Hex descriptor: a TS function maps biome state + flowering + fauna to a phrase ("A meadow in flower",
-      "Dry, bare ground"). It replaces the stats-first tooltip header.
-- [ ] Render fauna on hexes as small animated sprites (butterflies, bees, a bird), with counts proportional to
-      population. Use kit-style art (extend `scripts/extract-ui-kit.sh` or add sprites).
-- [ ] Move the overlays and numeric bars behind an "Inspect" / "Lens" toggle. The default view shows no numbers.
+- [x] **Hex description.** `src/game/hexDescription.ts` `describeHex()` (5 unit tests) replaces three copies of a
+      moisture-based classifier. Habitat comes from what grows: blighted (pollution), bare, woodland/scrub (≥3 woody
+      plants and ≥25% of the patch), dry grassland, meadow. It drives the tile (scrub uses the grassland tile with
+      scattered trees), the info card title ("Bluebell meadow", "Common Hawthorn scrub") and a phrase
+      ("Red Fescue and White Clover in flower. Seen here: Buff-tailed Bumblebee"). No wetland until the engine has
+      standing water or the catalogue wetland plants; wet spring soil no longer turns the map to water.
+      `src/game/speciesInfo.ts` gives names and kinds for plants and animals (the digest uses it too).
+- [x] **Animals on the map.** Up to 6 sprites per hex, placed stably from a hash: bees and hoverflies loop,
+      butterflies drift and flap (inline SVG; the kit has no butterfly), birds hop; still under reduced motion.
+      Rust: a hex with no food of its own gets only a tenth of nearby food, so animals live where they feed instead
+      of over bare ground.
+- [x] **Measurements lens.** Replaces the Overlays panel, off by default. Off: the info card lists plants (with
+      what they are doing) and animals; World Overview shows plant species, plants, bird and pollinator species,
+      and bars without values. On: vitality/moisture/pollution/temperature readings, bar values and the six map
+      overlays; switching off clears the overlay.
+
+Follow-ups found in A3:
+- [ ] Sprites are small at the 6×6 map scale; birds are rarely visible. Consider larger bird sprites or a flock
+      marker.
+- [ ] A kit-style butterfly (and hoverfly) illustration would replace the SVG stand-in and the reused bee icon.
 
 ### A4. Knowledge store and Codex
 - [ ] `KnowledgeStore` (Pinia, saved in snapshots): known species, known traits per species (revealed by

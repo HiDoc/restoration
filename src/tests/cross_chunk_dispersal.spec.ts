@@ -31,7 +31,8 @@ describe('Cross-chunk seed dispersal', () => {
       } as any)
     }
 
-    engine.advance(360)
+    // Seed set depends on bees finding the patch, which can take a year; allow two summers.
+    engine.advance(540)
 
     expect(Array.from(engine.getChunk(1, 0)!.species.values()).some(s => s.speciesId === 'white_clover')).toBe(true)
   })

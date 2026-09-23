@@ -23,7 +23,8 @@ describe('Cross-chunk seed dispersal', () => {
     ;(right as any).seedBank = []
     expect(Array.from(engine.getChunk(0, 0)!.species.values()).some(s => s.speciesId === 'common_grass')).toBe(true)
 
-    engine.advance(90)
+    // Red Fescue only ripens seed in summer and makes few, so give it two summers.
+    engine.advance(540)
 
     expect(Array.from(engine.getChunk(1, 0)!.species.values()).some(s => s.speciesId === 'common_grass')).toBe(true)
   })

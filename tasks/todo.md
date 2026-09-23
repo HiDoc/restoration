@@ -140,12 +140,43 @@ refresh is ~66 ms there). Follow-ups:
 - [ ] Research observation every 10 ticks pulls a snapshot; move it into the KnowledgeStore work (A4).
 
 ### A1. Time as the main control
-- [ ] Time bar becomes `❚❚ Pause · ▶ Day · ▶▶ Week · ▶▶▶ Season`. "Week" and "Season" run N ticks, then
-      auto-pause.
-- [ ] On pause, show a **digest** built from events in the span ("Two species disappeared. Your hybrid spread
-      east. A Common Blue arrived.") with "Inspect" links to the hexes involved.
-- [ ] Season mechanics in Rust: spring germination boost, flowering windows from catalogue data, seeds and fruit
-      ripen in autumn, winter dormancy (growth ≈ 0, stats easier to read).
+Trial (2026-09-23): with the 12 catalogue plants loaded as-is on a 6×6 world for two years, Red Fescue takes
+over (2,055 plants, hitting the chunk cap), moss and clover reproduce weakly, and no shrub or tree ever sets
+seed; Bluebell and Scots Pine die out in year one. The adapter maps real values literally (e.g. oak flowers at
+30% of max biomass 15 with growth 0.08), which takes decades of game days. A player sees 5–10 game years.
+
+- [x] **A1.0 Catalogue species in the game.** `SpeciesRegistry` loads the 12 catalogue plants (170 lines of invented
+      species removed); scenarios and `research-schema.sql` use real ids (Healing Fern → Lady Fern, Shadow Moss →
+      Cushion Moss, Crimson Oak → English Oak; Drought Survival starts with grass, Hawthorn and Scots Pine).
+      Balance layer in the adapter: maturity from the real `reproduction_age`, woody plants on a 5× clock
+      (lifespan, maturity and growth), 60 seeds by default, 20 days of seed dormancy; Red Fescue tuned to 40 seeds
+      (it spreads mostly by tillers). Rust scales seed output by `seedProduction` (120 = old rate) and damps
+      germination by crowding from the same species. `applyScenarioConditions({ establishedSpecies })` starts
+      adult plants. Fixed along the way: biomes came from a cold-hardiness heuristic (oak and beech were
+      "boreal"); they now come from `biome_associations`, whose loader was overwriting temperate forest with
+      forest-edge species.
+      `catalogue_balance.spec.ts`: after 2 years Red Fescue ~40%, White Clover ~30%, Hawthorn ~16%, Bluebell ~14%,
+      all setting seed; same shares across four seeds.
+- [x] **A1.1 Phenology from the catalogue (Rust).** `ecology.floweringSeasons/fruitingSeasons/dormantSeasons` drive
+      the stage; seeds only while fruiting; `maturityDays`; spring germination ×2; `flowering_started` and
+      `seeds_ripe` events. New `dormant_season` column: Bluebell is a spring ephemeral (dormant summer–autumn,
+      seed ripe end of spring). Dormant plants don't grow and take a quarter of environmental stress (winter too).
+      Rust tests: `catalogue_phenology_flowers_and_seeds_only_in_listed_seasons`,
+      `summer_dormancy_lets_spring_ephemerals_ride_out_drought`.
+- [x] **A1.2 Time bar.** Play/Pause, Week (7 days), Season (to the first day of the next season). Week/Season run as
+      a time-lapse (2 or 6 ticks per animation frame), stop at year end, then pause. `updateOnce` split into
+      `engine.update()` + `refreshView()`.
+- [x] **A1.3 Digest.** `src/game/digest.ts` `buildDigest()` (5 unit tests): season change, species lost, flowering and
+      seed by hex count, notable spread/decline with the main cause, weather. Kit dialog after Week/Season with
+      Inspect links that select the hex.
+
+Follow-ups found in A1:
+- [ ] A new game still opens on Red Fescue alone; the slice's starting meadow (established Fescue, Clover, Bluebell,
+      Hawthorn) should be the default start. Belongs with the slice scenario.
+- [ ] Legacy predetermined hybrids (Purifier Moss etc.) still name invented parents; the Modify intervention uses
+      them. Remove with A6.
+- [ ] The Recent Events list misses births during a time-lapse (it diffs species per refresh, not per tick);
+      rebuild it from journal events with the knowledge store (A4).
 
 ### A2. Fauna that emerges
 - [ ] Rust fauna system: per-hex populations per fauna species. Arrival probability rises with in-flower nectar

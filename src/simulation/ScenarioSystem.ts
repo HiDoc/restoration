@@ -96,7 +96,7 @@ export const SCENARIOS: ScenarioConfig[] = [
       },
       startingPoints: 250,
       weatherPattern: 'drought',
-      initialSpecies: ['common_grass', 'silver_birch', 'healing_fern']
+      initialSpecies: ['common_grass', 'hawthorn', 'scots_pine']
     },
     goalIds: ['diversity_10', 'health_60'],
     timeLimit: 600,
@@ -136,7 +136,7 @@ export const SCENARIOS: ScenarioConfig[] = [
         pollution: 0.1
       },
       startingPoints: 500,
-      initialSpecies: ['common_grass', 'silver_birch', 'shadow_moss', 'healing_fern']
+      initialSpecies: ['common_grass', 'silver_birch', 'moss_cushion', 'lady_fern']
     },
     goalIds: ['diversity_20', 'health_90', 'pollution_below_10'],
     timeLimit: 2000,

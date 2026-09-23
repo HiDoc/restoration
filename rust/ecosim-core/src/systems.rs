@@ -1,6 +1,6 @@
 use crate::{model::*, world::World};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn trait_value(extra: &BTreeMap<String, Value>, id: &str) -> f64 {
     extra
@@ -229,10 +229,14 @@ impl World {
             let light_stress = (def.light_requirement - ground_light).max(0.0);
             let density =
                 populations[&position.chunk] as f64 / self.config.max_population_per_chunk as f64;
-            let stress = moisture_stress * 0.8
+            // Dormant plants (winter, or a spring ephemeral's summer bulb) shelter below ground: they
+            // neither grow nor feel most of the weather.
+            let dormant = self.components.reproduction[entity].stage == "dormant";
+            let stress = (moisture_stress * 0.8
                 + temperature_stress * 0.7
                 + biome.pollution * 0.7
-                + light_stress * 0.4;
+                + light_stress * 0.4)
+                * if dormant { 0.25 } else { 1.0 };
             let recovery = if biome.moisture < 0.04 { 0.0 } else { 0.006 };
             growth.health = (growth.health
                 + (recovery - stress * 0.06 - (density - 0.8).max(0.0) * 0.025) * days)
@@ -247,7 +251,13 @@ impl World {
                 * efficiency
                 * suitability
                 * (1.0 - density * 0.8).max(0.05)
-                * if winter { 0.12 } else { 1.0 };
+                * if dormant {
+                    0.0
+                } else if winter {
+                    0.12
+                } else {
+                    1.0
+                };
             growth.biomass = (growth.biomass
                 + growth_rate * (1.0 - growth.biomass / def.max_biomass).max(0.0) * days)
                 .clamp(0.0, def.max_biomass);
@@ -364,6 +374,20 @@ impl World {
         let season_progress = (self.elapsed_minutes % (self.config.season_length_ticks * 1440))
             as f64
             / (self.config.season_length_ticks * 1440) as f64;
+        // A species "starts flowering" (or ripens seed) in a chunk when its first plant there does.
+        let stage_before: BTreeSet<(Entity, String, String)> = self
+            .components
+            .organisms
+            .iter()
+            .map(|(entity, organism)| {
+                (
+                    self.components.positions[entity].chunk,
+                    organism.species_id.clone(),
+                    self.components.reproduction[entity].stage.clone(),
+                )
+            })
+            .collect();
+        let mut announcements = BTreeSet::new();
         let mut offspring = vec![];
         for (entity, organism) in &self.components.organisms {
             let fallback = SpeciesDefinition::default();
@@ -375,20 +399,25 @@ impl World {
             let position = &self.components.positions[entity];
             let biome = &self.components.biomes[&position.chunk];
             let reproduction = self.components.reproduction.get_mut(entity).unwrap();
-            let active = (def.reproduction_seasons.is_empty() && season != "winter")
-                || def.reproduction_seasons.iter().any(|s| s == season);
-            let mature = growth.biomass >= def.reproduction_threshold && growth.health > 0.4;
-            reproduction.stage = if !active {
-                "dormant"
-            } else if !mature {
-                "vegetative"
-            } else if season_progress < 0.4 {
-                "flowering"
-            } else {
-                "fruiting"
+            let mature = growth.biomass >= def.reproduction_threshold
+                && growth.health > 0.4
+                && growth.age_days >= def.maturity_days;
+            let stage = phenology_stage(def, season, season_progress, mature);
+            reproduction.stage = stage.into();
+            let event = match stage {
+                "flowering" => "flowering_started",
+                "fruiting" => "seeds_ripe",
+                _ => "",
+            };
+            let key = (
+                position.chunk,
+                organism.species_id.clone(),
+                stage.to_owned(),
+            );
+            if !event.is_empty() && !stage_before.contains(&key) {
+                announcements.insert((position.chunk, organism.species_id.clone(), event));
             }
-            .into();
-            if reproduction.stage != "fruiting" {
+            if stage != "fruiting" {
                 continue;
             }
             let quality = (biome.soil + biome.moisture + growth.health) / 3.0;
@@ -405,7 +434,8 @@ impl World {
             } else {
                 1.0
             };
-            reproduction.reserve += 0.075
+            // seedProduction 120 is the reference rate; species scale their output from it.
+            reproduction.reserve += 0.075 * def.seed_production / 120.0
                 * quality
                 * pollination
                 * (0.5 + trait_value(&organism.extra, "reproduction_vigor"))
@@ -429,6 +459,9 @@ impl World {
             .iter()
             .map(|(id, h)| ((h.x, h.y), *id))
             .collect();
+        for (chunk, species, event) in announcements {
+            self.emit(event, chunk, json!({ "speciesId": species }));
+        }
         for (chunk, x, y, species, maturity, dispersal, extra) in offspring {
             let mut target = chunk;
             if dispersal >= 1.0 && self.rng.sample() < 0.25 {
@@ -468,10 +501,17 @@ impl World {
     pub(crate) fn germination_system(&mut self) {
         let days = self.days();
         let winter = self.season() == "winter";
+        let spring_boost = if self.season() == "spring" { 2.0 } else { 1.0 };
         let mut population = BTreeMap::<Entity, usize>::new();
-        for position in self.components.positions.values() {
-            *population.entry(position.chunk).or_default() += 1;
+        let mut conspecifics = BTreeMap::<(Entity, String), usize>::new();
+        for (entity, organism) in &self.components.organisms {
+            let chunk = self.components.positions[entity].chunk;
+            *population.entry(chunk).or_default() += 1;
+            *conspecifics
+                .entry((chunk, organism.species_id.clone()))
+                .or_default() += 1;
         }
+        let capacity = self.config.max_population_per_chunk as f64;
         let mut births = vec![];
         for (chunk, habitat) in &mut self.components.habitats {
             let biome = &self.components.biomes[chunk];
@@ -489,10 +529,19 @@ impl World {
                 {
                     return true;
                 }
-                let density = *count as f64 / self.config.max_population_per_chunk as f64;
-                if self.rng.sample() < seed.viability * 0.14 * days * (1.0 - density) {
+                let density = *count as f64 / capacity;
+                // Crowding by its own species limits a plant more than competition from others,
+                // so no species can monopolise a patch.
+                let own = conspecifics
+                    .entry((*chunk, seed.species_id.clone()))
+                    .or_default();
+                let crowding = (1.0 - *own as f64 / capacity).max(0.0);
+                if self.rng.sample()
+                    < seed.viability * 0.14 * days * (1.0 - density) * crowding * spring_boost
+                {
                     births.push((*chunk, seed.clone()));
                     *count += 1;
+                    *own += 1;
                     return false;
                 }
                 true
@@ -611,5 +660,41 @@ impl World {
                 json!(climate.light * (1.0 - biome.canopy * 0.7)),
             );
         }
+    }
+}
+
+/// Phenology stage this tick. Catalogue species flower and fruit in their listed seasons (a season listed for
+/// both flowers first, then fruits); others use `reproduction_seasons` for a flower-then-fruit cycle.
+fn phenology_stage(
+    def: &SpeciesDefinition,
+    season: &str,
+    season_progress: f64,
+    mature: bool,
+) -> &'static str {
+    let listed = |seasons: &[String]| seasons.iter().any(|s| s == season);
+    let (flowers, fruits) = match &def.ecology {
+        Some(e) if !e.flowering_seasons.is_empty() || !e.fruiting_seasons.is_empty() => {
+            (listed(&e.flowering_seasons), listed(&e.fruiting_seasons))
+        }
+        _ => {
+            let active = (def.reproduction_seasons.is_empty() && season != "winter")
+                || listed(&def.reproduction_seasons);
+            (active, active)
+        }
+    };
+    if !(flowers || fruits) {
+        let dormant = season == "winter"
+            || def
+                .ecology
+                .as_ref()
+                .is_some_and(|e| listed(&e.dormant_seasons));
+        return if dormant { "dormant" } else { "vegetative" };
+    }
+    if !mature {
+        "vegetative"
+    } else if flowers && (!fruits || season_progress < 0.4) {
+        "flowering"
+    } else {
+        "fruiting"
     }
 }

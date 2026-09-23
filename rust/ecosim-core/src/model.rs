@@ -201,7 +201,20 @@ pub struct SpeciesDefinition {
     pub shade_tolerance_max: f64,
     pub dispersal_range: f64,
     pub pollination: String,
+    /// Age before a plant can flower; 0 means biomass alone decides.
+    pub maturity_days: f64,
+    /// Catalogue phenology; when absent, `reproduction_seasons` drives a flower-then-fruit cycle.
+    pub ecology: Option<Ecology>,
 }
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Ecology {
+    pub flowering_seasons: Vec<String>,
+    pub fruiting_seasons: Vec<String>,
+    pub dormant_seasons: Vec<String>,
+}
+
 impl Default for SpeciesDefinition {
     fn default() -> Self {
         Self {
@@ -224,6 +237,8 @@ impl Default for SpeciesDefinition {
             shade_tolerance_max: 0.4,
             dispersal_range: 2.0,
             pollination: "self".into(),
+            maturity_days: 0.0,
+            ecology: None,
         }
     }
 }

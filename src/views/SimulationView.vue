@@ -117,28 +117,23 @@
           </section>
 
           <section class="nv-panel p-3">
-            <h3 class="nv-subheading">Time Controls</h3>
-            <div class="mt-1 flex items-center gap-1">
-              <button type="button" class="nv-btn nv-time-btn" title="Slower" aria-label="Slower simulation" :disabled="options.tickMs >= 1000" @click="decreaseSpeed">◀◀</button>
+            <h3 class="nv-subheading">Time</h3>
+            <div class="mt-1 grid grid-cols-3 gap-1">
               <button
                 type="button"
                 class="nv-btn nv-time-btn"
-                :title="isRunning ? 'Pause' : 'Play'"
-                :aria-label="isRunning ? 'Pause simulation' : 'Play simulation'"
-                :disabled="showYearEndModal || extinction.triggered || !!runtimeError"
+                :aria-label="isRunning ? 'Pause' : 'Play, one day at a time'"
+                :disabled="timeBlocked"
                 @click="toggleRunState"
-              >{{ isRunning ? '❚❚' : '▶' }}</button>
-              <button
-                type="button"
-                class="nv-btn nv-time-btn"
-                title="Step one day"
-                aria-label="Step one day"
-                :disabled="isRunning || showYearEndModal || extinction.triggered || !!runtimeError"
-                @click="stepOnce"
-              >▶❚</button>
-              <button type="button" class="nv-btn nv-time-btn" title="Faster" aria-label="Faster simulation" :disabled="options.tickMs <= 10" @click="increaseSpeed">▶▶</button>
-              <span class="nv-nums ml-auto text-sm">{{ speedLabel }}</span>
+              ><span aria-hidden="true">{{ isRunning ? '❚❚' : '▶' }}</span>{{ isRunning ? 'Pause' : 'Play' }}</button>
+              <button type="button" class="nv-btn nv-time-btn" aria-label="Advance one week" :disabled="timeBlocked" @click="advanceTime('week')">
+                <span aria-hidden="true">▶▶</span>Week
+              </button>
+              <button type="button" class="nv-btn nv-time-btn" aria-label="Advance to the next season" :disabled="timeBlocked" @click="advanceTime('season')">
+                <span aria-hidden="true">▶▶▶</span>Season
+              </button>
             </div>
+            <p v-if="advancing" class="nv-small nv-muted mt-1 text-center" role="status">Time passes…</p>
             <input
               type="range"
               class="nv-range mt-2"
@@ -287,6 +282,23 @@
         <img :src="nv('dock-right')" alt="A healthy tomorrow takes root today" class="hidden h-[4.25rem] w-auto flex-shrink-0 xl:block" />
       </footer>
 
+    <div v-if="digest" class="sci-modal-overlay" @click.self="digest = null">
+      <div class="sci-modal nv-ornate max-w-md" role="dialog" aria-labelledby="digest-title">
+        <h2 id="digest-title" class="nv-heading text-center text-xl">{{ digest.title }}</h2>
+        <p class="nv-small nv-muted text-center">Year {{ currentYear }} · Day {{ simDays }}</p>
+        <ul class="mt-3 grid gap-1.5">
+          <li v-if="digest.lines.length === 0" class="nv-small nv-muted text-center">A quiet stretch: nothing notable changed.</li>
+          <li v-for="line in digest.lines" :key="line.text" class="nv-row text-sm">
+            <span class="flex items-center gap-2"><img :src="nv(DIGEST_ICONS[line.icon])" alt="" class="h-5 w-5 flex-shrink-0 object-contain" />{{ line.text }}</span>
+            <button v-if="line.chunkId" type="button" class="nv-link flex-shrink-0" @click="inspectDigestLine(line.chunkId)">Inspect</button>
+          </li>
+        </ul>
+        <div class="mt-3 flex justify-center">
+          <button type="button" class="nv-btn px-5 py-1.5 text-sm font-bold" @click="digest = null">Continue</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Hybridization Tree Modal (for analytical view) -->
     <div
       v-if="showHybridizationTree"
@@ -414,6 +426,7 @@ import HybridizationTree from "@/components/simulation/HybridizationTree.vue";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
+import { buildDigest, type DigestLine } from "@/game/digest";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
@@ -485,6 +498,8 @@ const loop = new FixedStepLoop(updateOnce, {
 const viewMode = ref<'contemplative' | 'analytical'>('analytical');
 
 const stats = reactive({
+  seasonName: 'spring',
+  simDays: 0,
   currentTick: 0,
   activeChunks: 0,
   totalChunks: 0,
@@ -667,6 +682,12 @@ function updateOnce() {
 
   // Rust owns the full ecology schedule. Vue only observes the completed tick.
   engine.value.update();
+  refreshView();
+}
+
+/** Bring the screen, goals and history up to the engine's latest tick. */
+function refreshView() {
+  if (!engine.value) return;
   evaluateProgress(engine.value.getCurrentTick());
   const chunks = engine.value.readChunks();
   updateStats();
@@ -1081,10 +1102,74 @@ const seasonLabel = computed(() => {
 });
 const simDays = computed(() => Math.floor((stats as any).simDays ?? stats.currentTick));
 const cleanliness = computed(() => Math.max(0, Math.min(1, 1 - (stats.avgPollution || 0))));
-const speedLabel = computed(() => {
-  const mult = 100 / options.tickMs;
-  return `×${Number.isInteger(mult) ? mult : mult.toFixed(2)}`;
-});
+
+// ---- Advancing time ----
+const advancing = ref<null | 'week' | 'season'>(null);
+const digest = ref<null | { title: string; lines: DigestLine[] }>(null);
+const timeBlocked = computed(() => !!advancing.value || showYearEndModal.value || extinction.triggered || !!runtimeError.value);
+const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
+  season: 'icon-leaf',
+  flower: 'icon-plants',
+  seed: 'icon-diversity',
+  spread: 'icon-vitality',
+  decline: 'icon-observe',
+  lost: 'icon-observe',
+  weather: 'icon-moisture',
+};
+// Ticks advanced per animation frame, so a week or season plays out as a short time-lapse.
+const TICKS_PER_FRAME = { week: 2, season: 6 } as const;
+
+function populationBySpecies(): Map<string, number> {
+  const counts = new Map<string, number>();
+  engine.value?.readChunks().forEach(chunk => chunk.species.forEach(plant => counts.set(plant.speciesId, (counts.get(plant.speciesId) ?? 0) + 1)));
+  return counts;
+}
+
+/** Advance a week, or to the first day of the next season, as a time-lapse, then summarise what changed. */
+function advanceTime(span: 'week' | 'season') {
+  const sim = engine.value;
+  if (!sim || timeBlocked.value) return;
+  pause();
+  const seasonDays = sim.getConfig().seasonLengthTicks ?? 90;
+  const day = Math.floor(stats.simDays);
+  const days = span === 'week' ? 7 : seasonDays - (day % seasonDays);
+  const ticksPerDay = 1440 / (sim.getConfig().timePerTickMinutes ?? 1440);
+  const startTick = sim.getCurrentTick();
+  const targetTick = startTick + days * ticksPerDay;
+  const before = { season: stats.seasonName, population: populationBySpecies() };
+  advancing.value = span;
+
+  const frame = () => {
+    for (let i = 0; i < TICKS_PER_FRAME[span] && sim.getCurrentTick() < targetTick && !showYearEndModal.value && !runtimeError.value; i++) {
+      sim.update();
+    }
+    refreshView();
+    if (sim.getCurrentTick() < targetTick && !showYearEndModal.value && !runtimeError.value) {
+      requestAnimationFrame(frame);
+      return;
+    }
+    advancing.value = null;
+    const registry = SpeciesRegistry.getInstance();
+    digest.value = {
+      title: span === 'week' ? 'A week passes' : `${seasonLabel.value} arrives`,
+      lines: buildDigest({
+        events: sim.getEventJournal().getAllEvents().filter(event => event.tick > startTick),
+        seasonBefore: before.season,
+        seasonAfter: stats.seasonName,
+        populationBefore: before.population,
+        populationAfter: populationBySpecies(),
+        nameOf: id => registry.getSpecies(id)?.name ?? id,
+      }),
+    };
+  };
+  requestAnimationFrame(frame);
+}
+
+function inspectDigestLine(chunkId: string) {
+  const [, x, y] = chunkId.split('_').map(Number);
+  digest.value = null;
+  onSelectChunk({ x, y });
+}
 
 const workflowSteps = [
   { title: 'Observe', text: 'Explore the world and analyze patterns.', icon: 'icon-observe' },

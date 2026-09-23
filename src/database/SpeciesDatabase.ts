@@ -59,6 +59,7 @@ export interface VegetalSpecies {
   seed_dispersal: 'wind' | 'animal' | 'water' | 'gravity' | 'ballistic'
   flowering_season?: string
   fruit_season?: string
+  dormant_season?: string
   
   // Interaction factors
   allelopathy: number

@@ -155,7 +155,7 @@ describe('ResearchSystem + SimulationEngine Integration', () => {
 
       chunk3.addSpecies({
         id: 'p3',
-        speciesId: 'healing_fern',
+        speciesId: 'lady_fern',
         x: 0.5,
         y: 0.5,
         biomass: 0.8,
@@ -174,7 +174,7 @@ describe('ResearchSystem + SimulationEngine Integration', () => {
       expect(researchSystem.getState().discoveredSpecies.size).toBe(3);
       expect(researchSystem.getObservationCount('common_grass')).toBe(1);
       expect(researchSystem.getObservationCount('silver_birch')).toBe(1);
-      expect(researchSystem.getObservationCount('healing_fern')).toBe(1);
+      expect(researchSystem.getObservationCount('lady_fern')).toBe(1);
     });
 
     it('should increment observation counts on repeated observations', () => {
@@ -264,7 +264,7 @@ describe('ResearchSystem + SimulationEngine Integration', () => {
 
       chunk.addSpecies({
         id: 'p1',
-        speciesId: 'shadow_moss',
+        speciesId: 'moss_cushion',
         x: 0.5,
         y: 0.5,
         biomass: 0.1,
@@ -293,7 +293,7 @@ describe('ResearchSystem + SimulationEngine Integration', () => {
 
       chunk.addSpecies({
         id: 'p1',
-        speciesId: 'crimson_oak',
+        speciesId: 'english_oak',
         x: 0.5,
         y: 0.5,
         biomass: 5.0,
@@ -321,7 +321,7 @@ describe('ResearchSystem + SimulationEngine Integration', () => {
 
       // Should have observed 5 times (ticks 0, 5, 10, 15, 20)
       expect(observationCount).toBeGreaterThanOrEqual(5);
-      expect(researchSystem.getObservationCount('crimson_oak')).toBeGreaterThanOrEqual(5);
+      expect(researchSystem.getObservationCount('english_oak')).toBeGreaterThanOrEqual(5);
     });
   });
 

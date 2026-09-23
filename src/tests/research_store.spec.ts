@@ -75,7 +75,7 @@ describe('ResearchStore (Pinia)', () => {
     });
 
     it('should not show modal for repeat observations', () => {
-      const speciesId = 'healing_fern';
+      const speciesId = 'lady_fern';
 
       store.notifySpeciesObserved(speciesId, testChunk, 0);
       store.closeDiscoveryModal();
@@ -245,7 +245,7 @@ describe('ResearchStore (Pinia)', () => {
     });
 
     it('should close modal and open field guide', () => {
-      const speciesId = 'healing_fern';
+      const speciesId = 'lady_fern';
 
       store.notifySpeciesObserved(speciesId, testChunk, 0);
       expect(store.showDiscoveryModal).toBe(true);

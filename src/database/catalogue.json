@@ -7,10 +7,11 @@
       "maxBiomass": 1.8,
       "growthRate": 0.08,
       "lifespanTicks": 9000,
-      "reproductionThreshold": 0.54,
+      "maturityDays": 1440,
+      "reproductionThreshold": 0.27,
       "reproductionNeed": 0.5,
-      "seedProduction": 28,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -15,
         "max": 22
@@ -50,7 +51,7 @@
       },
       "rarity": "common",
       "preferredBiomes": [
-        "boreal_forest"
+        "temperate_forest"
       ],
       "nativeRegions": [
         "forest_understory"
@@ -60,6 +61,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0
       }
@@ -69,12 +71,13 @@
       "name": "Silver Birch",
       "category": "tree",
       "maxBiomass": 8,
-      "growthRate": 0.3,
-      "lifespanTicks": 28800,
-      "reproductionThreshold": 2.4,
+      "growthRate": 1.5,
+      "lifespanTicks": 5760,
+      "maturityDays": 720,
+      "reproductionThreshold": 1.2,
       "reproductionNeed": 0.5,
-      "seedProduction": 6,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -25,
         "max": 25
@@ -118,7 +121,7 @@
       },
       "rarity": "common",
       "preferredBiomes": [
-        "boreal_forest"
+        "temperate_forest"
       ],
       "nativeRegions": [
         "forest_interior"
@@ -130,6 +133,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.2
       }
@@ -139,12 +143,13 @@
       "name": "Common Hawthorn",
       "category": "shrub",
       "maxBiomass": 4,
-      "growthRate": 0.18,
-      "lifespanTicks": 21600,
-      "reproductionThreshold": 1.2,
+      "growthRate": 0.8999999999999999,
+      "lifespanTicks": 4320,
+      "maturityDays": 576,
+      "reproductionThreshold": 0.6,
       "reproductionNeed": 0.6,
-      "seedProduction": 13,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -15,
         "max": 30
@@ -185,7 +190,8 @@
       },
       "rarity": "common",
       "preferredBiomes": [
-        "boreal_forest"
+        "temperate_forest",
+        "grassland"
       ],
       "nativeRegions": [
         "temperate_zone"
@@ -197,6 +203,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.1
       }
@@ -206,12 +213,13 @@
       "name": "European Beech",
       "category": "tree",
       "maxBiomass": 18,
-      "growthRate": 0.06,
-      "lifespanTicks": 108000,
-      "reproductionThreshold": 5.3999999999999995,
+      "growthRate": 0.3,
+      "lifespanTicks": 21600,
+      "maturityDays": 2160,
+      "reproductionThreshold": 2.6999999999999997,
       "reproductionNeed": 0.8,
-      "seedProduction": 3,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -15,
         "max": 25
@@ -250,7 +258,7 @@
       },
       "rarity": "uncommon",
       "preferredBiomes": [
-        "boreal_forest"
+        "temperate_forest"
       ],
       "nativeRegions": [
         "forest_interior",
@@ -263,6 +271,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.3
       }
@@ -274,9 +283,10 @@
       "maxBiomass": 0.3,
       "growthRate": 0.15,
       "lifespanTicks": 2880,
+      "maturityDays": 720,
       "reproductionThreshold": 0.05,
       "reproductionNeed": 0.3,
-      "seedProduction": 120,
+      "seedProduction": 40,
       "seedMaturityTicks": 0,
       "temperatureRange": {
         "min": -15,
@@ -335,6 +345,7 @@
         "fruitingSeasons": [
           "summer"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.1
       }
@@ -346,10 +357,11 @@
       "maxBiomass": 0.6,
       "growthRate": 0.1,
       "lifespanTicks": 5400,
-      "reproductionThreshold": 0.18,
+      "maturityDays": 1440,
+      "reproductionThreshold": 0.09,
       "reproductionNeed": 0.5,
-      "seedProduction": 83,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": 0,
         "max": 20
@@ -403,7 +415,11 @@
           "spring"
         ],
         "fruitingSeasons": [
-          "summer"
+          "spring"
+        ],
+        "dormantSeasons": [
+          "summer",
+          "autumn"
         ],
         "nitrogenFixation": false,
         "allelopathy": 0
@@ -416,10 +432,11 @@
       "maxBiomass": 0.1,
       "growthRate": 0.05,
       "lifespanTicks": 7200,
-      "reproductionThreshold": 0.03,
+      "maturityDays": 720,
+      "reproductionThreshold": 0.015,
       "reproductionNeed": 0.6,
-      "seedProduction": 500,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -10,
         "max": 25
@@ -472,6 +489,7 @@
       "ecology": {
         "floweringSeasons": [],
         "fruitingSeasons": [],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0
       }
@@ -481,12 +499,13 @@
       "name": "Scots Pine",
       "category": "tree",
       "maxBiomass": 12,
-      "growthRate": 0.05,
-      "lifespanTicks": 144000,
-      "reproductionThreshold": 3.5999999999999996,
+      "growthRate": 0.25,
+      "lifespanTicks": 28800,
+      "maturityDays": 1440,
+      "reproductionThreshold": 1.7999999999999998,
       "reproductionNeed": 0.9,
-      "seedProduction": 4,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -30,
         "max": 22
@@ -544,6 +563,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.2
       }
@@ -555,10 +575,11 @@
       "maxBiomass": 1.2,
       "growthRate": 0.12,
       "lifespanTicks": 4320,
-      "reproductionThreshold": 0.36,
+      "maturityDays": 1080,
+      "reproductionThreshold": 0.18,
       "reproductionNeed": 0.4,
-      "seedProduction": 42,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -5,
         "max": 25
@@ -606,6 +627,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.4
       }
@@ -615,12 +637,13 @@
       "name": "English Oak",
       "category": "tree",
       "maxBiomass": 15,
-      "growthRate": 0.08,
-      "lifespanTicks": 72000,
-      "reproductionThreshold": 4.5,
+      "growthRate": 0.4,
+      "lifespanTicks": 14400,
+      "maturityDays": 1800,
+      "reproductionThreshold": 2.25,
       "reproductionNeed": 0.7,
-      "seedProduction": 3,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -20,
         "max": 28
@@ -659,7 +682,7 @@
       },
       "rarity": "uncommon",
       "preferredBiomes": [
-        "boreal_forest"
+        "temperate_forest"
       ],
       "nativeRegions": [
         "forest_interior"
@@ -671,6 +694,7 @@
         "fruitingSeasons": [
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0.1
       }
@@ -680,12 +704,13 @@
       "name": "Goat Willow",
       "category": "shrub",
       "maxBiomass": 2.5,
-      "growthRate": 0.25,
-      "lifespanTicks": 9000,
-      "reproductionThreshold": 0.75,
+      "growthRate": 1.25,
+      "lifespanTicks": 1800,
+      "maturityDays": 216,
+      "reproductionThreshold": 0.375,
       "reproductionNeed": 0.4,
-      "seedProduction": 20,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -20,
         "max": 25
@@ -729,6 +754,7 @@
       },
       "rarity": "common",
       "preferredBiomes": [
+        "temperate_forest",
         "grassland"
       ],
       "nativeRegions": [
@@ -741,6 +767,7 @@
         "fruitingSeasons": [
           "spring"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": false,
         "allelopathy": 0
       }
@@ -752,10 +779,11 @@
       "maxBiomass": 0.4,
       "growthRate": 0.2,
       "lifespanTicks": 1800,
-      "reproductionThreshold": 0.12,
+      "maturityDays": 360,
+      "reproductionThreshold": 0.06,
       "reproductionNeed": 0.2,
-      "seedProduction": 125,
-      "seedMaturityTicks": 0,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
       "temperatureRange": {
         "min": -10,
         "max": 28
@@ -793,6 +821,7 @@
       },
       "rarity": "common",
       "preferredBiomes": [
+        "temperate_forest",
         "grassland"
       ],
       "nativeRegions": [
@@ -807,6 +836,7 @@
           "summer",
           "autumn"
         ],
+        "dormantSeasons": [],
         "nitrogenFixation": true,
         "allelopathy": 0
       }

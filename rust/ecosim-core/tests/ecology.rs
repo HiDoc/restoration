@@ -245,3 +245,81 @@ fn step_without_snapshot_reports_time_and_events_only() {
     assert_eq!(snapshot["snapshot"]["tick"], json!(30));
     assert_eq!(snapshot["events"], json!([]));
 }
+
+fn world_with(seed: u32, definition: SpeciesDefinition) -> World {
+    World::new(
+        Config {
+            master_seed: seed,
+            ..Config::default()
+        },
+        vec![],
+        vec![definition],
+    )
+    .unwrap()
+}
+
+/// 0 = spring … 3 = winter, for the default 90-day seasons.
+fn season_of(tick: u64) -> u64 {
+    (tick / 90) % 4
+}
+
+#[test]
+fn catalogue_phenology_flowers_and_seeds_only_in_listed_seasons() {
+    let mut meadow = world_with(
+        3,
+        SpeciesDefinition {
+            ecology: Some(Ecology {
+                flowering_seasons: vec!["spring".into()],
+                fruiting_seasons: vec!["autumn".into()],
+                dormant_seasons: vec![],
+            }),
+            ..SpeciesDefinition::default()
+        },
+    );
+    meadow.step(360).unwrap();
+    let seasons = |kind: &str| -> std::collections::BTreeSet<u64> {
+        meadow
+            .events
+            .iter()
+            .filter(|e| e.kind == kind)
+            .map(|e| season_of(e.tick))
+            .collect()
+    };
+    assert_eq!(seasons("flowering_started"), [0].into());
+    assert_eq!(seasons("seeds_ripe"), [2].into());
+    assert_eq!(seasons("species_reproduce"), [2].into());
+}
+
+#[test]
+fn summer_dormancy_lets_spring_ephemerals_ride_out_drought() {
+    let ephemeral = |dormant: Vec<String>| SpeciesDefinition {
+        moisture_range: Range { min: 0.4, max: 0.9 },
+        ecology: Some(Ecology {
+            flowering_seasons: vec!["spring".into()],
+            fruiting_seasons: vec!["spring".into()],
+            dormant_seasons: dormant,
+        }),
+        ..SpeciesDefinition::default()
+    };
+    let mut sleeping = world_with(5, ephemeral(vec!["summer".into(), "autumn".into()]));
+    let mut exposed = world_with(5, ephemeral(vec![]));
+    sleeping.step(90).unwrap();
+    exposed.step(90).unwrap();
+    // A dry summer: hold every chunk at drought moisture.
+    for _ in 0..90 {
+        for w in [&mut sleeping, &mut exposed] {
+            for biome in w.components.biomes.values_mut() {
+                biome.moisture = 0.05;
+            }
+            w.step(1).unwrap();
+        }
+    }
+    let alive = |w: &World| w.components.organisms.len();
+    assert!(
+        alive(&exposed) < alive(&sleeping),
+        "{} vs {}",
+        alive(&exposed),
+        alive(&sleeping)
+    );
+    assert!(alive(&sleeping) > 0);
+}

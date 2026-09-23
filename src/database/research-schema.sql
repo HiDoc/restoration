@@ -86,10 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON research_questions(diffic
 -- Common pioneer species (always available)
 INSERT OR IGNORE INTO species_discovery_metadata (species_id, discovery_method, rarity_tier, discovery_hint, educational_note) VALUES
 ('common_grass', 'initial', 1, 'Available from the start', 'Pioneer species that colonizes disturbed habitats and prepares soil for other plants'),
-('shadow_moss', 'initial', 1, 'Available from the start', 'Ground cover that thrives in shade and retains moisture'),
-('healing_fern', 'initial', 2, 'Look for shaded, moist areas', 'Understory species that benefits from forest canopy'),
+('moss_cushion', 'initial', 1, 'Available from the start', 'Cushion moss grows in dense domes that hold water in shaded ground'),
+('lady_fern', 'initial', 2, 'Look for shaded, moist areas', 'An understory fern of damp woodland that benefits from forest canopy'),
 ('silver_birch', 'environmental', 2, 'Appears in moderate light with good moisture', 'Early successional tree that provides shade for later species'),
-('crimson_oak', 'succession', 3, 'Emerges in mature forests with established canopy', 'Late successional species requiring specific conditions created by earlier plants');
+('english_oak', 'succession', 3, 'Appears in woodland gaps where jays cache acorns', 'A long-lived tree that needs light to establish; jays spread its acorns, and it supports more insect species than almost any other native tree');
 
 -- Sample achievements
 INSERT OR IGNORE INTO research_achievements (id, name, description, category, unlock_condition, educational_note, difficulty) VALUES

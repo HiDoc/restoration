@@ -256,11 +256,14 @@ INSERT OR REPLACE INTO bird_species (
  0.0, 0.4, 0.6,
  'common', 'LC', 'diurnal', '[5,6,7,18,19,20]');
 
+-- Spring ephemerals: flower and set seed in spring, then die back to a dormant bulb until late winter.
+UPDATE vegetal_species SET fruit_season = 'late spring', dormant_season = 'summer-autumn' WHERE id = 'wild_bluebell';
+
 -- SIMULATION OVERRIDES (optional)
 INSERT OR REPLACE INTO simulation_species_overrides (
   species_id, seed_production, reproduction_threshold, seed_maturity_ticks, dispersal_range, reproduction_seasons, rarity
 ) VALUES
-('common_grass', 120, 0.05, 0, 2.0, '["spring","summer","autumn"]', 'common');
+('common_grass', 40, 0.05, 0, 2.0, '["spring","summer","autumn"]', 'common');
 
 -- SPECIES INTERACTIONS DATA
 -- POLLINATOR SPECIES DATA

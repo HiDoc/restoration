@@ -46,7 +46,7 @@ describe('ResearchSystem', () => {
     });
 
     it('should record discovery context', () => {
-      const speciesId = 'healing_fern';
+      const speciesId = 'lady_fern';
 
       researchSystem.observeSpecies(speciesId, testChunk, 10);
 
@@ -121,7 +121,7 @@ describe('ResearchSystem', () => {
     });
 
     it('should unlock REPRODUCTIVE traits after 25 observations', () => {
-      const speciesId = 'healing_fern';
+      const speciesId = 'lady_fern';
 
       for (let i = 0; i < 24; i++) {
         researchSystem.observeSpecies(speciesId, testChunk, i);
@@ -133,7 +133,7 @@ describe('ResearchSystem', () => {
     });
 
     it('should unlock ECOLOGICAL traits after 50 observations', () => {
-      const speciesId = 'crimson_oak';
+      const speciesId = 'english_oak';
 
       for (let i = 0; i < 49; i++) {
         researchSystem.observeSpecies(speciesId, testChunk, i);
@@ -145,7 +145,7 @@ describe('ResearchSystem', () => {
     });
 
     it('should unlock GENETIC traits after 100 observations', () => {
-      const speciesId = 'shadow_moss';
+      const speciesId = 'moss_cushion';
 
       for (let i = 0; i < 99; i++) {
         researchSystem.observeSpecies(speciesId, testChunk, i);
@@ -273,7 +273,7 @@ describe('ResearchSystem', () => {
 
   describe('Multiple Species Tracking', () => {
     it('should track multiple species independently', () => {
-      const species = ['common_grass', 'silver_birch', 'healing_fern', 'crimson_oak'];
+      const species = ['common_grass', 'silver_birch', 'lady_fern', 'english_oak'];
 
       // Observe each species different numbers of times
       for (let i = 0; i < 5; i++) researchSystem.observeSpecies(species[0], testChunk, i);

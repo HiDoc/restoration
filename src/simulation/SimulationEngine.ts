@@ -354,7 +354,8 @@ export class SimulationEngine {
             x: rng.nextFloat(0.3, 0.7),
             y: rng.nextFloat(0.3, 0.7),
             biomass: Math.max(0.05, grass.maxBiomass * rng.nextFloat(0.08, 0.15)),
-            age: Math.floor(rng.nextFloat(0, grass.lifespanTicks * 0.05)),
+            // The world opens on an existing meadow, so its grass is already old enough to flower.
+            age: (grass.maturityDays ?? 0) + Math.floor(rng.nextFloat(0, grass.lifespanTicks * 0.05)),
             phenologyStage: PhenologyStage.VEGETATIVE,
             health: rng.nextFloat(0.75, 0.95),
             reproductiveOutput: 0,
@@ -666,6 +667,32 @@ export class SimulationEngine {
     return chunks
   }
 
+  /** Adult plants of a species in the centre chunks: past maturity and above the flowering biomass. */
+  private establishCenterPlants(speciesId: string, perChunk: number): void {
+    const def = SpeciesRegistry.getInstance().getSpecies(speciesId);
+    if (!def) return;
+    this.projectionEdited = true;
+    const rng = this.rngManager.getRNG('established_plants');
+    for (const chunk of this.getCenterAreaChunks(this.centerSeedAreaRadius)) {
+      for (let i = 0; i < perChunk; i++) {
+        chunk.addSpecies({
+          id: `${speciesId}_established_${chunk.x}_${chunk.y}_${i}`,
+          speciesId,
+          x: rng.nextFloat(0.2, 0.8),
+          y: rng.nextFloat(0.2, 0.8),
+          biomass: Math.min(def.maxBiomass, def.reproductionThreshold * rng.nextFloat(1.2, 2)),
+          age: (def.maturityDays ?? 0) + rng.nextInt(0, 60),
+          phenologyStage: PhenologyStage.VEGETATIVE,
+          health: rng.nextFloat(0.8, 0.95),
+          reproductiveOutput: 0,
+          reproductiveUrge: 0,
+          lastReproductionAttempt: 0,
+          genetics: this.geneticSystem.initializeGenetics(def),
+        });
+      }
+    }
+  }
+
   /** Seed center 3x3 area with seeds of a species */
   private seedCenterArea(
     speciesId: string,
@@ -939,8 +966,10 @@ export class SimulationEngine {
     };
     clearSpecies?: boolean;
     initialSpecies?: string[];
+    /** Species that start as adult plants in the centre, as if the meadow had grown for years. */
+    establishedSpecies?: string[];
   }): void {
-    const { biomeStates, clearSpecies, initialSpecies } = conditions;
+    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies } = conditions;
     this.projectionEdited = true;
 
     // Apply biome states to all chunks
@@ -971,6 +1000,8 @@ export class SimulationEngine {
         chunk.seedBank = [];
       });
     }
+
+    establishedSpecies?.forEach(speciesId => this.establishCenterPlants(speciesId, 2));
 
     // Seed initial species if provided
     if (initialSpecies && initialSpecies.length > 0) {

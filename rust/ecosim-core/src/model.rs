@@ -340,6 +340,14 @@ pub struct Reproduction {
     pub pollen: Option<Pollen>,
 }
 
+/// A rare event's lasting effect, such as a superbloom or a mast year, running until a tick.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RareEffect {
+    pub kind: String,
+    pub until_tick: u64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pollen {

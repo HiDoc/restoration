@@ -3,6 +3,7 @@ mod connectivity;
 mod crossing;
 pub mod model;
 mod projection;
+mod rare_events;
 mod systems;
 pub mod world;
 

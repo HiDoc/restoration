@@ -49,6 +49,11 @@ pub struct World {
     /// Which patch of plant cover each planted hex belonged to last tick, to notice corridors forming.
     #[serde(default)]
     pub patch_labels: BTreeMap<Entity, usize>,
+    /// Rare events' lasting effects, and the season last rolled for one.
+    #[serde(default)]
+    pub rare_effects: Vec<RareEffect>,
+    #[serde(default)]
+    pub rare_season: u64,
     #[serde(default)]
     pub weather: Vec<Weather>,
     #[serde(skip)]
@@ -79,6 +84,8 @@ impl World {
             pending_commands: vec![],
             inventory: vec![],
             patch_labels: BTreeMap::new(),
+            rare_effects: vec![],
+            rare_season: 0,
             weather: vec![],
             events: vec![],
         };
@@ -551,44 +558,9 @@ impl World {
                 biome.apply("pollution", -0.1);
             }
             "cross" => {
-                let receiver = command.data["receiver"].as_str().unwrap_or("");
-                let donor = command.data["donor"].as_str().unwrap_or("");
-                let genus = |id: &str| self.definitions.get(id).map_or("", |d| d.genus.as_str());
-                if receiver == donor {
-                    return Err("A species cannot be crossed with itself".into());
-                }
-                if genus(receiver).is_empty() || genus(receiver) != genus(donor) {
-                    return Err("Too distant to cross: only plants of one genus can".into());
-                }
-                let flowering = |species: &str, open: bool| {
-                    self.components
-                        .organisms
-                        .iter()
-                        .find_map(|(entity, organism)| {
-                            let reproduction = &self.components.reproduction[entity];
-                            (self.components.positions[entity].chunk == chunk
-                                && organism.species_id == species
-                                && reproduction.stage == "flowering"
-                                && (!open || reproduction.pollen.is_none()))
-                            .then_some(*entity)
-                        })
-                };
-                let mother = flowering(receiver, true)
-                    .ok_or(format!("No unpollinated {receiver} is in flower here"))?;
-                let father =
-                    flowering(donor, false).ok_or(format!("No {donor} is in flower here"))?;
-                let genetics = self.components.organisms[&father]
-                    .extra
-                    .get("genetics")
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                let (receiver, donor) = (receiver.to_owned(), donor.to_owned());
-                let bloom = self.components.reproduction.get_mut(&mother).unwrap();
-                bloom.pollinated = 1.0;
-                bloom.pollen = Some(Pollen {
-                    species_id: donor.clone(),
-                    genetics,
-                });
+                let receiver = command.data["receiver"].as_str().unwrap_or("").to_owned();
+                let donor = command.data["donor"].as_str().unwrap_or("").to_owned();
+                self.pollinate(chunk, &receiver, &donor)?;
                 self.emit(
                     "cross_pollinated",
                     chunk,
@@ -670,6 +642,7 @@ impl World {
             self.diffusion_system();
             self.ecosystem_system();
             self.fauna_system();
+            self.rare_event_system();
         }
         Ok(())
     }

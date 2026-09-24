@@ -1,7 +1,8 @@
 import { EventType, type SimulationEvent } from '@/simulation/EventJournal'
 import { CAUSES, mostCommon } from './causes'
+import { describeRareEvent } from './rareEvents'
 
-export type DigestIcon = 'season' | 'sighting' | 'arrival' | 'interaction' | 'corridor' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
+export type DigestIcon = 'season' | 'rare' | 'sighting' | 'arrival' | 'interaction' | 'corridor' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
 
 export interface DigestLine {
   icon: DigestIcon
@@ -55,6 +56,11 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
 
   if (seasonBefore !== seasonAfter) {
     lines.push({ icon: 'season', text: `${capitalize(seasonBefore)} gave way to ${seasonAfter}.` })
+  }
+
+  // Rare events lead: they are what a season will be remembered for.
+  for (const event of events.filter(event => event.type === EventType.RARE_EVENT)) {
+    lines.push({ icon: 'rare', text: describeRareEvent(event.data, nameOf), chunkId: event.chunkId })
   }
 
   for (const [id, found] of bySpecies(events, EventType.FIRST_SIGHTING, 'faunaId')) {

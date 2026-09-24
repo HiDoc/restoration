@@ -458,9 +458,29 @@ mysteries both explain themselves through it.
       Follow-ups: all three causes are about pollinators and reach; a water or soil mystery needs a mechanic
       the player can change (e.g. a pond that can be deepened). The clue shows at once rather than after a
       season unsolved.
-- [ ] **B7 Rare events.** Seeded, condition-weighted table in Rust (superbloom, butterfly migration, mast year,
-      temporary pond, spontaneous hybrid between co-flowering congeners, ancient seed germination), in the
-      digest.
+- [x] **B7 Rare events.** At most one per season, rolled from the world's seeded RNG at the season's start
+      among the events whose conditions hold; each has a real effect in the engine.
+  - [x] Rust `rare_events.rs`:
+        - Superbloom (spring, after a wet winter): buried seed germinates three times as readily all spring.
+        - Mast year (autumn, three or more trees fruiting): trees set three times the seed this autumn.
+        - Butterfly migration (summer, warm): butterflies arrive where their nectar flowers, regardless of
+          reach.
+        - Temporary pond (spring or autumn): a downpour leaves standing water in the lowest hex.
+        - Spontaneous hybrid (two congeners flowering in one hex with a pollinator present): the insects do
+          what the player does by hand.
+        - Ancient seed (a bare hex): a species absent from the map whose moisture needs the hex meets
+          sprouts there.
+        Timed effects are saved with the world. `trigger_rare_event` lets tests (and later tools) force one.
+  - [x] TS: `src/game/rareEvents.ts` words each event; the digest shows it and a toast announces it.
+  - [x] Tests: each event's effect and condition in Rust; at most one per season and deterministic over
+        years; digest wording.
+      Done (2026-09-24). A season brings an event with chance 0.25, chosen among those whose conditions hold.
+      Browser: the Old Meadow's first summer brought "Honeysuckle sprouted from seed buried long ago." in the
+      digest, a toast, and a new Codex entry. The balance cap on one species' share went from 0.5 to 0.6: rare
+      events shift the RNG, and the wetland (a drained pasture) came out at 50.1% grass; the check is for
+      monocultures.
+      Follow-ups: the ancient seed can bring any absent species whose moisture needs the hex meets, including
+      trees into a meadow; it could favour the site's own flora.
 
 ## Milestone C: depth
 

@@ -111,4 +111,14 @@ describe('buildDigest', () => {
     })
     expect(lines).toEqual([{ icon: 'corridor', text: 'A corridor now joins two patches of habitat, and animals can travel it.', chunkId: 'chunk_2_2' }])
   })
+
+  it('leads with a rare event, in words', () => {
+    const lines = buildDigest({
+      events: [event('rare_event', { kind: 'butterfly_migration', species: ['common_blue', 'peacock'] })],
+      seasonBefore: 'summer', seasonAfter: 'summer',
+      populationBefore: new Map(), populationAfter: new Map(),
+      nameOf: id => ({ common_blue: 'Common Blue', peacock: 'Peacock' })[id] ?? id,
+    })
+    expect(lines).toEqual([{ icon: 'rare', text: 'A migration: Common Blue and Peacock swept in on warm winds.', chunkId: 'chunk_1_1' }])
+  })
 })

@@ -918,3 +918,192 @@ fn a_planted_hex_that_joins_two_patches_is_reported_as_a_corridor() {
     assert_eq!(corridor[0].chunk_id, "chunk_2_2");
     assert_eq!(corridor[0].data["patches"], 2);
 }
+
+fn rare(world: &World) -> Vec<&Value> {
+    world
+        .events
+        .iter()
+        .filter(|e| e.kind == "rare_event")
+        .map(|e| &e.data)
+        .collect()
+}
+
+fn births(world: &World, source: &str) -> usize {
+    world
+        .events
+        .iter()
+        .filter(|e| e.kind == "species_spawn" && e.data["source"] == source)
+        .count()
+}
+
+#[test]
+fn a_mast_year_multiplies_the_trees_seed() {
+    let oak = || SpeciesDefinition {
+        category: "tree".into(),
+        maturity_days: 0.0,
+        ecology: Some(Ecology {
+            flowering_seasons: vec!["spring".into()],
+            fruiting_seasons: vec!["autumn".into()],
+            dormant_seasons: vec![],
+        }),
+        ..SpeciesDefinition::default()
+    };
+    let mut usual = world_with(4, oak());
+    usual.step(190).unwrap();
+    let mut mast = usual.clone();
+    mast.trigger_rare_event("mast_year").unwrap();
+    assert_eq!(rare(&mast)[0]["kind"], "mast_year");
+    let seeds = |w: &mut World| {
+        w.events.clear();
+        w.step(40).unwrap();
+        w.events
+            .iter()
+            .filter(|e| e.kind == "species_reproduce")
+            .count()
+    };
+    let (usual_seed, mast_seed) = (seeds(&mut usual), seeds(&mut mast));
+    assert!(mast_seed > usual_seed * 2, "{mast_seed} vs {usual_seed}");
+    // Not in spring: trees are not fruiting.
+    assert!(world_with(4, oak())
+        .trigger_rare_event("mast_year")
+        .is_err());
+}
+
+#[test]
+fn a_superbloom_wakes_buried_seed() {
+    let mut usual = world_with(4, SpeciesDefinition::default());
+    usual.step(5).unwrap();
+    assert!(
+        usual.trigger_rare_event("superbloom").is_err(),
+        "needs a wet winter"
+    );
+    for (hex, habitat) in usual.components.habitats.iter_mut() {
+        usual.components.biomes.get_mut(hex).unwrap().moisture = 0.8;
+        habitat.seeds = (0..20)
+            .map(|_| Seed {
+                species_id: "common_grass".into(),
+                x: 0.5,
+                y: 0.5,
+                viability: 0.9,
+                maturity_ticks: 0,
+                extra: Default::default(),
+            })
+            .collect();
+    }
+    let mut bloom = usual.clone();
+    bloom.trigger_rare_event("superbloom").unwrap();
+    // Germination rate over two days, before the seed runs out.
+    usual.step(2).unwrap();
+    bloom.step(2).unwrap();
+    let (usual, bloom) = (births(&usual, "germination"), births(&bloom, "germination"));
+    assert!(bloom * 2 > usual * 3, "{bloom} vs {usual}");
+}
+
+#[test]
+fn a_migration_brings_butterflies_to_their_flowers() {
+    let mut meadow = with_fauna(
+        4,
+        clover(&["summer"], &["autumn"]),
+        vec![animal("blue", "clover", &["clover"], true)],
+    );
+    meadow.step(100).unwrap();
+    for climate in meadow.components.climates.values_mut() {
+        climate.temperature = 22.0;
+    }
+    meadow.trigger_rare_event("butterfly_migration").unwrap();
+    assert_eq!(rare(&meadow)[0]["species"], json!(["blue"]));
+    assert!(meadow
+        .components
+        .fauna
+        .values()
+        .any(|a| a.get("blue").copied().unwrap_or(0.0) >= 3.0));
+}
+
+#[test]
+fn a_downpour_leaves_a_pond_in_the_lowest_hex() {
+    let mut basin = world(8);
+    shape(&mut basin, |x, y| if (x, y) == (2, 0) { 0.0 } else { 0.8 });
+    basin.trigger_rare_event("temporary_pond").unwrap();
+    assert!(hex(&basin, 2, 0).standing_water >= 0.5);
+    assert_eq!(basin.events.last().unwrap().chunk_id, "chunk_2_0");
+}
+
+#[test]
+fn insects_can_cross_congeners_on_their_own() {
+    let (mut patch, hex_id) = bluebell_patch(5);
+    patch.step(10).unwrap();
+    assert!(
+        patch.trigger_rare_event("spontaneous_hybrid").is_err(),
+        "no insects yet"
+    );
+    let chunk = *patch.components.habitats.keys().next().unwrap();
+    patch
+        .set_fauna_definitions(vec![animal("bee", "native", &[], false)])
+        .unwrap();
+    patch
+        .components
+        .fauna
+        .insert(chunk, [("bee".to_owned(), 5.0)].into());
+    patch.trigger_rare_event("spontaneous_hybrid").unwrap();
+    assert_eq!(pollinated(&patch).len(), 1);
+    assert_eq!(patch.events.last().unwrap().chunk_id, hex_id);
+}
+
+#[test]
+fn ancient_seed_sprouts_a_species_the_map_lacks_on_bare_ground() {
+    let mut field = World::new(
+        Config {
+            master_seed: 4,
+            world_width: 5,
+            world_height: 5,
+            ..Config::default()
+        },
+        vec![],
+        vec![
+            SpeciesDefinition {
+                id: "clover".into(),
+                ..SpeciesDefinition::default()
+            },
+            SpeciesDefinition {
+                id: "fern".into(),
+                moisture_range: Range { min: 0.0, max: 1.0 },
+                ..SpeciesDefinition::default()
+            },
+        ],
+    )
+    .unwrap();
+    assert!(!field
+        .components
+        .organisms
+        .values()
+        .any(|o| o.species_id == "fern"));
+    field.trigger_rare_event("ancient_seed").unwrap();
+    assert_eq!(rare(&field)[0]["speciesId"], "fern");
+    assert!(field
+        .components
+        .organisms
+        .values()
+        .any(|o| o.species_id == "fern"));
+}
+
+#[test]
+fn rare_events_come_at_most_once_a_season_and_replay_exactly() {
+    let run = || {
+        let mut w = world(31);
+        let mut per_season = std::collections::BTreeMap::<u64, usize>::new();
+        for _ in 0..(8 * 360) {
+            w.step(1).unwrap();
+            for e in w.events.drain(..) {
+                if e.kind == "rare_event" {
+                    *per_season.entry(e.tick / 90).or_default() += 1;
+                }
+            }
+        }
+        per_season
+    };
+    let seasons = run();
+    assert!(!seasons.is_empty(), "eight years bring some");
+    assert!(seasons.values().all(|n| *n == 1));
+    assert!(seasons.len() < 32, "rare: not every season");
+    assert_eq!(seasons, run());
+}

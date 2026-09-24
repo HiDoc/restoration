@@ -403,6 +403,8 @@ impl World {
             })
             .collect();
         let mut announcements = BTreeSet::new();
+        // In a mast year the trees fruit together, far beyond their usual crop.
+        let mast = self.rare_effect("mast_year");
         let visits = self.fauna_service(|link| link.pollinates, 4.0);
         let dispersers = self.fauna_service(|link| link.disperses, 2.0);
         let mut offspring = vec![];
@@ -462,6 +464,11 @@ impl World {
             };
             // seedProduction 120 is the reference rate; species scale their output from it.
             reproduction.reserve += 0.075 * def.seed_production / 120.0
+                * if mast && def.category == "tree" {
+                    3.0
+                } else {
+                    1.0
+                }
                 * quality
                 * pollination
                 * (0.5 + trait_value(&organism.extra, "reproduction_vigor"))
@@ -534,7 +541,12 @@ impl World {
     pub(crate) fn germination_system(&mut self) {
         let days = self.days();
         let winter = self.season() == "winter";
-        let spring_boost = if self.season() == "spring" { 2.0 } else { 1.0 };
+        let spring_boost = if self.season() == "spring" { 2.0 } else { 1.0 }
+            * if self.rare_effect("superbloom") {
+                3.0
+            } else {
+                1.0
+            };
         let mut population = BTreeMap::<Entity, usize>::new();
         let mut conspecifics = BTreeMap::<(Entity, String), usize>::new();
         for (entity, organism) in &self.components.organisms {

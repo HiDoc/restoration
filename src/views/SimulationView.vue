@@ -442,6 +442,8 @@ import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
+import { describeRareEvent } from "@/game/rareEvents";
+import { EventType } from "@/simulation/EventJournal";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
@@ -621,6 +623,7 @@ function initializeWorld(carriedPouch?: unknown[]) {
   selected.value = null;
   extinctionGraceUntilTick = 50;
   extinction.triggered = extinction.acknowledged = false;
+  rareSeenUntil = -1;
   updateStats();
   initSpeciesSnapshot(engine.value.readChunks());
   seenWeather.clear();
@@ -689,6 +692,7 @@ function updateOnce() {
 function refreshView() {
   if (!engine.value) return;
   announce(knowledgeStore.observe(engine.value));
+  announceRareEvents(engine.value);
   evaluateProgress(engine.value.getCurrentTick());
   const chunks = engine.value.readChunks();
   updateStats();
@@ -1010,6 +1014,7 @@ function applySnapshot(snap: SimSnapshot) {
   resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
   extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
   extinction.triggered = extinction.acknowledged = false;
+  rareSeenUntil = -1;
   runtimeError.value = null;
   showChunkInspector.value = false;
   selectedChunkForInspection.value = null;
@@ -1043,6 +1048,18 @@ async function travel(siteId: string) {
   // Saved on arrival too, so the site's latest save holds the pouch the player carried in.
   await saveSnapshot();
   notify('icon-observe', `You arrive at ${profile.site.name}.`);
+}
+
+// Rare events already announced, by tick; a new world or a loaded one starts from its current day.
+let rareSeenUntil = -1;
+
+function announceRareEvents(sim: SimulationEngine) {
+  const tick = sim.getCurrentTick();
+  if (rareSeenUntil < 0) rareSeenUntil = tick;
+  for (const event of sim.getEventJournal().getEventsByType(EventType.RARE_EVENT)) {
+    if (event.tick > rareSeenUntil) notify('icon-vitality', describeRareEvent(event.data, id => speciesInfo(id).name));
+  }
+  rareSeenUntil = tick;
 }
 
 /** Survey the site each displayed tick and tell the player when it reaches a stage. */
@@ -1183,6 +1200,7 @@ const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
   arrival: 'icon-pollinators',
   interaction: 'icon-diversity',
   corridor: 'icon-restore',
+  rare: 'icon-vitality',
   flower: 'icon-plants',
   seed: 'icon-diversity',
   spread: 'icon-vitality',

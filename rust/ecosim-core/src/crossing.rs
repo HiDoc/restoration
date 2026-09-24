@@ -70,6 +70,51 @@ fn blend(id: String, parents: &[&SpeciesDefinition], hybrid_of: Vec<String>) -> 
 }
 
 impl World {
+    /// Place donor pollen on the first unpollinated flowering receiver in a hex: its seed this bloom is hybrid.
+    /// Only different species of one genus cross, and both must be in flower there.
+    pub(crate) fn pollinate(
+        &mut self,
+        chunk: Entity,
+        receiver: &str,
+        donor: &str,
+    ) -> Result<(), String> {
+        let genus = |id: &str| self.definitions.get(id).map_or("", |d| d.genus.as_str());
+        if receiver == donor {
+            return Err("A species cannot be crossed with itself".into());
+        }
+        if genus(receiver).is_empty() || genus(receiver) != genus(donor) {
+            return Err("Too distant to cross: only plants of one genus can".into());
+        }
+        let flowering = |species: &str, open: bool| {
+            self.components
+                .organisms
+                .iter()
+                .find_map(|(entity, organism)| {
+                    let reproduction = &self.components.reproduction[entity];
+                    (self.components.positions[entity].chunk == chunk
+                        && organism.species_id == species
+                        && reproduction.stage == "flowering"
+                        && (!open || reproduction.pollen.is_none()))
+                    .then_some(*entity)
+                })
+        };
+        let mother = flowering(receiver, true)
+            .ok_or(format!("No unpollinated {receiver} is in flower here"))?;
+        let father = flowering(donor, false).ok_or(format!("No {donor} is in flower here"))?;
+        let genetics = self.components.organisms[&father]
+            .extra
+            .get("genetics")
+            .cloned()
+            .unwrap_or(Value::Null);
+        let bloom = self.components.reproduction.get_mut(&mother).unwrap();
+        bloom.pollinated = 1.0;
+        bloom.pollen = Some(Pollen {
+            species_id: donor.to_owned(),
+            genetics,
+        });
+        Ok(())
+    }
+
     /// The species and genetics of a seed a plant sets: its own, or hybrid if the player placed pollen on it.
     pub(crate) fn seed_of(
         &mut self,

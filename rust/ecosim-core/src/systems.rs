@@ -1,18 +1,6 @@
-use crate::{crossing::default_genetics, model::*, world::World};
+use crate::{genetics::trait_value, model::*, world::World};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
-
-fn trait_value(extra: &BTreeMap<String, Value>, id: &str) -> f64 {
-    extra
-        .get("genetics")
-        .and_then(|g| g.get("traits"))
-        .and_then(|t| t.get("__ecosimMap"))
-        .and_then(Value::as_array)
-        .and_then(|entries| entries.iter().find(|entry| entry[0] == id))
-        .and_then(|entry| entry[1]["value"].as_f64())
-        .unwrap_or(0.5)
-        .clamp(0.0, 1.0)
-}
 
 /// How much a full step of height (0 to 1) raises water's head, in moisture units.
 const RELIEF: f64 = 0.3;
@@ -196,7 +184,6 @@ impl World {
             *populations.entry(position.chunk).or_default() += 1;
         }
         let mut dead = vec![];
-        let mut adaptations = vec![];
         for (entity, organism) in &self.components.organisms {
             let position = &self.components.positions[entity];
             let biome = &self.components.biomes[&position.chunk];
@@ -265,7 +252,6 @@ impl World {
             let efficiency = 0.6 + trait_value(&organism.extra, "growth_efficiency") * 0.8;
             let suitability =
                 (1.0 - stress).max(0.0) * growth.health * (0.3 + biome.soil * 0.7) * nutrient;
-            adaptations.push((*entity, suitability.clamp(0.0, 1.0)));
             let growth_rate = def.growth_rate
                 * 0.025
                 * efficiency
@@ -300,20 +286,6 @@ impl World {
                 ));
             }
         }
-        for (entity, adaptation) in adaptations {
-            if let Some(genetics) = self
-                .components
-                .organisms
-                .get_mut(&entity)
-                .unwrap()
-                .extra
-                .get_mut("genetics")
-            {
-                if genetics.is_object() {
-                    genetics["adaptationScore"] = json!(adaptation);
-                }
-            }
-        }
         for (entity, chunk, species, cause, biomass, age) in dead {
             self.components
                 .biomes
@@ -327,60 +299,6 @@ impl World {
             );
             self.despawn(entity);
         }
-    }
-
-    pub(crate) fn inherit_genetics(&mut self, extra: &BTreeMap<String, Value>) -> Value {
-        let mut genetics = extra
-            .get("genetics")
-            .filter(|value| value.is_object())
-            .cloned()
-            .unwrap_or_else(default_genetics);
-        let generation = genetics["generation"]
-            .as_u64()
-            .unwrap_or(0)
-            .saturating_add(1);
-        genetics["generation"] = json!(generation);
-        let mut changes = vec![];
-        if let Some(traits) = genetics["traits"]["__ecosimMap"].as_array_mut() {
-            for entry in traits {
-                if !entry.is_array()
-                    || entry.as_array().is_none_or(|array| array.len() != 2)
-                    || !entry[1].is_object()
-                {
-                    continue;
-                }
-                if self.rng.sample()
-                    < entry[1]["mutationRate"]
-                        .as_f64()
-                        .unwrap_or(0.08)
-                        .clamp(0.0, 1.0)
-                {
-                    let before = entry[1]["value"].as_f64().unwrap_or(0.5);
-                    let after = (before + (self.rng.sample() - 0.5) * 0.24).clamp(0.0, 1.0);
-                    entry[1]["value"] = json!(after);
-                    changes.push(json!(format!(
-                        "{}:{before:.3}->{after:.3}",
-                        entry[0].as_str().unwrap_or("trait")
-                    )));
-                }
-            }
-        }
-        let history = genetics["mutations"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        genetics["mutations"] = Value::Array(
-            history
-                .into_iter()
-                .chain(changes)
-                .rev()
-                .take(24)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect(),
-        );
-        genetics
     }
 
     pub(crate) fn reproduction_system(&mut self) {
@@ -479,7 +397,7 @@ impl World {
                     position.chunk,
                     position.x,
                     position.y,
-                    organism.species_id.clone(),
+                    (organism.species_id.clone(), organism.id.clone()),
                     def.seed_maturity_ticks,
                     def.dispersal_range,
                     organism.extra.clone(),
@@ -496,7 +414,7 @@ impl World {
         for (chunk, species, event) in announcements {
             self.emit(event, chunk, json!({ "speciesId": species }));
         }
-        for (chunk, x, y, mother, maturity, dispersal, extra, pollen) in offspring {
+        for (chunk, x, y, (mother, mother_id), maturity, dispersal, extra, pollen) in offspring {
             let mut target = chunk;
             // Fruit-eating birds carry seed out of the patch.
             let carried = dispersers
@@ -515,7 +433,7 @@ impl World {
             if self.components.habitats[&target].seeds.len() >= 128 {
                 continue;
             }
-            let (species, genetics) = self.seed_of(&mother, &extra, pollen.as_ref());
+            let (species, genetics) = self.seed_of(&mother, &mother_id, &extra, pollen.as_ref());
             let seed_extra = BTreeMap::from([("genetics".to_owned(), genetics)]);
             self.components
                 .habitats
@@ -599,9 +517,8 @@ impl World {
         }
         for (chunk, seed) in births {
             let id = self.spawn(chunk, &seed.species_id, seed.x, seed.y, 0.08);
-            if !seed.extra.is_empty() {
-                self.components.organisms.get_mut(&id).unwrap().extra = seed.extra;
-            }
+            let extra = self.seed_record(seed.extra);
+            self.components.organisms.get_mut(&id).unwrap().extra = extra;
             self.emit("species_spawn",chunk,json!({"speciesId":seed.species_id,"instanceId":self.components.organisms[&id].id,"source":"germination"}));
         }
     }

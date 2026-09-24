@@ -188,7 +188,9 @@ impl World {
             for _ in 0..3 {
                 let x = self.rng.sample();
                 let y = self.rng.sample();
-                self.spawn(entity, &species, x, y, 0.15);
+                let id = self.spawn(entity, &species, x, y, 0.15);
+                let extra = self.seed_record(BTreeMap::new());
+                self.components.organisms.get_mut(&id).unwrap().extra = extra;
             }
         }
         Ok(())
@@ -297,6 +299,8 @@ impl World {
                     .and_then(|value| serde_json::from_value(value).ok());
                 // The limit is derived each tick; a projected copy must not settle into the plant's record.
                 plant.extra.remove("limit");
+                // Plants the host adds (a site's starting plants) are founders.
+                let extra = self.seed_record(std::mem::take(&mut plant.extra));
                 let age_days = plant
                     .extra
                     .get("ageDays")
@@ -321,7 +325,7 @@ impl World {
                     Organism {
                         id: plant.id,
                         species_id: plant.species_id,
-                        extra: plant.extra,
+                        extra,
                     },
                 );
                 self.components.growth.insert(
@@ -345,6 +349,8 @@ impl World {
                 );
             }
         }
+        // Plants and seeds from the host or an old save may carry the older genetics format.
+        self.compact_genetics();
         Ok(())
     }
 
@@ -501,7 +507,8 @@ impl World {
                     .ok_or("No seeds of that species")?;
                 let seed = self.inventory.remove(index);
                 let id = self.spawn(chunk, species, command.x, command.y, 0.2);
-                self.components.organisms.get_mut(&id).unwrap().extra = seed.extra;
+                let extra = self.seed_record(seed.extra);
+                self.components.organisms.get_mut(&id).unwrap().extra = extra;
             }
             "collect" => {
                 // Seed is taken from the ripe plants themselves; each gives the seed it has been ripening.
@@ -531,8 +538,13 @@ impl World {
                     bloom.reserve = 0.0;
                     let pollen = bloom.pollen.clone();
                     let organism = &self.components.organisms[&entity];
-                    let (mother, parent) = (organism.species_id.clone(), organism.extra.clone());
-                    let (species, genetics) = self.seed_of(&mother, &parent, pollen.as_ref());
+                    let (mother, mother_id, parent) = (
+                        organism.species_id.clone(),
+                        organism.id.clone(),
+                        organism.extra.clone(),
+                    );
+                    let (species, genetics) =
+                        self.seed_of(&mother, &mother_id, &parent, pollen.as_ref());
                     *counts.entry(species.clone()).or_default() += 1;
                     self.inventory
                         .push(pouch_seed(species, [("genetics".into(), genetics)].into()));

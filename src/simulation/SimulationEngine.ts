@@ -10,7 +10,6 @@ import { WorldChunk, PhenologyStage, SpeciesInstance } from './WorldChunk';
 import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
-import { GeneticSystem, GeneticProfile } from './GeneticSystem';
 import { InterventionManager, type InterventionType } from './InterventionManager';
 
 // Animals come from the same catalogue as the plants.
@@ -26,6 +25,8 @@ export interface SimulationConfig {
   seasonLengthTicks?: number; // Ticks per season (quarter year)
   // Time scale: minutes of simulated time per engine tick (default 1440 = 1 day)
   timePerTickMinutes?: number;
+  /** The restoration site this world is; the engine records it on the seed plants set. */
+  site?: string;
   // Legacy diagnostics settings. They never skip ecological updates in Rust.
   updateBudgetMs?: number;
   chunksPerTick?: number;
@@ -62,14 +63,10 @@ export class SimulationEngine {
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   // Genetics management
-  private geneticSystem: GeneticSystem;
 
   // Intervention management (for player actions with costs/cooldowns)
   public interventionManager?: InterventionManager;
 
-  private masterGenomes: Map<string, GeneticProfile> = new Map();
-  private pendingMasterGenomes: Map<string, GeneticProfile> = new Map();
-  private selectedSeeds: Map<string, string> = new Map(); // speciesId -> seedId for next year
   // Seeding controls for center area
   private readonly centerSeedAreaRadius: number = 1; // 3x3 chunks
   private readonly centerSeedsPerChunk: number = 3;
@@ -88,9 +85,6 @@ export class SimulationEngine {
   private simTimeDays: number = 0;
   private timePerTickMinutes: number = 1440;
   private yearLengthDays: number;
-  private currentYearIndex: number = 0;
-  private lastYearEndCheck: number = 0; // Track last year we checked for seed selection
-  private yearEndCallbacks: Array<(year: number) => void> = [];
   private tickCallbacks: Array<(tick: number) => void> = [];
 
   // Performance monitoring
@@ -146,7 +140,6 @@ export class SimulationEngine {
     // Initialize core systems
     this.rngManager = RNGManager.create(config.masterSeed);
     this.eventJournal = new EventJournal(() => this.currentTick);
-    this.geneticSystem = new GeneticSystem(this.rngManager);
 
     // Initialize world chunks
     this.initializeWorld();
@@ -298,13 +291,6 @@ export class SimulationEngine {
           reproductiveUrge: 0,
           lastReproductionAttempt: 0,
         };
-        // Initialize varied genetics for diversity at start
-        try {
-          const base = this.geneticSystem.initializeGenetics(def)
-          const stress = rng.nextFloat(0, 0.2)
-          const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1)
-          ;(inst as any).genetics = mutated.genetics
-        } catch {}
         chunk.addSpecies(inst);
       }
     });
@@ -358,183 +344,11 @@ export class SimulationEngine {
             reproductiveOutput: 0,
             reproductiveUrge: 0,
             lastReproductionAttempt: 0,
-            genetics: undefined as any,
           };
-          const base = this.geneticSystem.initializeGenetics(grass);
-          const stress = rng.nextFloat(0, 0.15);
-          const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1);
-          inst.genetics = mutated.genetics;
           chunk.addSpecies(inst);
         }
       }
     });
-  }
-
-  /**
-   * Clone a genetic profile for sharing between individuals
-   */
-  private cloneGenome(original: GeneticProfile): GeneticProfile {
-    return {
-      traits: new Map(Array.from(original.traits, ([id, trait]) => [id, { ...trait }])),
-      generation: original.generation,
-      mutations: [...original.mutations],
-      adaptationScore: original.adaptationScore
-    };
-  }
-
-  /**
-   * Select a seed for the next year cycle from available common_grass individuals
-   */
-  selectSeedForNextYear(speciesId: string, seedInstanceId: string): boolean {
-    // Find the instance to use as seed
-    let seedInstance: SpeciesInstance | null = null;
-    for (const chunk of this.chunks.values()) {
-      const instance = Array.from(chunk.species.values()).find(s => s.id === seedInstanceId && s.speciesId === speciesId);
-      if (instance) {
-        seedInstance = instance;
-        break;
-      }
-    }
-
-    if (!seedInstance) {
-      return false;
-    }
-
-    // Determine genome to set: use seed genetics if present; otherwise initialize from species def
-    let genome: GeneticProfile | undefined = seedInstance.genetics
-    if (!genome) {
-      try {
-        const def = SpeciesRegistry.getInstance().getSpecies(speciesId as any)
-        if (def) {
-          const base = this.geneticSystem.initializeGenetics(def)
-          const mutated = this.geneticSystem.applyMutations(base, 0.1, base.generation + 1)
-          genome = mutated.genetics
-        }
-      } catch {}
-    }
-    if (!genome) return false
-
-    // Store pending master genome to apply at year boundary
-    this.pendingMasterGenomes.set(speciesId, this.cloneGenome(genome));
-    this.selectedSeeds.set(speciesId, seedInstanceId);
-
-    // Record the selection event
-    this.eventJournal.recordEvent(EventType.SEED_SELECTION, {
-      type: 'seed_selection',
-      speciesId,
-      seedInstanceId,
-      genetics: seedInstance.genetics,
-      tick: this.currentTick
-    });
-
-    return true;
-  }
-
-  /** Apply pending master genomes at year boundary and clear selections. */
-  private applyPendingSelectionsAtYearBoundary(newYearIndex: number): void {
-    // YEAR_END event for previous year
-    this.eventJournal.recordEvent(EventType.YEAR_END, { yearIndex: this.currentYearIndex });
-    this.commitYearEndSelections();
-    // YEAR_START event for new year
-    this.eventJournal.recordEvent(EventType.YEAR_START, { yearIndex: newYearIndex });
-  }
-
-  /** Commit the selection made by the paused year-end dialog to this new year. */
-  commitYearEndSelections(): void {
-    // Apply pending genomes
-    const toSeed: string[] = []
-    this.pendingMasterGenomes.forEach((profile, speciesId) => {
-      this.masterGenomes.set(speciesId, this.cloneGenome(profile))
-      toSeed.push(speciesId)
-    })
-    // Replace seeds in center 3x3 area for each selected species
-    toSeed.forEach((speciesId) => {
-      this.seedCenterArea(speciesId, { clearExistingSpeciesSeeds: true, maturityTicks: 1, viability: 1.0, seedsPerChunk: this.centerSeedsPerChunk, applyMasterToExisting: true })
-    })
-    this.pendingMasterGenomes.clear()
-    this.selectedSeeds.clear()
-    this.syncRuntime();
-  }
-
-  /**
-   * Get all available common_grass instances for seed selection
-   */
-  getAvailableSeeds(speciesId: string): Array<{
-    instance: SpeciesInstance;
-    chunkId: string;
-    adaptationScore: number;
-  }> {
-    const candidates: Array<{
-      instance: SpeciesInstance;
-      chunkId: string;
-      adaptationScore: number;
-    }> = [];
-
-    for (const chunk of this.chunks.values()) {
-      chunk.species.forEach(instance => {
-        if (instance.speciesId === speciesId && instance.genetics) {
-          candidates.push({
-            instance,
-            chunkId: chunk.id,
-            adaptationScore: instance.genetics.adaptationScore
-          });
-        }
-      });
-    }
-
-    // Sort by adaptation score (best first)
-    return candidates.sort((a, b) => b.adaptationScore - a.adaptationScore);
-  }
-
-  /**
-   * Get the current master genome for a species
-   */
-  getMasterGenome(speciesId: string): GeneticProfile | undefined {
-    return this.masterGenomes.get(speciesId);
-  }
-
-  /**
-   * Get information about currently selected seeds
-   */
-  getSelectedSeeds(): Map<string, string> {
-    return new Map(this.selectedSeeds);
-  }
-
-  /**
-   * Check if a year has ended and trigger callbacks
-   */
-  private checkYearEnd(): void {
-    const yearLen = this.yearLengthDays > 0 ? this.yearLengthDays : 365
-    const currentYear = Math.floor(this.simTimeDays / yearLen);
-    if (currentYear > this.lastYearEndCheck) {
-      this.lastYearEndCheck = currentYear;
-      
-      // Trigger all year-end callbacks
-      this.yearEndCallbacks.forEach(callback => {
-        try {
-          callback(currentYear);
-        } catch (error) {
-          console.error('Error in year-end callback:', error);
-        }
-      });
-    }
-  }
-
-  /**
-   * Register a callback to be called at the end of each year
-   */
-  onYearEnd(callback: (year: number) => void): void {
-    this.yearEndCallbacks.push(callback);
-  }
-
-  /**
-   * Remove a year-end callback
-   */
-  removeYearEndCallback(callback: (year: number) => void): void {
-    const index = this.yearEndCallbacks.indexOf(callback);
-    if (index > -1) {
-      this.yearEndCallbacks.splice(index, 1);
-    }
   }
 
   /**
@@ -583,21 +397,15 @@ export class SimulationEngine {
     this.pause();
     this.currentTick = 0;
     this.simTimeDays = 0;
-    this.currentYearIndex = 0;
-    this.lastYearEndCheck = 0;
     this.projectionStale = false;
     this.projectionEdited = false;
     this.chunks.clear();
     this.activeChunks.clear();
-    this.masterGenomes.clear();
-    this.pendingMasterGenomes.clear();
-    this.selectedSeeds.clear();
     this.eventJournal.clear();
     this.updateTimes = [];
     this.lastUpdatedChunks = 0;
     this.scheduledLimit = 0;
     this.rngManager = RNGManager.create(this.config.masterSeed);
-    this.geneticSystem = new GeneticSystem(this.rngManager);
     // Keep store references alive while resetting their gameplay state.
     if (this.interventionManager) {
       const previous = this.interventionManager.exportState();
@@ -631,13 +439,6 @@ export class SimulationEngine {
     // edits explicitly, without advancing RNG, before the authoritative ECS step.
     this.syncRuntime();
     this.applyRuntimeResponse(this.runtime.request({ op: 'step', ticks: 1, snapshot: this.mutableAccess }));
-    const newYearIndex = Math.floor(this.simTimeDays / this.yearLengthDays);
-    if (newYearIndex > this.currentYearIndex) {
-      this.applyPendingSelectionsAtYearBoundary(newYearIndex);
-      this.currentYearIndex = newYearIndex;
-      this.syncRuntime();
-    }
-    this.checkYearEnd();
     // Chunk count is fixed by the world size; reading it must not pull a snapshot.
     this.lastUpdatedChunks = this.projection.size;
     this.scheduledLimit = this.projection.size;
@@ -683,7 +484,6 @@ export class SimulationEngine {
           reproductiveOutput: 0,
           reproductiveUrge: 0,
           lastReproductionAttempt: 0,
-          genetics: this.geneticSystem.initializeGenetics(def),
         });
       }
     }
@@ -692,7 +492,7 @@ export class SimulationEngine {
   /** Seed center 3x3 area with seeds of a species */
   private seedCenterArea(
     speciesId: string,
-    opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number; applyMasterToExisting?: boolean }
+    opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number }
   ): void {
     this.projectionEdited = true
     const chunks = this.getCenterAreaChunks(this.centerSeedAreaRadius)
@@ -705,17 +505,6 @@ export class SimulationEngine {
         const bank = (chunk as any).seedBank || []
         ;(chunk as any).seedBank = bank.filter((s: any) => s.speciesId !== speciesId)
       }
-      // Optionally align existing individuals with master genome in this area
-      if (opts?.applyMasterToExisting) {
-        const master = this.getMasterGenome(speciesId)
-        if (master) {
-          chunk.species.forEach((inst) => {
-            if (inst.speciesId === speciesId) {
-              ;(inst as any).genetics = this.cloneGenome(master)
-            }
-          })
-        }
-      }
       for (let i = 0; i < seedsPerChunk; i++) {
         chunk.addSeed({
           speciesId,
@@ -723,7 +512,6 @@ export class SimulationEngine {
           y: rng.nextFloat(0.2, 0.8),
           viability,
           maturityTicks: maturity,
-          genetics: this.masterGenomes.has(speciesId) ? this.cloneGenome(this.masterGenomes.get(speciesId)!) : undefined,
         })
       }
     })
@@ -989,7 +777,7 @@ export class SimulationEngine {
    */
   exportState(): any {
     this.syncRuntime();
-    // Export a detached JSON-safe value, including genetic trait Maps.
+    // Export a detached JSON-safe value.
     return JSON.parse(encodeSimulationState({
       schemaVersion: 2,
       backend: 'rust-ecs',
@@ -997,15 +785,10 @@ export class SimulationEngine {
       currentTick: this.currentTick,
       simTimeDays: this.simTimeDays,
       timePerTickMinutes: this.timePerTickMinutes,
-      currentYearIndex: this.currentYearIndex,
-      lastYearEndCheck: this.lastYearEndCheck,
       chunks: Array.from(this.chunks.entries()).map(([id, chunk]) => [id, chunk.exportState()]),
       activeChunks: Array.from(this.activeChunks).sort(),
       rngState: this.rngManager.exportState(),
       eventJournal: this.eventJournal.exportToJSON(),
-      masterGenomes: this.masterGenomes,
-      pendingMasterGenomes: this.pendingMasterGenomes,
-      selectedSeeds: this.selectedSeeds,
       interventionState: this.interventionManager?.exportState(),
       rustState: this.runtime.request({ op: 'export' }).state
     }));
@@ -1060,17 +843,6 @@ export class SimulationEngine {
       rng.importState(state.rngState);
       if (rng.generateStateHash() !== state.rngState.stateHash) throw new Error('Invalid saved random generator state');
     }
-    const geneticSystem = new GeneticSystem(rng);
-    const masterGenomes = state.masterGenomes ?? new Map();
-    const pendingMasterGenomes = state.pendingMasterGenomes ?? new Map();
-    const selectedSeeds = state.selectedSeeds ?? new Map();
-    if (![masterGenomes, pendingMasterGenomes, selectedSeeds].every(value => value instanceof Map)) throw new Error('Invalid saved seed selection');
-    for (const profile of [...masterGenomes.values(), ...pendingMasterGenomes.values()]) {
-      if (!(profile?.traits instanceof Map) || !Array.isArray(profile.mutations)) throw new Error('Invalid saved genetics');
-    }
-    const yearIndex = Math.floor(response.snapshot.simTimeDays / (config.seasonLengthTicks * 4));
-    const lastYearEndCheck = state.lastYearEndCheck ?? yearIndex;
-    if (!Number.isSafeInteger(lastYearEndCheck) || lastYearEndCheck < 0) throw new Error('Invalid saved year');
     if (state.eventJournal) {
       const journal = JSON.parse(state.eventJournal);
       if (!Array.isArray(journal.events)) throw new Error('Invalid saved event journal');
@@ -1086,13 +858,7 @@ export class SimulationEngine {
     this.timePerTickMinutes = minutes;
     this.yearLengthDays = config.seasonLengthTicks * 4;
     this.targetDeltaTime = 1000 / config.tickRate;
-    this.currentYearIndex = yearIndex;
-    this.lastYearEndCheck = lastYearEndCheck;
     this.rngManager = rng;
-    this.geneticSystem = geneticSystem;
-    this.masterGenomes = masterGenomes;
-    this.pendingMasterGenomes = pendingMasterGenomes;
-    this.selectedSeeds = selectedSeeds;
     this.activeChunks = activeChunks;
     this.applyRuntimeResponse(response);
     this.eventJournal.clear();
@@ -1260,11 +1026,6 @@ export class SimulationEngine {
     const text = encodeSimulationState({
       rustState: this.runtime.request({ op: 'export' }).state,
       rngState: this.rngManager.exportState(),
-      masterGenomes: this.masterGenomes,
-      pendingMasterGenomes: this.pendingMasterGenomes,
-      selectedSeeds: this.selectedSeeds,
-      currentYearIndex: this.currentYearIndex,
-      lastYearEndCheck: this.lastYearEndCheck
     });
     let hash = 2166136261;
     for (let index = 0; index < text.length; index++) hash = Math.imul(hash ^ text.charCodeAt(index), 16777619);

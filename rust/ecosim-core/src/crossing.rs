@@ -1,16 +1,11 @@
 //! Hand pollination between species of one genus: hybrid seed, hybrid genetics and the hybrid taxon.
-use crate::{model::*, world::World};
-use serde_json::{json, Value};
+use crate::{
+    genetics::{genetics_of, Genetics},
+    model::*,
+    world::World,
+};
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
-
-fn trait_values(genetics: &Value) -> BTreeMap<String, f64> {
-    genetics["traits"]["__ecosimMap"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| Some((entry[0].as_str()?.to_owned(), entry[1]["value"].as_f64()?)))
-        .collect()
-}
 
 fn mean(values: impl Iterator<Item = f64>) -> f64 {
     let (sum, count) = values.fold((0.0, 0.0), |(sum, count), value| (sum + value, count + 1.0));
@@ -106,54 +101,35 @@ impl World {
             .get("genetics")
             .cloned()
             .unwrap_or(Value::Null);
+        let donor_id = self.components.organisms[&father].id.clone();
         let bloom = self.components.reproduction.get_mut(&mother).unwrap();
         bloom.pollinated = 1.0;
         bloom.pollen = Some(Pollen {
             species_id: donor.to_owned(),
             genetics,
+            donor: donor_id,
         });
         Ok(())
     }
 
-    /// The species and genetics of a seed a plant sets: its own, or hybrid if the player placed pollen on it.
+    /// The species and genetics of a seed a plant sets: its own, or hybrid if pollen was placed on it.
     pub(crate) fn seed_of(
         &mut self,
         species: &str,
+        mother_id: &str,
         mother: &BTreeMap<String, Value>,
         pollen: Option<&Pollen>,
     ) -> (String, Value) {
+        let mother_genetics = genetics_of(mother);
         let Some(pollen) = pollen else {
-            return (species.to_owned(), self.inherit_genetics(mother));
+            let genetics = self.offspring_genetics(mother_id, &mother_genetics, None);
+            return (species.to_owned(), genetics);
         };
         let hybrid = self.hybrid_species(species, &pollen.species_id);
-        let mut crossed = mother.clone();
-        crossed.insert(
-            "genetics".into(),
-            self.cross_genetics(mother, &pollen.genetics),
-        );
-        (hybrid, self.inherit_genetics(&crossed))
-    }
-
-    /// Each trait lands somewhere between the two parents' values; mutation follows in `inherit_genetics`.
-    fn cross_genetics(&mut self, mother: &BTreeMap<String, Value>, father: &Value) -> Value {
-        let mut child = mother
-            .get("genetics")
-            .filter(|genetics| genetics.is_object())
-            .cloned()
-            .unwrap_or_else(default_genetics);
-        let paternal = trait_values(father);
-        if let Some(traits) = child["traits"]["__ecosimMap"].as_array_mut() {
-            for entry in traits {
-                let (Some(id), Some(own)) = (entry[0].as_str(), entry[1]["value"].as_f64()) else {
-                    continue;
-                };
-                let other = paternal.get(id).copied().unwrap_or(0.5);
-                entry[1]["value"] = json!(own + (other - own) * self.rng.sample());
-            }
-        }
-        let generation = |g: &Value| g["generation"].as_u64().unwrap_or(0);
-        child["generation"] = json!(generation(&child).max(generation(father)));
-        child
+        let father = Genetics::read(&pollen.genetics).unwrap_or_default();
+        let genetics =
+            self.offspring_genetics(mother_id, &mother_genetics, Some((&pollen.donor, &father)));
+        (hybrid, genetics)
     }
 
     /// The hybrid taxon of two species, created on first use. It is named by the non-hybrid species it
@@ -205,21 +181,4 @@ impl World {
             }
         }
     }
-}
-
-/// Genetics of a plant that has never been bred: every trait at the midpoint.
-pub(crate) fn default_genetics() -> Value {
-    let traits: Vec<_> = [
-        "drought_tolerance",
-        "cold_resistance",
-        "growth_efficiency",
-        "reproduction_vigor",
-        "nutrient_efficiency",
-        "light_sensitivity",
-        "competition_aggression",
-    ]
-    .iter()
-    .map(|id| json!([id,{"id":id,"name":id,"value":0.5,"baseValue":0.5,"mutationRate":0.08,"variance":0.2,"dominance":0.7,"beneficial":true}]))
-    .collect();
-    json!({"traits":{"__ecosimMap":traits},"generation":0,"mutations":[],"adaptationScore":0.5})
 }

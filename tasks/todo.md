@@ -133,7 +133,7 @@ freeze for ~12 s. Rust's ecology plus serialization is ~6 ms; the rest is the fu
 A read still costs Rust serializing a 7.4 MB snapshot (~17 ms) plus JSON parsing (~27 ms), and in the browser
 the view holds the engine in a deep Vue `ref`, so every engine/chunk access goes through reactive proxies (a
 refresh is ~66 ms there). Follow-ups:
-- [ ] Compact genetics (7 trait objects repeating static fields plus mutation history, per plant and seed) when
+- [x] (C0.) Compact genetics (7 trait objects repeating static fields plus mutation history, per plant and seed) when
       A6 reworks genetics for two-parent crossing; that is most of the 7.4 MB.
 - [ ] Hold the engine in `shallowRef` and re-render the map from an explicit world-version signal. The deep
       proxy is currently what triggers hex re-renders, so this needs its own change.
@@ -176,7 +176,7 @@ Follow-ups found in A1:
       Hawthorn) should be the default start. Belongs with the slice scenario.
 - [x] (Removed in A6.) Legacy predetermined hybrids (Purifier Moss etc.) still name invented parents; the Modify intervention uses
       them. Remove with A6.
-- [ ] The Recent Events list misses births during a time-lapse (it diffs species per refresh, not per tick);
+- [x] (C0.) The Recent Events list misses births during a time-lapse (it diffs species per refresh, not per tick);
       rebuild it from journal events with the knowledge store (A4).
 
 ### A2. Fauna that emerges
@@ -256,7 +256,7 @@ year-end copy, diffusion/death-cause singles). In the browser: toasts on discove
 Codex tabs with `?` slots and the link graph.
 Follow-ups found in A4:
 - [ ] The graph is two columns of names; with many links it needs grouping or a force layout.
-- [ ] Toasts do not link to the Codex entry they announce.
+- [x] (C0: they open the Codex on the right tab.) Toasts do not link to the Codex entry they announce.
 
 ### A5. Collect and plant
 Seeds are the only currency. Points, daily income and intervention costs go; cooldowns stay on the
@@ -490,17 +490,24 @@ below. Two rules for every activity: it takes 10–60 s of real time with the si
 reveals knowledge the player then holds (estimates and words), not the engine's raw values.
 
 ### C0. Foundations
-- [ ] **Compact genetics** (the A0.5 follow-up): Rust genetics become `{traits: {id: value}, generation,
+- [x] **Compact genetics** (the A0.5 follow-up): Rust genetics become `{traits: {id: value}, generation,
       parents}` instead of seven objects repeating static fields plus a mutation log. Keep the five traits the
       engine uses (drought tolerance, cold resistance, growth efficiency, reproductive vigour, nutrient
       efficiency) and drop the two it never reads. Old saves convert on load. Expected: the snapshot shrinks
       several-fold, and ticks that read the world get faster.
-- [ ] **Retire the year-end selection:** `YearEndSeedSelection`, the engine's master/pending genomes and
+- [x] **Retire the year-end selection:** `YearEndSeedSelection`, the engine's master/pending genomes and
       selected seeds, the TS `GeneticSystem`, and their tests (`yearend_workflow`, `engine_year_end_*`,
       `vegetation_master_genome_germination`, `genetic_mutation_coverage`). Seasons no longer stop at day 360.
-- [ ] **Provenance:** a seed records its mother, father (if crossed) and the site it was collected on.
-- [ ] **Follow-up sweep:** the Recent Events list rebuilt from journal events (it misses births during a
+- [x] **Provenance:** a seed records its mother, father (if crossed) and the site it was collected on.
+- [x] **Follow-up sweep:** the Recent Events list rebuilt from journal events (it misses births during a
       time-lapse); toasts link to their Codex entry.
+      Done (2026-09-24). Found while measuring: since A0 every plant's traits reached Rust as `{}` (the TS
+      genome kept traits in a `Map`, which JSON turns into an empty object), so all plants had ordinary traits
+      and nothing heritable varied; only the mutation log grew. Now founders get slightly varied traits from
+      the seeded RNG and seeds inherit real values. A plant's record is therefore larger than the old empty one
+      (≈640 vs ≈440 bytes in the projection; a snapshot takes ~2 ms either way), so the planned size saving
+      does not apply. Rare events can be switched off per world (`rareEvents`) so each mechanic's Rust test
+      runs without them. Full suite: 184 passed, 0 failed.
 
 ### C1. Individuals: mark & revisit ★
 - [ ] Rust: a plant can be *tagged*: it keeps a short id (#A17), and the engine records its seeds set,

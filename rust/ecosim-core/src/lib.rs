@@ -1,6 +1,7 @@
 //! Authoritative, deterministic ECS kernel. The browser only schedules whole ticks and projects snapshots.
 mod connectivity;
 mod crossing;
+pub mod genetics;
 pub mod model;
 mod projection;
 mod rare_events;
@@ -44,8 +45,9 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
             .unwrap_or(initialized.tick * initialized.config.time_per_tick_minutes);
         *world = Some(initialized);
     } else if op == "import" {
-        let imported: World =
+        let mut imported: World =
             serde_json::from_value(request["state"].clone()).map_err(|e| e.to_string())?;
+        imported.compact_genetics();
         imported.validate_state()?;
         *world = Some(imported);
     }

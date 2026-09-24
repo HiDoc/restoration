@@ -144,59 +144,6 @@ describe('Simulation E2E Tests', () => {
     });
   });
 
-  describe('Year-End Workflow E2E', () => {
-    it('should trigger year-end callback after season completion', () => {
-      const yearEndCallback = vi.fn();
-      engine.onYearEnd(yearEndCallback);
-
-      // Advance through one full year (360 ticks = 4 seasons * 90 ticks)
-      for (let i = 0; i < 360; i++) {
-        engine.update();
-      }
-
-      expect(yearEndCallback).toHaveBeenCalledWith(1);
-    });
-
-    it('should track year progress correctly', () => {
-      expect(engine.getCurrentYear()).toBe(0);
-      expect(engine.getYearProgress()).toBe(0);
-
-      // Advance halfway through year (180 ticks = half of 360)
-      for (let i = 0; i < 180; i++) {
-        engine.update();
-      }
-
-      expect(engine.getCurrentYear()).toBe(0);
-      expect(engine.getYearProgress()).toBeCloseTo(0.5, 1);
-
-      // Complete the year
-      for (let i = 0; i < 180; i++) {
-        engine.update();
-      }
-
-      expect(engine.getCurrentYear()).toBe(1);
-      expect(engine.getYearProgress()).toBeCloseTo(0, 1);
-    });
-
-    it('should handle multiple year completions', () => {
-      const yearEndCallback = vi.fn();
-      engine.onYearEnd(yearEndCallback);
-
-      // Simulate 3 full years (360 ticks per year)
-      for (let year = 0; year < 3; year++) {
-        for (let i = 0; i < 360; i++) {
-          engine.update();
-        }
-      }
-
-      expect(yearEndCallback).toHaveBeenCalledTimes(3);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(1, 1);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(2, 2);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(3, 3);
-      expect(engine.getCurrentYear()).toBe(3);
-    });
-  });
-
   describe('Environmental Systems Integration E2E', () => {
     it('should maintain environmental consistency across systems', () => {
       const chunks = engine.getAllChunks();

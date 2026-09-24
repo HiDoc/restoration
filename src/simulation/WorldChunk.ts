@@ -8,6 +8,15 @@ import { EventType } from './EventJournal';
 /**
  * Biome state vector - core properties of each chunk
  */
+/** A plant's heritable traits (each 0–1, 0.5 ordinary), its generation, and its parents and site of origin. */
+export interface Genetics {
+  traits: Record<string, number>;
+  generation: number;
+  mother?: string;
+  father?: string;
+  origin?: string;
+}
+
 export interface BiomeState {
   // Ecological properties
   vitality: number;      // [0-1] Overall ecosystem health
@@ -64,7 +73,7 @@ export interface SpeciesInstance {
   reproductiveOutput: number; // Seeds/offspring produced this cycle
   reproductiveUrge: number;   // [0-1] Building drive to reproduce
   lastReproductionAttempt: number; // Tick when last attempted reproduction
-  genetics?: import('./GeneticSystem').GeneticProfile; // Genetic traits and mutations
+  genetics?: Genetics; // Heritable traits and where the plant came from
   causeOfDeath?: CauseOfDeath; // How this individual died (set when removed)
   deathTick?: number;  // When this individual died
 }
@@ -96,7 +105,7 @@ export interface SeedRecord {
   y: number; // 0..1 within chunk
   viability: number; // [0..1]
   maturityTicks: number; // ticks remaining before attempting germination
-  genetics?: import('./GeneticSystem').GeneticProfile;
+  genetics?: Genetics;
 }
 
 /**

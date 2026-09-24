@@ -248,6 +248,9 @@ impl World {
             return;
         }
         self.rare_season = season_index;
+        if !self.config.rare_events {
+            return;
+        }
         let tick = self.tick;
         self.rare_effects.retain(|e| e.until_tick > tick);
         if self.rng.sample() >= RARE_CHANCE {

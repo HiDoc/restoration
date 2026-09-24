@@ -13,6 +13,10 @@ pub struct Config {
     pub season_length_ticks: u64,
     pub time_per_tick_minutes: u64,
     pub max_population_per_chunk: usize,
+    /// The restoration site this world is, recorded on the seed it sets.
+    pub site: String,
+    /// Whether seasons roll for rare events; off for controlled experiments.
+    pub rare_events: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -23,6 +27,8 @@ impl Default for Config {
             season_length_ticks: 90,
             time_per_tick_minutes: 1440,
             max_population_per_chunk: 64,
+            site: String::new(),
+            rare_events: true,
         }
     }
 }
@@ -353,6 +359,9 @@ pub struct RareEffect {
 pub struct Pollen {
     pub species_id: String,
     pub genetics: Value,
+    /// The plant the pollen came from, by instance id.
+    #[serde(default)]
+    pub donor: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Habitat {

@@ -5,6 +5,7 @@ fn world(seed: u32) -> World {
     World::new(
         Config {
             master_seed: seed,
+            rare_events: false,
             ..Config::default()
         },
         vec![],
@@ -188,7 +189,7 @@ fn components_are_independent_and_corrupt_references_are_rejected() {
 }
 
 #[test]
-fn selected_genetic_traits_change_survival_and_measured_fitness() {
+fn drought_tolerance_keeps_plants_healthier_in_a_drought() {
     let mut weak = world(101);
     let mut hardy = weak.clone();
     for (simulation, tolerance) in [(&mut weak, 0.0), (&mut hardy, 1.0)] {
@@ -196,20 +197,15 @@ fn selected_genetic_traits_change_survival_and_measured_fitness() {
             biome.moisture = 0.0;
         }
         for organism in simulation.components.organisms.values_mut() {
-            organism.extra.insert("genetics".into(),json!({"traits":{"__ecosimMap":[["drought_tolerance",{"value":tolerance}]]},"generation":2,"mutations":[],"adaptationScore":0.5}));
+            organism.extra.insert(
+                "genetics".into(),
+                json!({"traits": {"drought_tolerance": tolerance}, "generation": 2}),
+            );
         }
         simulation.step(7).unwrap();
     }
     let sum_health = |w: &World| w.components.growth.values().map(|g| g.health).sum::<f64>();
     assert!(sum_health(&hardy) > sum_health(&weak));
-    let sum_fitness = |w: &World| {
-        w.components
-            .organisms
-            .values()
-            .map(|o| o.extra["genetics"]["adaptationScore"].as_f64().unwrap())
-            .sum::<f64>()
-    };
-    assert!(sum_fitness(&hardy) > sum_fitness(&weak));
 }
 
 #[test]
@@ -250,6 +246,7 @@ fn world_with(seed: u32, definition: SpeciesDefinition) -> World {
     World::new(
         Config {
             master_seed: seed,
+            rare_events: false,
             ..Config::default()
         },
         vec![],
@@ -564,6 +561,7 @@ fn bluebell_patch(seed: u32) -> (World, String) {
     let mut world = World::new(
         Config {
             master_seed: seed,
+            rare_events: false,
             ..Config::default()
         },
         vec![],
@@ -758,28 +756,48 @@ fn hex(world: &World, x: i32, y: i32) -> &Biome {
 
 #[test]
 fn water_runs_into_a_hollow_and_pools_on_its_floor() {
-    let mut basin = world(8);
-    let (w, h) = (
-        basin.config.world_width as i32,
-        basin.config.world_height as i32,
-    );
-    let (cx, cy) = (w / 2, h / 2);
-    shape(&mut basin, |x, y| {
-        (((x - cx).pow(2) + (y - cy).pow(2)) as f64).sqrt() / w as f64
-    });
-    for biome in basin.components.biomes.values_mut() {
-        biome.moisture = 0.8;
+    // A level twin with the same seed has the same weather, so the difference is the lie of the land.
+    let mut level = World::new(
+        Config {
+            master_seed: 8,
+            world_width: 5,
+            world_height: 5,
+            rare_events: false,
+            ..Config::default()
+        },
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    for biome in level.components.biomes.values_mut() {
+        biome.moisture = 0.6;
     }
-    basin.step(60).unwrap();
-    let floor = hex(&basin, cx, cy);
-    let rim = hex(&basin, 0, 0);
-    assert!(floor.standing_water > 0.0, "a pond on the floor");
-    assert!(floor.moisture + floor.standing_water > rim.moisture + 0.3);
+    let mut hollow = level.clone();
+    shape(&mut hollow, |x, y| if (x, y) == (2, 2) { 0.0 } else { 1.0 });
+    hollow.step(30).unwrap();
+    level.step(30).unwrap();
+    let water = |w: &World, x, y| {
+        let b = hex(w, x, y);
+        b.moisture + b.standing_water
+    };
+    assert!(
+        water(&hollow, 2, 2) > water(&level, 2, 2) + 0.2,
+        "the floor gathers water: {} vs {}",
+        water(&hollow, 2, 2),
+        water(&level, 2, 2)
+    );
+    assert!(hex(&hollow, 2, 2).standing_water > 0.0, "and it pools");
+    assert!(
+        water(&hollow, 2, 1) < water(&level, 2, 1),
+        "the slopes give it up"
+    );
 }
 
 #[test]
 fn a_shallow_pond_dries_out_in_summer() {
+    // A hollow keeps standing water (no runoff or drainage); only the air takes it.
     let mut pond = world(8);
+    shape(&mut pond, |_, _| 0.0);
     for biome in pond.components.biomes.values_mut() {
         biome.set_water(1.2);
     }
@@ -789,7 +807,7 @@ fn a_shallow_pond_dries_out_in_summer() {
             .biomes
             .values()
             .any(|b| b.standing_water > 0.0),
-        "spring rain keeps it"
+        "spring keeps it"
     );
     pond.step(80).unwrap();
     assert!(pond
@@ -834,6 +852,7 @@ fn clover_islands(seed: u32, hexes: &[(i32, i32)], fauna: Vec<FaunaDefinition>) 
             master_seed: seed,
             world_width: 5,
             world_height: 5,
+            rare_events: false,
             ..Config::default()
         },
         vec![],
@@ -1056,6 +1075,7 @@ fn ancient_seed_sprouts_a_species_the_map_lacks_on_bare_ground() {
             master_seed: 4,
             world_width: 5,
             world_height: 5,
+            rare_events: false,
             ..Config::default()
         },
         vec![],
@@ -1090,6 +1110,7 @@ fn ancient_seed_sprouts_a_species_the_map_lacks_on_bare_ground() {
 fn rare_events_come_at_most_once_a_season_and_replay_exactly() {
     let run = || {
         let mut w = world(31);
+        w.config.rare_events = true;
         let mut per_season = std::collections::BTreeMap::<u64, usize>::new();
         for _ in 0..(8 * 360) {
             w.step(1).unwrap();
@@ -1106,4 +1127,75 @@ fn rare_events_come_at_most_once_a_season_and_replay_exactly() {
     assert!(seasons.values().all(|n| *n == 1));
     assert!(seasons.len() < 32, "rare: not every season");
     assert_eq!(seasons, run());
+}
+
+#[test]
+fn old_genetics_convert_to_the_compact_form() {
+    let mut old = world(3);
+    for organism in old.components.organisms.values_mut() {
+        organism.extra.insert(
+            "genetics".into(),
+            json!({"traits":{"__ecosimMap":[["drought_tolerance",{"id":"drought_tolerance","value":0.8,"mutationRate":0.08}],["light_sensitivity",{"value":0.2}]]},"generation":4,"mutations":["x"],"adaptationScore":0.5}),
+        );
+    }
+    old.compact_genetics();
+    let genetics = &old.components.organisms.values().next().unwrap().extra["genetics"];
+    assert_eq!(
+        *genetics,
+        json!({"traits": {"drought_tolerance": 0.8}, "generation": 4})
+    );
+}
+
+#[test]
+fn founders_differ_a_little() {
+    let founders = world(3);
+    let drought: Vec<f64> = founders
+        .components
+        .organisms
+        .values()
+        .map(|o| {
+            o.extra["genetics"]["traits"]["drought_tolerance"]
+                .as_f64()
+                .unwrap()
+        })
+        .collect();
+    assert!(drought.len() > 3);
+    assert!(drought.iter().all(|v| (0.35..=0.65).contains(v)));
+    assert!(drought.iter().any(|v| (v - drought[0]).abs() > 0.01));
+}
+
+#[test]
+fn a_seed_remembers_its_parents_and_where_it_was_set() {
+    let (mut patch, hex) = bluebell_patch(5);
+    patch.config.site = "meadow".into();
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    let (mother, father) = {
+        let c = &patch.components;
+        let pollinated = c
+            .reproduction
+            .iter()
+            .find(|(_, r)| r.pollen.is_some())
+            .unwrap();
+        (
+            c.organisms[pollinated.0].id.clone(),
+            pollinated.1.pollen.as_ref().unwrap().donor.clone(),
+        )
+    };
+    patch.step(110).unwrap();
+    let records: Vec<&Value> = patch
+        .components
+        .habitats
+        .values()
+        .flat_map(|h| h.seeds.iter().map(|s| &s.extra))
+        .chain(patch.components.organisms.values().map(|o| &o.extra))
+        .filter_map(|extra| extra.get("genetics"))
+        .filter(|g| g["father"] == json!(father))
+        .collect();
+    assert!(!records.is_empty(), "hybrid seed or seedlings exist");
+    for genetics in records {
+        assert_eq!(genetics["mother"], json!(mother));
+        assert_eq!(genetics["origin"], "meadow");
+        assert!(genetics["generation"].as_u64().unwrap() >= 1);
+    }
 }

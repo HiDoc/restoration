@@ -20,7 +20,7 @@
         :current-year="currentYear"
         :speed="options.tickMs"
         :year-progress="yearProgress"
-        :blocked="showYearEndModal || extinction.triggered || !!runtimeError"
+        :blocked="extinction.triggered || !!runtimeError"
         :saving="isSaving"
         :loading="isLoadingSnapshot"
         :view-mode="viewMode"
@@ -318,8 +318,11 @@
 
       <!-- Discoveries: brief, non-blocking notes as the player learns something new -->
       <ol class="nouveau-toasts pointer-events-none fixed bottom-24 left-1/2 z-[60] grid -translate-x-1/2 gap-1.5" aria-live="polite">
-        <li v-for="toast in toasts" :key="toast.id" class="nv-panel nv-small flex items-center gap-2 px-3 py-1.5 text-[#2b2118] shadow-lg">
-          <img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}
+        <li v-for="toast in toasts" :key="toast.id" class="nv-panel nv-small text-[#2b2118] shadow-lg">
+          <button v-if="toast.tab" type="button" class="pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-left" title="Open the Codex" @click="openCodex(toast.tab)">
+            <img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}
+          </button>
+          <span v-else class="flex items-center gap-2 px-3 py-1.5"><img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}</span>
         </li>
       </ol>
 
@@ -367,17 +370,6 @@
 
     </div>
     </template>
-
-    <!-- Common modals for both views -->
-    <YearEndSeedSelection
-      :show="showYearEndModal"
-      :year="completedYear"
-      :engine="engine"
-      :total-species="stats.totalSpecies"
-      :avg-vitality="stats.avgVitality"
-      @close="showYearEndModal = false"
-      @confirm="onYearEndConfirm"
-    />
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
 
@@ -429,7 +421,6 @@ import { initializeSimulationRuntime } from "@/simulation/rust/SimulationRuntime
 import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 
 // Components
-import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import type { CodexTab } from "@/game/codex";
@@ -443,6 +434,7 @@ import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
+import { CAUSES } from "@/game/causes";
 import { EventType } from "@/simulation/EventJournal";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
@@ -480,8 +472,6 @@ let eventCounter = 0;
 const selected = ref<{ x: number; y: number } | null>(null);
 
 // Year-end seed selection
-const showYearEndModal = ref(false);
-const completedYear = ref(0);
 const currentYear = ref(0);
 const yearProgress = ref(0);
 
@@ -536,7 +526,6 @@ const showSites = ref(false);
 // An emptied land pauses once with its causes; after Continue it waits for life to return before watching again.
 const extinction = reactive({ triggered: false, acknowledged: false, sinceTick: 0, causes: [] as ShiftCause[] });
 let extinctionGraceUntilTick = 50;
-let resumeAfterYearEnd = false;
 
 // Lightweight gameplay state
 const gameplay = reactive({
@@ -567,7 +556,6 @@ const displayChunkGrid = computed(() => {
 });
 
 // Species change detection helpers
-const prevSpecies: Map<string, Map<string, string>> = new Map();
 const seenWeather: Set<string> = new Set();
 
 async function init() {
@@ -605,6 +593,7 @@ function initializeWorld(carriedPouch?: unknown[]) {
     maxActiveChunks: site.world.width * site.world.height,
     seasonLengthTicks: 90,
     timePerTickMinutes: 1440,
+    site: site.id,
   };
   engine.value = new SimulationEngine(config);
   engine.value.applyScenarioConditions({ biomeStates: site.conditions, elevation: elevationOf(site), establishedSpecies: site.established, initialSpecies: site.established });
@@ -617,7 +606,6 @@ function initializeWorld(carriedPouch?: unknown[]) {
 
   events.value = [];
   eventCounter = 0;
-  showYearEndModal.value = false;
   showChunkInspector.value = false;
   selectedChunkForInspection.value = null;
   selected.value = null;
@@ -625,7 +613,6 @@ function initializeWorld(carriedPouch?: unknown[]) {
   extinction.triggered = extinction.acknowledged = false;
   rareSeenUntil = -1;
   updateStats();
-  initSpeciesSnapshot(engine.value.readChunks());
   seenWeather.clear();
   if (!db && typeof indexedDB !== "undefined") db = new SimDB();
 
@@ -650,7 +637,6 @@ function initializeWorld(carriedPouch?: unknown[]) {
 
 
   // Register year-end callback
-  engine.value.onYearEnd(onYearEnd);
 
   // Initialize year progress
   updateYearProgress();
@@ -681,7 +667,7 @@ function rewardGoal(title: string) {
 }
 
 function updateOnce() {
-  if (!engine.value || showYearEndModal.value || runtimeError.value) return;
+  if (!engine.value || runtimeError.value) return;
 
   // Rust owns the full ecology schedule. Vue only observes the completed tick.
   engine.value.update();
@@ -692,11 +678,9 @@ function updateOnce() {
 function refreshView() {
   if (!engine.value) return;
   announce(knowledgeStore.observe(engine.value));
-  announceRareEvents(engine.value);
+  readJournal(engine.value);
   evaluateProgress(engine.value.getCurrentTick());
-  const chunks = engine.value.readChunks();
   updateStats();
-  detectSpeciesChanges(chunks);
   detectWeatherEvents();
   captureHistory(stats.currentTick);
   // Auto save
@@ -823,12 +807,12 @@ function abbreviate(name: string): string {
 }
 
 
-function pushEvent(msg: string) {
+function pushEvent(msg: string, tick = stats.currentTick) {
   const entry: SimulationEventEntry = {
     id: ++eventCounter,
     message: msg,
-    timeLabel: `T${stats.currentTick}`,
-    tick: stats.currentTick,
+    timeLabel: `T${tick}`,
+    tick,
   };
   events.value.push(entry);
   if (events.value.length > 200) {
@@ -837,7 +821,7 @@ function pushEvent(msg: string) {
 }
 
 function start() {
-  if (!engine.value || isInitializing.value || showYearEndModal.value || extinction.triggered || runtimeError.value) return;
+  if (!engine.value || isInitializing.value || extinction.triggered || runtimeError.value) return;
   loop.start();
   isRunning.value = true;
 }
@@ -848,7 +832,7 @@ function pause() {
 }
 
 function stepOnce() {
-  if (!engine.value || isInitializing.value || showYearEndModal.value || extinction.triggered || runtimeError.value) return;
+  if (!engine.value || isInitializing.value || extinction.triggered || runtimeError.value) return;
   loop.step();
 }
 
@@ -882,7 +866,7 @@ function applyIntervention(type: InterventionType, at: { x: number; y: number },
   notify(success ? INTERVENTION_ICONS[type] ?? 'icon-leaf' : 'icon-observe', interventionStore.actionMessage);
   if (success) {
     updateStats();
-    detectSpeciesChanges(engine.value.readChunks());
+    readJournal(engine.value);
   }
 }
 
@@ -947,7 +931,6 @@ async function saveSnapshot() {
       tutorial: tutorialStore.exportState(),
       gameplay: { ...gameplay },
       options: { ...options },
-      yearEnd: { show: showYearEndModal.value, completedYear: completedYear.value, resume: resumeAfterYearEnd },
       extinctionGraceUntilTick,
     }));
     const id = await db.saveSnapshot({ siteId: profile.currentSite, createdAt: Date.now(), tick, state });
@@ -1009,9 +992,6 @@ function applySnapshot(snap: SimSnapshot) {
   const config = engine.value.getConfig();
   width.value = options.worldWidth = config.worldWidth;
   height.value = options.worldHeight = config.worldHeight;
-  showYearEndModal.value = legacy ? false : state.yearEnd.show;
-  completedYear.value = legacy ? engine.value.getCurrentYear() : state.yearEnd.completedYear;
-  resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
   extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
   extinction.triggered = extinction.acknowledged = false;
   rareSeenUntil = -1;
@@ -1024,7 +1004,6 @@ function applySnapshot(snap: SimSnapshot) {
   events.value = [];
   seenWeather.clear();
   updateStats();
-  initSpeciesSnapshot(engine.value.readChunks());
   captureHistory(stats.currentTick);
   pushEvent(`📥 Loaded snapshot #${snap.id} @ tick ${snap.tick}`);
 }
@@ -1050,14 +1029,28 @@ async function travel(siteId: string) {
   notify('icon-observe', `You arrive at ${profile.site.name}.`);
 }
 
-// Rare events already announced, by tick; a new world or a loaded one starts from its current day.
+// Journal events already read, by tick; a new world or a loaded one starts from its current day.
 let rareSeenUntil = -1;
 
-function announceRareEvents(sim: SimulationEngine) {
+/**
+ * Read what the engine journalled since the last look: births and deaths go to Recent Events (every one, even
+ * inside a time-lapse), rare events are announced.
+ */
+function readJournal(sim: SimulationEngine) {
   const tick = sim.getCurrentTick();
   if (rareSeenUntil < 0) rareSeenUntil = tick;
-  for (const event of sim.getEventJournal().getEventsByType(EventType.RARE_EVENT)) {
-    if (event.tick > rareSeenUntil) notify('icon-vitality', describeRareEvent(event.data, id => speciesInfo(id).name));
+  const where = (chunkId?: string) => (chunkId ? ` in (${chunkId.split('_').slice(1).join(',')})` : '');
+  for (const event of sim.getEventJournal().getAllEvents()) {
+    if (event.tick <= rareSeenUntil) continue;
+    const name = event.data?.speciesId ? speciesInfo(event.data.speciesId).name : '';
+    if (event.type === EventType.SPECIES_SPAWN) {
+      pushEvent(`${event.data.speciesId.startsWith('hybrid_') ? `Hybrid ${name}` : name} sprouted${where(event.chunkId)}`, event.tick);
+    } else if (event.type === EventType.SPECIES_DIE) {
+      const cause = CAUSES[event.data?.cause]?.noun;
+      pushEvent(`${name} died${where(event.chunkId)}${cause ? ` of ${cause}` : ''}`, event.tick);
+    } else if (event.type === EventType.RARE_EVENT) {
+      notify('icon-vitality', describeRareEvent(event.data, id => speciesInfo(id).name));
+    }
   }
   rareSeenUntil = tick;
 }
@@ -1086,32 +1079,6 @@ const nextStageGoal = computed(() => {
 });
 
 // Year-end seed selection functions
-function onYearEnd(year: number) {
-  resumeAfterYearEnd = isRunning.value;
-  completedYear.value = year;
-  showYearEndModal.value = true;
-  // Pause simulation for seed selection
-  if (isRunning.value) {
-    pause();
-  }
-}
-
-function onYearEndConfirm(seedInstanceId: string | null) {
-  engine.value?.commitYearEndSelections();
-  showYearEndModal.value = false;
-  
-  // Show notification
-  const message = seedInstanceId 
-    ? `✅ Selected specimen for Year ${completedYear.value + 1}` 
-    : `⏭️ Using default genetics for Year ${completedYear.value + 1}`;
-  pushEvent(message);
-  
-  // Resume simulation
-  if (resumeAfterYearEnd) {
-    start();
-  }
-}
-
 function updateYearProgress() {
   if (engine.value?.getCurrentYear && engine.value?.getYearProgress) {
     currentYear.value = engine.value.getCurrentYear();
@@ -1166,25 +1133,29 @@ function openCodex(tab: CodexTab) {
   codexTab.value = tab;
   showCodex.value = true;
 }
-const toasts = ref<Array<{ id: number; icon: string; text: string }>>([]);
+const toasts = ref<Array<{ id: number; icon: string; text: string; tab?: CodexTab }>>([]);
 let toastId = 0;
 // A few at a time: a burst of discoveries (e.g. after a Season) shouldn't bury the map.
 const MAX_TOASTS = 3;
 const TOAST_MS = 4500;
 
-function notify(icon: string, text: string) {
-  const toast = { id: ++toastId, icon, text };
+/** Show a short note; with a Codex tab, clicking it opens the Codex there. */
+function notify(icon: string, text: string, tab?: CodexTab) {
+  const toast = { id: ++toastId, icon, text, tab };
   toasts.value = [...toasts.value, toast].slice(-MAX_TOASTS);
   setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== toast.id); }, TOAST_MS);
 }
 
 function announce(found: Discovery[]) {
   for (const discovery of found.slice(0, MAX_TOASTS)) {
-    if (discovery.kind === 'species') notify('icon-observe', `New in your Codex: ${speciesInfo(discovery.id).name}`);
-    else if (discovery.kind === 'interaction') notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`);
-    else {
+    if (discovery.kind === 'species') {
+      const info = speciesInfo(discovery.id);
+      notify('icon-observe', `New in your Codex: ${info.name}`, !info.animal ? 'plant' : info.kind === 'bird' ? 'bird' : 'pollinator');
+    } else if (discovery.kind === 'interaction') {
+      notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`, 'interaction');
+    } else {
       const mystery = MYSTERIES.find(m => m.id === discovery.id);
-      notify('icon-journal', discovery.solved ? 'A mystery is solved. The Codex explains.' : `A mystery: ${mystery?.question}`);
+      notify('icon-journal', discovery.solved ? 'A mystery is solved. The Codex explains.' : `A mystery: ${mystery?.question}`, 'mystery');
       if (discovery.solved) profile.save();
     }
   }
@@ -1193,7 +1164,7 @@ function announce(found: Discovery[]) {
 // ---- Advancing time ----
 const advancing = ref<null | 'week' | 'season'>(null);
 const digest = ref<null | { title: string; lines: DigestLine[] }>(null);
-const timeBlocked = computed(() => !!advancing.value || showYearEndModal.value || extinction.triggered || !!runtimeError.value);
+const timeBlocked = computed(() => !!advancing.value || extinction.triggered || !!runtimeError.value);
 const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
   season: 'icon-leaf',
   sighting: 'icon-observe',
@@ -1233,11 +1204,11 @@ function advanceTime(span: 'week' | 'season') {
   advancing.value = span;
 
   const frame = () => {
-    for (let i = 0; i < TICKS_PER_FRAME[span] && sim.getCurrentTick() < targetTick && !showYearEndModal.value && !runtimeError.value; i++) {
+    for (let i = 0; i < TICKS_PER_FRAME[span] && sim.getCurrentTick() < targetTick && !runtimeError.value; i++) {
       sim.update();
     }
     refreshView();
-    if (sim.getCurrentTick() < targetTick && !showYearEndModal.value && !runtimeError.value) {
+    if (sim.getCurrentTick() < targetTick && !runtimeError.value) {
       requestAnimationFrame(frame);
       return;
     }
@@ -1438,51 +1409,6 @@ async function restart() {
   width.value = options.worldWidth;
   height.value = options.worldHeight;
   await init();
-}
-
-function initSpeciesSnapshot(chunks: ReadonlyMap<string, any>) {
-  prevSpecies.clear();
-  chunks.forEach((chunk, id) => {
-    const m = new Map<string, string>();
-    (chunk.species as Map<string, any>).forEach((inst, sid) => {
-      m.set(sid, inst.speciesId);
-    });
-    prevSpecies.set(id, m);
-  });
-}
-
-function detectSpeciesChanges(chunks: ReadonlyMap<string, any>) {
-  const reg = SpeciesRegistry.getInstance();
-  chunks.forEach((chunk, id) => {
-    const oldMap = prevSpecies.get(id) || new Map<string, string>();
-    const currentMap = new Map<string, string>();
-    (chunk.species as Map<string, any>).forEach((inst, sid) =>
-      currentMap.set(sid, inst.speciesId)
-    );
-
-    // births
-    currentMap.forEach((spId, sid) => {
-      if (!oldMap.has(sid)) {
-        const name = reg.getSpecies(spId)?.name || spId;
-        // Check if this is a hybrid (species ID starts with 'hybrid_')
-        if (spId.startsWith('hybrid_')) {
-          pushEvent(`🧬 Hybrid ${name} sprouted in chunk (${chunk.x},${chunk.y})`);
-        } else {
-          pushEvent(`🆕 ${name} spawned in chunk (${chunk.x},${chunk.y})`);
-        }
-      }
-    });
-
-    // deaths
-    oldMap.forEach((spId, sid) => {
-      if (!currentMap.has(sid)) {
-        const name = reg.getSpecies(spId)?.name || spId;
-        pushEvent(`☠️ ${name} died in chunk (${chunk.x},${chunk.y})`);
-      }
-    });
-
-    prevSpecies.set(id, currentMap);
-  });
 }
 
 function detectWeatherEvents() {

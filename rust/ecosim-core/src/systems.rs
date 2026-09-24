@@ -765,6 +765,22 @@ impl World {
             .map(|(id, h)| ((h.x, h.y), *id))
             .collect();
         let previous = self.components.fauna.clone();
+        // Animals move only through habitat and arrive from beyond the map only where it links to the border;
+        // how far they can hop across bare ground is their foraging range.
+        let habitat_hexes = self.habitat_hexes();
+        let reachable: BTreeMap<u32, BTreeSet<Entity>> = self
+            .fauna_definitions
+            .values()
+            .map(|def| def.foraging_range)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|range| {
+                (
+                    range,
+                    self.reachable_from_border(&habitat_hexes, range as i32),
+                )
+            })
+            .collect();
         let mut events = vec![];
         let mut next = BTreeMap::<Entity, BTreeMap<String, f64>>::new();
         for (habitat, h) in &self.components.habitats {
@@ -821,6 +837,9 @@ impl World {
                         * days
                         * nearby
                             .iter()
+                            .filter(|n| {
+                                habitat_hexes.contains(habitat) && habitat_hexes.contains(n)
+                            })
                             .filter_map(|n| previous.get(n).and_then(|p| p.get(&def.id)))
                             .sum::<f64>();
                     before + 0.12 * before * (1.0 - before / capacity) * days + arriving
@@ -830,6 +849,7 @@ impl World {
                 if active
                     && after < 1.0
                     && capacity >= 1.0
+                    && reachable[&def.foraging_range].contains(habitat)
                     && self.rng.sample() < 0.003 * capacity * days
                 {
                     after = after.max(1.5);

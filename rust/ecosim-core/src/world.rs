@@ -46,6 +46,9 @@ pub struct World {
     /// Seeds the player holds, oldest first; each keeps its parent's genetics.
     #[serde(default)]
     pub inventory: Vec<Seed>,
+    /// Which patch of plant cover each planted hex belonged to last tick, to notice corridors forming.
+    #[serde(default)]
+    pub patch_labels: BTreeMap<Entity, usize>,
     #[serde(default)]
     pub weather: Vec<Weather>,
     #[serde(skip)]
@@ -75,6 +78,7 @@ impl World {
             interactions_season: 0,
             pending_commands: vec![],
             inventory: vec![],
+            patch_labels: BTreeMap::new(),
             weather: vec![],
             events: vec![],
         };
@@ -662,6 +666,7 @@ impl World {
             self.reproduction_system();
             self.germination_system();
             self.clonal_system();
+            self.landscape_system();
             self.diffusion_system();
             self.ecosystem_system();
             self.fauna_system();

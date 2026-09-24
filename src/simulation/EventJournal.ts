@@ -31,6 +31,7 @@ export enum EventType {
   SEEDS_RIPE = 'seeds_ripe',
   FIRST_SIGHTING = 'first_sighting',
   FAUNA_ARRIVED = 'fauna_arrived',
+  CORRIDOR_FORMED = 'corridor_formed',
   FAUNA_LEFT = 'fauna_left',
   INTERACTION_OBSERVED = 'interaction_observed',
   SEED_SELECTION = 'seed_selection',

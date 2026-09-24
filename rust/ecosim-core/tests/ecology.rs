@@ -822,3 +822,99 @@ fn flooding_drowns_plants_that_cannot_stand_it() {
     assert_eq!(death_causes(&dryland), ["waterlogging".to_owned()].into());
     assert!(!flooded(1.0).components.organisms.is_empty());
 }
+
+/// A 5×5 map whose only plants are a fixed clover patch in the given hexes (no seed, no runners).
+fn clover_islands(seed: u32, hexes: &[(i32, i32)], fauna: Vec<FaunaDefinition>) -> World {
+    let flowers = SpeciesDefinition {
+        seed_production: 0.0,
+        ..clover(&["spring", "summer"], &["autumn"])
+    };
+    let mut world = World::new(
+        Config {
+            master_seed: seed,
+            world_width: 5,
+            world_height: 5,
+            ..Config::default()
+        },
+        vec![],
+        vec![flowers],
+    )
+    .unwrap();
+    let c = &mut world.components;
+    c.organisms.clear();
+    c.positions.clear();
+    c.growth.clear();
+    c.reproduction.clear();
+    for habitat in c.habitats.values_mut() {
+        habitat.seeds.clear();
+    }
+    for &(x, y) in hexes {
+        let (hex, _) = world
+            .components
+            .habitats
+            .iter()
+            .find(|(_, h)| (h.x, h.y) == (x, y))
+            .map(|(e, h)| (*e, h.id.clone()))
+            .unwrap();
+        for _ in 0..4 {
+            world.spawn(hex, "clover", 0.5, 0.5, 1.0);
+        }
+    }
+    world.set_fauna_definitions(fauna).unwrap();
+    world
+}
+
+fn ranging(mut animal: FaunaDefinition, range: u32) -> FaunaDefinition {
+    animal.foraging_range = range;
+    animal
+}
+
+#[test]
+fn a_cut_off_patch_is_found_only_by_animals_that_can_cross_the_gap() {
+    let island = [(2, 2)];
+    let butterfly = || ranging(animal("blue", "clover", &["clover"], true), 1);
+    let bee = || ranging(animal("bee", "clover", &[], false), 3);
+    assert_eq!(
+        peak_abundance(
+            &mut clover_islands(3, &island, vec![butterfly()]),
+            "blue",
+            180
+        ),
+        0.0
+    );
+    assert!(peak_abundance(&mut clover_islands(3, &island, vec![bee()]), "bee", 180) >= 1.0);
+
+    // A corridor of clover out to the edge lets the butterfly in.
+    let corridor = [(0, 2), (1, 2), (2, 2)];
+    assert!(
+        peak_abundance(
+            &mut clover_islands(3, &corridor, vec![butterfly()]),
+            "blue",
+            180
+        ) >= 1.0
+    );
+}
+
+#[test]
+fn a_planted_hex_that_joins_two_patches_is_reported_as_a_corridor() {
+    let mut split = clover_islands(3, &[(0, 2), (1, 2), (3, 2), (4, 2)], vec![]);
+    split.step(1).unwrap();
+    assert!(!split.events.iter().any(|e| e.kind == "corridor_formed"));
+    let gap = *split
+        .components
+        .habitats
+        .iter()
+        .find(|(_, h)| (h.x, h.y) == (2, 2))
+        .unwrap()
+        .0;
+    split.spawn(gap, "clover", 0.5, 0.5, 1.0);
+    split.step(1).unwrap();
+    let corridor: Vec<_> = split
+        .events
+        .iter()
+        .filter(|e| e.kind == "corridor_formed")
+        .collect();
+    assert_eq!(corridor.len(), 1);
+    assert_eq!(corridor[0].chunk_id, "chunk_2_2");
+    assert_eq!(corridor[0].data["patches"], 2);
+}

@@ -422,8 +422,22 @@ mysteries both explain themselves through it.
       draws Reed Warbler and Reed Bunting, Siskin once Alder is sown). Codex shows 41 / 15 / 15.
       Follow-ups: moth and butterfly sprites share the SVG stand-in; Alder, a N-fixer, does not yet enrich soil
       (no engine effect for nitrogen fixation).
-- [ ] **B5 Connectivity.** A habitat graph over hexes in Rust; fauna spread only through connected suitable
-      hexes, so corridors matter. A corridor joining two patches gives a digest line.
+- [x] **B5 Connectivity.**
+  - [x] B5.1 Rust: hexes holding plants are habitat. Two habitat hexes are linked for an animal when they lie
+        within its foraging range of each other. Animals spread only along links, and new ones arrive from
+        beyond the map only into habitat linked to the border (within range of the edge). A patch cut off by
+        bare ground waits for a corridor; a bumblebee (range 2) crosses a gap a Common Blue (range 1) cannot.
+  - [x] B5.2 Landscape patches (plant-holding hexes, touching neighbours): when a hex newly holding plants
+        joins two patches of at least two hexes each, emit `corridor_formed`. Patch labels are saved with the
+        world so a load does not re-announce.
+  - [x] B5.3 TS: digest line "A corridor now joins two patches of habitat" with Inspect.
+  - [x] B5.4 Tests: an isolated patch gets bees but not a range-1 butterfly until a corridor reaches it; the
+        corridor event; every site as founded still draws its animals (the balance spec).
+      Done (2026-09-24). Effect on the sites as founded: the meadow still draws Common Blue within two years
+      (cover spreads to the edge); in Wet Hollow the short-range, spring-only Tawny Mining Bee no longer
+      arrives within two years until cover links the hollow to the edge.
+      Follow-ups: the map does not yet show which hexes are cut off; a hint on the hex card ("no way in for
+      butterflies") would make corridors discoverable.
 - [ ] **B6 Mysteries.** Each site seeds anomalies with hidden causes (no pollinator reaches a patch, falling
       water table, nectar without larval host); solved when the cause changes; the Codex logs the explanation.
 - [ ] **B7 Rare events.** Seeded, condition-weighted table in Rust (superbloom, butterfly migration, mast year,

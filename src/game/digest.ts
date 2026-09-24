@@ -1,7 +1,7 @@
 import { EventType, type SimulationEvent } from '@/simulation/EventJournal'
 import { CAUSES, mostCommon } from './causes'
 
-export type DigestIcon = 'season' | 'sighting' | 'arrival' | 'interaction' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
+export type DigestIcon = 'season' | 'sighting' | 'arrival' | 'interaction' | 'corridor' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
 
 export interface DigestLine {
   icon: DigestIcon
@@ -74,6 +74,12 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
   }
   for (const event of pairs.values()) {
     lines.push({ icon: 'interaction', text: `Seen together: ${nameOf(event.data.faunaId)} ↔ ${nameOf(event.data.plantId)}.`, chunkId: event.chunkId })
+  }
+
+  const PATCHES = ['', '', 'two', 'three', 'four']
+  for (const event of events.filter(event => event.type === EventType.CORRIDOR_FORMED)) {
+    const patches = PATCHES[event.data?.patches] ?? 'several'
+    lines.push({ icon: 'corridor', text: `A corridor now joins ${patches} patches of habitat, and animals can travel it.`, chunkId: event.chunkId })
   }
 
   for (const [type, icon, verb] of [[EventType.FLOWERING_STARTED, 'flower', 'came into flower'], [EventType.SEEDS_RIPE, 'seed', 'set seed']] as const) {

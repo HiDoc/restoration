@@ -101,4 +101,14 @@ describe('buildDigest', () => {
     const lines = digest({ events: [event('weather_change', { type: 'drought' }), event('weather_change', { type: 'drought' }), event('weather_change', { type: 'storm' })] })
     expect(lines.map(line => line.text)).toEqual(['A drought dried out part of the land.', 'A storm passed through.'])
   })
+
+  it('announces a corridor joining patches of habitat', () => {
+    const lines = buildDigest({
+      events: [event('corridor_formed', { patches: 2 }, 'chunk_2_2')],
+      seasonBefore: 'spring', seasonAfter: 'spring',
+      populationBefore: new Map(), populationAfter: new Map(),
+      nameOf: id => id,
+    })
+    expect(lines).toEqual([{ icon: 'corridor', text: 'A corridor now joins two patches of habitat, and animals can travel it.', chunkId: 'chunk_2_2' }])
+  })
 })

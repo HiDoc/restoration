@@ -9,7 +9,8 @@ const YEARS = 2
 const SITE_ANIMALS: Record<string, string[]> = {
   meadow: ['buff_tailed_bumblebee', 'common_blue', 'blackbird'],
   woodland: ['blue_tit', 'jay'],
-  wetland: ['tawny_mining_bee', 'reed_warbler', 'reed_bunting'],
+  // Short-range spring bees such as the Tawny Mining Bee wait until cover links the hollow to the edge.
+  wetland: ['buff_tailed_bumblebee', 'reed_warbler', 'reed_bunting'],
 }
 
 describe.each(Object.keys(SITE_ANIMALS))('%s site balance', siteId => {

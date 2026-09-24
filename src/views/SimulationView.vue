@@ -1174,6 +1174,7 @@ const DIGEST_ICONS: Record<DigestLine['icon'], string> = {
   sighting: 'icon-observe',
   arrival: 'icon-pollinators',
   interaction: 'icon-diversity',
+  corridor: 'icon-restore',
   flower: 'icon-plants',
   seed: 'icon-diversity',
   spread: 'icon-vitality',

@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { FixedStepLoop } from '@/core/FixedStepLoop';
 import { SimulationEngine } from '@/simulation/SimulationEngine';
-import { SCENARIOS } from '@/simulation/ScenarioSystem';
-import { ALL_GOALS } from '@/simulation/GoalsSystem';
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry';
-import { useScenarioStore } from '@/stores/scenarioStore';
 
 function world() {
   return new SimulationEngine({
@@ -14,7 +11,7 @@ function world() {
   });
 }
 
-describe('year-end and scenario workflows', () => {
+describe('year-end workflow', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
   it('stops at the year boundary and applies the chosen genome immediately exactly once', () => {
@@ -54,53 +51,5 @@ describe('year-end and scenario workflows', () => {
     loop.step();
     expect(engine.getCurrentTick()).toBe(9);
     expect(completedYear).toBe(1);
-  });
-
-  it('references available species and canonical goals in every scenario', () => {
-    const registry = SpeciesRegistry.getInstance();
-    for (const scenario of SCENARIOS) {
-      for (const species of scenario.initialConditions.initialSpecies ?? []) expect(registry.getSpecies(species)).toBeDefined();
-      for (const goal of scenario.goalIds) expect(ALL_GOALS.some(entry => entry.id === goal)).toBe(true);
-    }
-  });
-
-  it('preserves completed scenario progress across save/load', () => {
-    const engine = world();
-    const store = useScenarioStore();
-    store.initialize(engine);
-    expect(store.startScenario('quick_start')).toBe(true);
-    const required = store.activeScenario!.goalIds;
-    expect(store.evaluateScenario(required).success).toBe(true);
-    expect(store.scenarioProgress).toBe(1);
-    expect(store.evaluateScenario([]).success).toBe(true);
-    expect(store.scenarioProgress).toBe(1);
-    const saved = JSON.parse(JSON.stringify(store.exportState()));
-    store.reset();
-    store.initialize(engine);
-    store.importState(saved);
-    expect(store.scenarioSuccess).toBe(true);
-    expect(store.evaluateScenario([]).progress).toBe(1);
-    expect(store.completedScenarioIds).toEqual(['quick_start']);
-    store.startScenario('quick_start');
-    expect(store.completedScenarioIds).toContain('quick_start');
-    store.evaluateScenario(required);
-    expect(store.completedScenarioIds).toEqual(['quick_start']);
-  });
-
-  it('retains timeout failure and clears active scenarios when loading an empty slot', () => {
-    const engine = world();
-    const store = useScenarioStore();
-    store.initialize(engine);
-    const empty = JSON.parse(JSON.stringify(store.exportState()));
-    store.startScenario('quick_start');
-    const scenario = store.exportState();
-    scenario.systemState!.startTick = -300;
-    store.importState(JSON.parse(JSON.stringify(scenario)));
-    expect(store.evaluateScenario([]).failure).toBe(true);
-    expect(store.evaluateScenario(['diversity_5']).failure).toBe(true);
-    store.importState(empty);
-    expect(store.activeScenario).toBeNull();
-    expect(store.system!.getActiveScenario()).toBeNull();
-    expect(store.scenarioCompleted).toBe(false);
   });
 });

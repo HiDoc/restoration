@@ -35,6 +35,5 @@ describe('SpeciesRegistry', () => {
     expect(hybrid.scientificName).toBe('Hyacinthoides hispanica × Hyacinthoides non-scripta')
     expect(hybrid.maxBiomass).toBe(0.65)
     expect(hybrid.genus).toBe('Hyacinthoides')
-    expect(reg.getWildSpecies().map(s => s.id)).not.toContain(hybrid.id)
   })
 })

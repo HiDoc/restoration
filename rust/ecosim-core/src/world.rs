@@ -597,6 +597,18 @@ impl World {
         Ok(())
     }
 
+    /// Replace the pouch, as when the player arrives from another site carrying it.
+    pub fn set_inventory(&mut self, seeds: Vec<Seed>) -> Result<(), String> {
+        if let Some(seed) = seeds
+            .iter()
+            .find(|s| !self.definitions.contains_key(&s.species_id))
+        {
+            return Err(format!("Unknown species: {}", seed.species_id));
+        }
+        self.inventory = seeds;
+        Ok(())
+    }
+
     /// Fresh seeds with no inherited genetics, for starter packets and rewards.
     pub fn add_seeds(&mut self, counts: BTreeMap<String, usize>) -> Result<(), String> {
         if let Some(species) = counts.keys().find(|s| !self.definitions.contains_key(*s)) {

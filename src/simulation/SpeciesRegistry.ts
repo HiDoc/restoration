@@ -271,11 +271,6 @@ export class SpeciesRegistry {
     this.buildIndices();
   }
 
-  /** Species the world starts from; hybrids are defined by the engine as they are bred. */
-  getWildSpecies(): SpeciesDefinition[] {
-    return this.getAllSpecies().filter(species => !species.hybridOf?.length);
-  }
-
   /**
    * Register a hybrid the engine has defined: its first parent's description with the engine's blended values,
    * an invented name and the botanical hybrid formula.

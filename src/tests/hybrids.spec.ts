@@ -58,6 +58,10 @@ describe('breeding a hybrid bluebell in the starting meadow', () => {
       pouch.executeIntervention({ ...at, type: 'collect', data: {} })
     }
     expect(pouch.seeds[HYBRID]).toBeGreaterThan(0)
+    // Bred seed travels to another site's world, which learns the hybrid from the registry.
+    const elsewhere = new SimulationEngine({ worldWidth: 2, worldHeight: 2, chunkSize: 32, tickRate: 10, masterSeed: 7, maxActiveChunks: 4 })
+    elsewhere.importPouch(engine.exportPouch())
+    expect(elsewhere.getInventory()[HYBRID]).toBe(pouch.seeds[HYBRID])
     const hybrid = species(HYBRID)!
     expect(hybrid.hybridOf).toEqual(['spanish_bluebell', 'wild_bluebell'])
 

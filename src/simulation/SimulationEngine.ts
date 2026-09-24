@@ -793,6 +793,18 @@ export class SimulationEngine {
     return this.runtimeSnapshot?.inventory ?? {};
   }
 
+  /** The whole pouch, seed by seed with its genetics, for carrying to another site. */
+  exportPouch(): unknown[] {
+    return (this.runtime.request({ op: 'export' }).state as { inventory?: unknown[] }).inventory ?? [];
+  }
+
+  /** Replace the pouch with seeds carried from another site. */
+  importPouch(seeds: unknown[]): void {
+    this.syncRuntime(true);
+    this.runtime.request({ op: 'sync', inventory: seeds });
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  }
+
   /** Fresh seeds for the pouch: a starter packet or a reward. */
   addSeeds(counts: Record<string, number>): void {
     this.syncRuntime();
@@ -1029,7 +1041,7 @@ export class SimulationEngine {
       ? runtime.request({
         op: 'init', config, tick: state.currentTick ?? 0, simTimeDays: savedDays,
         chunks: state.chunks.map((entry: [string, unknown]) => entry[1]),
-        speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA
+        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
       })
       : runtime.request({ op: 'import', state: state.rustState });
     if (!response.snapshot) throw new Error('Save is missing its simulation snapshot');
@@ -1171,7 +1183,7 @@ export class SimulationEngine {
       op: 'init',
       config: this.config,
       chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()),
-      speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA
+      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
     }));
   }
 
@@ -1184,7 +1196,7 @@ export class SimulationEngine {
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
       // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
       ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
-      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA } : {})
+      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA } : {})
     });
     this.projectionSignature = signature;
     this.projectionEdited = false;

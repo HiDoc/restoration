@@ -353,10 +353,30 @@ mysteries both explain themselves through it.
       `src/game/causes.ts`. Browser: meadow hawthorn/clover read "no pollinator visits" in autumn; a polluted
       map ends in "Pollution took 74 plants: Spanish Bluebell and Bluebell." and Continue resumes time.
       Follow-up: the legacy TS update loop in `WorldChunk` (`CauseOfDeath`, `updateSpecies`) is dead code.
-- [ ] **B2 Restoration sites.** Sites replace scenarios: a map (size, seed, degraded starting conditions,
-      starting plants), untimed stages (degraded → pioneers → pollinators → birds → stable, each with a
-      measurable condition) and the next site it unlocks. A profile holds the Codex, the pouch, site progress
-      and one save per site; travelling carries seeds. Site selector replaces the scenario selector.
+- [x] **B2 Restoration sites.** Replaces scenarios (`ScenarioSystem`, `scenarioStore`, `ScenarioSelector`,
+      `ScenarioProgress` and their tests go).
+  - [x] B2.1 `src/game/sites.ts`: each site has a map (size, seed), starting conditions, established plants,
+        targets and the site it unlocks. Stages are shared and untimed: degraded → pioneers (plants cover a
+        share of hexes) → pollinators (kinds visiting) → birds (kinds present) → stable (every target held at
+        four season changes in a row). Reached stages stay reached. `surveySite(chunks)` measures a map.
+        Sites for B2: the meadow (today's start) and a clear-felled woodland (bracken, a few old oaks and
+        birches; target includes woodland birds). Wetland arrives with B3.
+  - [x] B2.2 Rust sync accepts a whole `inventory` (seeds with genetics) so the pouch can travel, and the
+        engine sends every registry species including bred hybrids, which are the player's to take along.
+  - [x] B2.3 `profileStore`: current site, per-site progress, unlocked sites and the Codex, kept in
+        localStorage across sites. Saves are per site (SimDB rows carry `siteId`). Travelling saves the
+        current site, carries the pouch, then loads the target's latest save or founds it fresh.
+  - [x] B2.4 UI: the right-hand card becomes the site: name, stage ladder with the next target in words,
+        goals below, and "Sites" opens a selector (locked, stage reached, Travel). Reaching stable says so and
+        unlocks the next site.
+  - [x] B2.5 Tests: stage evaluation (including the four-season hold), survey, pouch travel with a hybrid
+        seed, per-site saves.
+      Done (2026-09-24). Browser: meadow card with stage ladder and next target; Sites dialog (locked site
+      names what opens it); travel founds Felled Wood with woodland tiles, carries the pouch plus its starter
+      seeds; travel back resumes the meadow save with the carried pouch; a reload resumes the current site.
+      Fixed while testing: arriving now saves the site, so a reload keeps the pouch carried in.
+      Follow-ups: goals are still per world and generic; the site card image is the old scenario art; a
+      profile reset ("new journey") has no button yet.
 - [ ] **B3 Wetland hydrology.** Rust standing water: a water table per hex from terrain and rain, ponds in low
       hexes, waterlogging stress; a wetland habitat in the hex description and map tiles.
 - [ ] **B4 Catalogue breadth.** 30+ plants (meadow, woodland and wetland sets, with congeneric pairs), 15 birds,

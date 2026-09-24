@@ -48,6 +48,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     applyNames()
   }
 
+  /** Follow a different world (another site, or a loaded save) from its current day, keeping what is known. */
+  function followWorld(engine: SimulationEngine) {
+    lastTick.value = engine.getCurrentTick()
+  }
+
   function reset() {
     knowledge.value = emptyKnowledge()
     applyNames()
@@ -61,5 +66,5 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     lastTick.value = state?.lastTick ?? -1
   }
 
-  return { knowledge, summary, totals, observe, rename, reset, exportState, importState }
+  return { knowledge, summary, totals, observe, rename, followWorld, reset, exportState, importState }
 })

@@ -45,6 +45,12 @@ export const useInterventionStore = defineStore('intervention', () => {
     refreshSeeds();
   }
 
+  /** The pouch the player carried in from another site replaces this world's. */
+  function carryPouch(pouch: unknown[]) {
+    engine.value?.importPouch(pouch);
+    refreshSeeds();
+  }
+
   /** Seeds for the pouch: the starter packet and rewards. */
   function addSeeds(counts: Record<string, number>) {
     engine.value?.addSeeds(counts);
@@ -129,6 +135,7 @@ export const useInterventionStore = defineStore('intervention', () => {
     getRemainingCooldown,
     initialize,
     addSeeds,
+    carryPouch,
     executeIntervention,
     selectIntervention,
     exportState,

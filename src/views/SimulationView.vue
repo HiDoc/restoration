@@ -30,7 +30,7 @@
         @step="stepOnce"
         @save="saveSnapshot"
         @load="loadLatestSnapshot"
-        @scenarios="scenarioStore.openScenarioSelector()"
+        @sites="showSites = true"
         @toggle-view-mode="toggleViewMode"
       />
 
@@ -68,7 +68,7 @@
         <div class="ml-auto flex items-center gap-1.5 lg:ml-0">
           <button type="button" class="research-panel nv-img-btn" title="Codex" aria-label="Open the Codex" @click="openCodex('plant')"><img :src="nv('btn-journal')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Contemplative view" aria-label="Switch to contemplative view" @click="toggleViewMode"><img :src="nv('btn-settings')" alt="" /></button>
-          <button type="button" class="nv-img-btn" title="Scenarios" aria-label="Choose scenario" @click="scenarioStore.openScenarioSelector()"><img :src="nv('btn-map')" alt="" /></button>
+          <button type="button" class="nv-img-btn" title="Restoration sites" aria-label="Restoration sites" @click="showSites = true"><img :src="nv('btn-map')" alt="" /></button>
         </div>
       </header>
 
@@ -278,21 +278,26 @@
 
           <section ref="scenarioCard" class="goals-panel nv-panel flex-1 p-3">
             <div class="flex items-center justify-between">
-              <h2 class="nv-heading">Current Scenario</h2>
-              <button type="button" class="nv-link" @click="scenarioStore.openScenarioSelector()">Change</button>
+              <h2 class="nv-heading">Restoration site</h2>
+              <button type="button" class="nv-link" @click="showSites = true">Sites</button>
             </div>
             <div class="mt-1.5 flex gap-2.5">
               <img :src="nv('scenario')" alt="" class="h-16 w-16 flex-shrink-0 rounded border border-[#8a6d1f] object-cover" />
               <div class="min-w-0">
-                <p class="font-bold leading-tight">{{ scenarioStore.activeScenario?.name ?? 'Temperate Recovery' }}</p>
-                <p class="nv-small nv-muted">{{ scenarioStore.activeScenario?.description ?? 'Restore a degraded landscape and rebuild biodiversity.' }}</p>
+                <p class="font-bold leading-tight">{{ profile.site.name }}</p>
+                <p class="nv-small nv-muted">{{ profile.site.blurb }}</p>
               </div>
             </div>
-            <div v-if="scenarioStore.hasActiveScenario && scenarioStore.timeRemaining !== null" class="nv-small nv-nums mt-2 flex items-center gap-2">
-              <span class="nv-muted">Time left</span>
-              <span class="nv-bar nv-bar-gold inline-block flex-1"><span :style="{ width: `${Math.round((1 - scenarioStore.timeProgress) * 100)}%` }"></span></span>
-              <span>{{ scenarioStore.timeRemaining }} days</span>
-            </div>
+            <ol class="mt-2 grid gap-0.5" aria-label="Restoration stages">
+              <li v-for="(stage, index) in STAGES.slice(1)" :key="stage.title" class="nv-row text-[0.8rem]">
+                <span class="flex min-w-0 items-center gap-1.5">
+                  <span class="nv-check" :aria-checked="profile.siteProgress.stage > index" role="checkbox" aria-readonly="true"></span>
+                  <span :class="profile.siteProgress.stage === index ? 'font-bold' : ''">{{ stage.title }}</span>
+                </span>
+              </li>
+            </ol>
+            <p v-if="nextStageGoal" class="nv-small mt-1">Next: {{ nextStageGoal }}</p>
+            <p v-else class="nv-small mt-1 font-bold">Restored.</p>
             <div class="mt-2 flex items-center justify-between border-t border-[#8a6d1f]/30 pt-1.5">
               <h3 class="nv-heading">Goals</h3>
               <button type="button" class="nv-link" @click="showAllGoals = !showAllGoals">{{ showAllGoals ? 'Less' : 'View All' }}</button>
@@ -399,25 +404,7 @@
       @skip="tutorialStore.skipTutorial()"
     />
 
-    <!-- Scenario Selector Modal -->
-    <ScenarioSelector
-      :show="scenarioStore.showScenarioSelector"
-      :scenarios="scenarioStore.availableScenarios"
-      :completed-scenario-ids="scenarioStore.completedScenarioIds"
-      @close="scenarioStore.closeScenarioSelector()"
-      @select="startScenario"
-    />
-
-    <!-- Scenario Progress HUD -->
-    <!-- The nouveau layout shows this in its Current Scenario card -->
-    <ScenarioProgress
-      v-if="scenarioStore.hasActiveScenario && viewMode === 'contemplative'"
-      :scenario="scenarioStore.activeScenario"
-      :time-remaining="scenarioStore.timeRemaining"
-      :time-progress="scenarioStore.timeProgress"
-      :scenario-progress="scenarioStore.scenarioProgress"
-      :completed-goals-count="goalsStore.completionCount"
-    />
+    <SiteSelector :show="showSites" @close="showSites = false" @travel="travel" />
 
     <!-- Chunk Inspector -->
     <ChunkInspector
@@ -450,8 +437,8 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
-import { plantStartingMeadow } from "@/game/startingMeadow";
-import { habitatFit, rewardSpecies, REWARD_SEEDS, STARTER_SEEDS } from "@/game/seeds";
+import { siteById, STAGES, surveySite } from "@/game/sites";
+import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
@@ -459,17 +446,16 @@ import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
-import ScenarioSelector from "@/components/simulation/ScenarioSelector.vue";
-import ScenarioProgress from "@/components/simulation/ScenarioProgress.vue";
+import SiteSelector from "@/components/simulation/SiteSelector.vue";
 import ChunkInspector from "@/components/simulation/ChunkInspector.vue";
 
 // Stores and utilities
-import { SimDB } from "@/persistence/SimDB";
+import { SimDB, type SimSnapshot } from "@/persistence/SimDB";
 import { useKnowledgeStore } from "@/stores/knowledgeStore";
 import { useInterventionStore } from "@/stores/interventionStore";
 import { useGoalsStore } from "@/stores/goalsStore";
 import { useTutorialStore } from "@/stores/tutorialStore";
-import { useScenarioStore } from "@/stores/scenarioStore";
+import { useProfileStore } from "@/stores/profileStore";
 import type { VizMode } from "@/components/simulation/types";
 import type { InterventionType } from "@/simulation/InterventionManager";
 
@@ -541,7 +527,8 @@ const knowledgeStore = useKnowledgeStore();
 const interventionStore = useInterventionStore();
 const goalsStore = useGoalsStore();
 const tutorialStore = useTutorialStore();
-const scenarioStore = useScenarioStore();
+const profile = useProfileStore();
+const showSites = ref(false);
 
 // An emptied land pauses once with its causes; after Continue it waits for life to return before watching again.
 const extinction = reactive({ triggered: false, acknowledged: false, sinceTick: 0, causes: [] as ShiftCause[] });
@@ -590,6 +577,9 @@ async function init() {
     await initializeSimulationRuntime();
     if (unmounted || version !== initializationVersion) return;
     initializeWorld();
+    // Continue the current site where it was last saved.
+    const snap = db ? await db.loadLatest(profile.currentSite).catch(() => null) : null;
+    if (snap && version === initializationVersion) applySnapshot(snap);
   } catch (error) {
     initializationError.value = error instanceof Error ? error.message : String(error);
     console.error('Ecosystem initialization failed:', error);
@@ -598,19 +588,23 @@ async function init() {
   }
 }
 
-function initializeWorld() {
+/** Found the current site fresh, carrying the pouch in if the player arrived from another site. */
+function initializeWorld(carriedPouch?: unknown[]) {
+  const site = profile.site;
+  width.value = options.worldWidth = site.world.width;
+  height.value = options.worldHeight = site.world.height;
   const config: SimulationConfig = {
-    worldWidth: options.worldWidth,
-    worldHeight: options.worldHeight,
+    worldWidth: site.world.width,
+    worldHeight: site.world.height,
     chunkSize: 32,
     tickRate: 10,
-    masterSeed: 12345,
-    maxActiveChunks: options.worldWidth * options.worldHeight,
+    masterSeed: site.world.seed,
+    maxActiveChunks: site.world.width * site.world.height,
     seasonLengthTicks: 90,
     timePerTickMinutes: 1440,
   };
   engine.value = new SimulationEngine(config);
-  plantStartingMeadow(engine.value);
+  engine.value.applyScenarioConditions({ biomeStates: site.conditions, establishedSpecies: site.established, initialSpecies: site.established });
 
   historyFrames.value = [];
   selectedHistoryIndex.value = -1;
@@ -631,14 +625,17 @@ function initializeWorld() {
   seenWeather.clear();
   if (!db && typeof indexedDB !== "undefined") db = new SimDB();
 
-  // The player starts knowing the plants of the starting meadow, without fanfare.
-  knowledgeStore.reset();
-  knowledgeStore.observe(engine.value);
+  // Knowledge belongs to the player and grows across sites; only a first game learns its start without fanfare.
+  const firstGame = Object.keys(knowledgeStore.knowledge.species).length === 0;
+  knowledgeStore.followWorld(engine.value);
+  const found = knowledgeStore.observe(engine.value);
+  if (!firstGame) announce(found);
 
   // Initialize intervention system
   interventionStore.reset();
   interventionStore.initialize(engine.value);
-  interventionStore.addSeeds(STARTER_SEEDS);
+  if (carriedPouch) interventionStore.carryPouch(carriedPouch);
+  if (profile.arrive(site.id)) interventionStore.addSeeds(site.starterSeeds);
 
   // Initialize goals system
   goalsStore.reset();
@@ -647,9 +644,6 @@ function initializeWorld() {
   // Initialize tutorial system
   tutorialStore.initializeTutorial();
 
-  // Initialize scenario system
-  scenarioStore.reset();
-  scenarioStore.initialize(engine.value);
 
   // Register year-end callback
   engine.value.onYearEnd(onYearEnd);
@@ -670,9 +664,7 @@ function evaluateProgress(tick: number) {
   goalsStore.evaluateGoals(tick).forEach(result => {
     if (result.completed && !alreadyCompleted.has(result.goal.id)) rewardGoal(result.goal.title);
   });
-  if (scenarioStore.hasActiveScenario) {
-    scenarioStore.evaluateScenario(goalsStore.completedGoals.map(g => g.goal.id));
-  }
+  if (engine.value) reportSite(engine.value);
   tutorialStore.triggerByTick(tick);
 }
 
@@ -923,15 +915,6 @@ function skipTutorial() {
   tutorialStore.skipTutorial();
 }
 
-function startScenario(id: string) {
-  pause();
-  if (scenarioStore.startScenario(id)) {
-    goalsStore.setActiveGoals(scenarioStore.activeScenario?.goalIds ?? []);
-    updateStats();
-    pushEvent(`Started scenario: ${scenarioStore.activeScenario?.name}. Press Play when ready.`);
-  }
-}
-
 // Handler for applying intervention from inspector
 function applyInterventionFromInspector(action: string) {
   if (!selectedChunkForInspection.value) return;
@@ -956,14 +939,14 @@ async function saveSnapshot() {
       knowledge: knowledgeStore.exportState(),
       interventions: interventionStore.exportState(),
       goals: goalsStore.exportState(),
-      scenario: scenarioStore.exportState(),
       tutorial: tutorialStore.exportState(),
       gameplay: { ...gameplay },
       options: { ...options },
       yearEnd: { show: showYearEndModal.value, completedYear: completedYear.value, resume: resumeAfterYearEnd },
       extinctionGraceUntilTick,
     }));
-    const id = await db.saveSnapshot({ createdAt: Date.now(), tick, state });
+    const id = await db.saveSnapshot({ siteId: profile.currentSite, createdAt: Date.now(), tick, state });
+    profile.save();
     persist.lastSavedTick = tick;
     saveNotice.value = `Ecosystem saved at day ${tick}.`;
     pushEvent(`💾 Saved snapshot #${id} @ tick ${tick}`);
@@ -984,56 +967,13 @@ async function loadLatestSnapshot() {
   pause();
   isLoadingSnapshot.value = true;
   try {
-    const snap = await db.loadLatest();
+    const snap = await db.loadLatest(profile.currentSite);
     if (!snap) {
       saveNotice.value = 'No saved ecosystem yet. Use Save to create one.';
       return;
     }
-    const legacy = snap.state?.format !== 'ecosim-game-v2';
-    const state = snap.state;
-    engine.value.importState(legacy ? state : state.engine);
-    if (legacy) {
-      knowledgeStore.reset();
-      knowledgeStore.observe(engine.value);
-      interventionStore.reset();
-      interventionStore.initialize(engine.value);
-      goalsStore.reset();
-      goalsStore.initialize(engine.value, gameplay.difficulty, () => knowledgeStore.summary);
-      scenarioStore.reset();
-      scenarioStore.initialize(engine.value);
-    } else {
-      // Saves from before the Codex have no knowledge; the player relearns from what is on the map.
-      knowledgeStore.importState(state.knowledge);
-      interventionStore.importState(state.interventions);
-      goalsStore.importState(state.goals);
-      scenarioStore.importState(state.scenario);
-      tutorialStore.importState(state.tutorial);
-      Object.assign(gameplay, state.gameplay);
-      applySavedOptions(state.options);
-    }
-    const config = engine.value.getConfig();
-    width.value = options.worldWidth = config.worldWidth;
-    height.value = options.worldHeight = config.worldHeight;
-    showYearEndModal.value = legacy ? false : state.yearEnd.show;
-    completedYear.value = legacy ? engine.value.getCurrentYear() : state.yearEnd.completedYear;
-    resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
-    extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
-    extinction.triggered = extinction.acknowledged = false;
-    runtimeError.value = null;
-    showChunkInspector.value = false;
-    selectedChunkForInspection.value = null;
-    selected.value = null;
-    historyFrames.value = [];
-    selectedHistoryIndex.value = -1;
-    events.value = [];
-    seenWeather.clear();
-    updateStats();
-    initSpeciesSnapshot(engine.value.readChunks());
-      captureHistory(stats.currentTick);
-    saveNotice.value = legacy
-      ? `Legacy ecosystem converted at day ${snap.tick}; player progression starts fresh. Press Play when ready.`
-      : `Ecosystem loaded at day ${snap.tick}. Press Play when ready.`;
-    pushEvent(`📥 Loaded snapshot #${snap.id} @ tick ${snap.tick}`);
+    applySnapshot(snap);
+    saveNotice.value = `Ecosystem loaded at day ${snap.tick}. Press Play when ready.`;
   } catch (error) {
     saveNotice.value = 'The saved ecosystem could not be loaded. Your simulation is paused.';
     console.error('Snapshot load failed:', error);
@@ -1041,6 +981,89 @@ async function loadLatestSnapshot() {
     isLoadingSnapshot.value = false;
   }
 }
+
+/** Replace the world with a saved one of the current site. The Codex is the player's and is not rolled back. */
+function applySnapshot(snap: SimSnapshot) {
+  if (!engine.value) return;
+  const legacy = snap.state?.format !== 'ecosim-game-v2';
+  const state = snap.state;
+  engine.value.importState(legacy ? state : state.engine);
+  knowledgeStore.followWorld(engine.value);
+  if (legacy) {
+    interventionStore.reset();
+    interventionStore.initialize(engine.value);
+    goalsStore.reset();
+    goalsStore.initialize(engine.value, gameplay.difficulty, () => knowledgeStore.summary);
+  } else {
+    interventionStore.importState(state.interventions);
+    goalsStore.importState(state.goals);
+    tutorialStore.importState(state.tutorial);
+    Object.assign(gameplay, state.gameplay);
+    applySavedOptions(state.options);
+  }
+  const config = engine.value.getConfig();
+  width.value = options.worldWidth = config.worldWidth;
+  height.value = options.worldHeight = config.worldHeight;
+  showYearEndModal.value = legacy ? false : state.yearEnd.show;
+  completedYear.value = legacy ? engine.value.getCurrentYear() : state.yearEnd.completedYear;
+  resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
+  extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
+  extinction.triggered = extinction.acknowledged = false;
+  runtimeError.value = null;
+  showChunkInspector.value = false;
+  selectedChunkForInspection.value = null;
+  selected.value = null;
+  historyFrames.value = [];
+  selectedHistoryIndex.value = -1;
+  events.value = [];
+  seenWeather.clear();
+  updateStats();
+  initSpeciesSnapshot(engine.value.readChunks());
+  captureHistory(stats.currentTick);
+  pushEvent(`📥 Loaded snapshot #${snap.id} @ tick ${snap.tick}`);
+}
+
+/** Move to another site: save this one, carry the pouch, and resume the target where it was left or found it. */
+async function travel(siteId: string) {
+  if (!engine.value || siteId === profile.currentSite) return;
+  showSites.value = false;
+  pause();
+  await saveSnapshot();
+  const pouch = engine.value.exportPouch();
+  profile.currentSite = siteId;
+  const snap = db ? await db.loadLatest(siteId) : null;
+  if (snap) {
+    applySnapshot(snap);
+    interventionStore.carryPouch(pouch);
+    profile.arrive(siteId);
+  } else {
+    initializeWorld(pouch);
+  }
+  // Saved on arrival too, so the site's latest save holds the pouch the player carried in.
+  await saveSnapshot();
+  notify('icon-observe', `You arrive at ${profile.site.name}.`);
+}
+
+/** Survey the site each displayed tick and tell the player when it reaches a stage. */
+function reportSite(sim: SimulationEngine) {
+  const config = sim.getConfig();
+  const seasonIndex = Math.floor(sim.getCurrentTick() * (config.timePerTickMinutes ?? 1440) / 1440 / (config.seasonLengthTicks ?? 90));
+  const news = profile.update(surveySite(sim.readChunks().values()), seasonIndex);
+  if (!news.reached) return;
+  const text = news.restored ? `${profile.site.name} is restored.` : `${profile.site.name} has reached a new stage: ${news.reached}.`;
+  notify('icon-diversity', text);
+  pushEvent(text);
+  if (news.unlocked) notify('icon-observe', `${siteById(news.unlocked)?.name} is open to you.`);
+  profile.save();
+}
+
+const nextStageGoal = computed(() => {
+  const stage = STAGES[profile.siteProgress.stage + 1];
+  const sim = engine.value;
+  if (!stage || !sim) return null;
+  void stats.currentTick; // re-evaluate as the world changes
+  return stage.goal(surveySite(sim.readChunks().values()), profile.site.targets, profile.siteProgress);
+});
 
 // Year-end seed selection functions
 function onYearEnd(year: number) {
@@ -1525,6 +1548,7 @@ defineExpose({
 onMounted(() => {
   loadOptions();
   loadViewModePreference();
+  profile.load();
   // Ensure grid reflects saved/current world size before creating engine
   width.value = options.worldWidth;
   height.value = options.worldHeight;

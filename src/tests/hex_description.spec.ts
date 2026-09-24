@@ -55,4 +55,11 @@ describe('describeHex', () => {
     expect(describeHex(plants(['drought', 'drought', undefined]), info).plants[0].limit).toBe('too dry')
     expect(describeHex(plants(['drought', undefined, undefined]), info).plants[0].limit).toBeUndefined()
   })
+
+  it('reads standing water as a pond, and wet ground with plants as marsh or carr', () => {
+    expect(describeHex(hex([['grass', 'vegetative', 3]], { biomeState: { standingWater: 0.5 } }), info)).toMatchObject({ habitat: 'open_water', title: 'Pond' })
+    expect(describeHex(hex([['bluebell', 'flowering', 3], ['grass', 'vegetative', 4]], { biomeState: { standingWater: 0.1 } }), info)).toMatchObject({ habitat: 'wetland', title: 'Bluebell marsh' })
+    expect(describeHex(hex([['hawthorn', 'vegetative', 4]], { biomeState: { standingWater: 0.1 } }), info)).toMatchObject({ habitat: 'wetland', title: 'Hawthorn carr' })
+    expect(describeHex(hex([], { biomeState: { standingWater: 0.1 } }), info).habitat).toBe('bare')
+  })
 })

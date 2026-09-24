@@ -377,8 +377,29 @@ mysteries both explain themselves through it.
       Fixed while testing: arriving now saves the site, so a reload keeps the pouch carried in.
       Follow-ups: goals are still per world and generic; the site card image is the old scenario art; a
       profile reset ("new journey") has no button yet.
-- [ ] **B3 Wetland hydrology.** Rust standing water: a water table per hex from terrain and rain, ponds in low
-      hexes, waterlogging stress; a wetland habitat in the hex description and map tiles.
+- [x] **B3 Wetland hydrology.**
+  - [x] B3.1 Rust: `Habitat.elevation` (0 low … 1 high, default flat 0.5) and `Biome.standing_water` (pond
+        depth). Water moves between neighbours by head (soil moisture + standing water + elevation × relief),
+        limited by what the source holds, so slopes drain into hollows; a flat map behaves as today. Soil past
+        saturation becomes standing water, which evaporates faster than soil and dries in a hot summer. Deep
+        drainage scales with elevation (a hollow keeps its water).
+  - [x] B3.2 Flooding: species gain `floodTolerance` (SQLite column, adapter, Rust); standing water stresses a
+        plant by `standing × (1 − floodTolerance)` as waterlogging. Goat Willow, Downy Birch and Lady Fern get
+        real values; true wetland flora comes with B4.
+  - [x] B3.3 TS: sites choose terrain (flat, basin); the engine writes elevation into the chunks it founds.
+        Hex description gains `wetland` (saturated or shallow water with plants: "… marsh") and `open_water`
+        ("Pond"), with the water tile; the moisture overlay shows standing water.
+  - [x] B3.4 The Wet Hollow site: a drained basin (low moisture at founding) that refills from rain, starting
+        with a few willows and birches; unlocked by Felled Wood.
+  - [x] B3.5 Tests: Rust (a basin collects water and forms a pond on its floor; a flat map matches today; a
+        pond dries in a hot spell; flood-intolerant plants die of waterlogging, tolerant ones do not), TS
+        (habitats, terrain, site).
+      Done (2026-09-24). Added while testing: surface runoff (standing water drains by elevation, so level
+      ground sheds a downpour and only hollows hold it; without it rain drowned the flat meadow), and the
+      basin's floor hexes sit at height 0. Browser: Wet Hollow's floor turns to marsh after its first spring;
+      grass, birch and willow there read "waterlogged". Also fixed: a projected plant `limit` no longer sticks
+      in the plant's record on sync; `engine_diffusion` compares against a same-weather twin.
+      Follow-ups: the moisture overlay does not distinguish ponds; wetland flora comes with B4.
 - [ ] **B4 Catalogue breadth.** 30+ plants (meadow, woodland and wetland sets, with congeneric pairs), 15 birds,
       15 pollinators and their interactions, all real species with sourced trait values.
 - [ ] **B5 Connectivity.** A habitat graph over hexes in Rust; fauna spread only through connected suitable

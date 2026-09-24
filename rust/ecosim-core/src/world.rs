@@ -157,6 +157,7 @@ impl World {
                     species: vec![],
                     ritual_residues: vec![],
                     seed_bank: vec![],
+                    elevation: flat(),
                     extra: BTreeMap::new(),
                 });
             }
@@ -271,6 +272,7 @@ impl World {
                     y: chunk.y,
                     seeds: chunk.seed_bank,
                     residues: chunk.ritual_residues,
+                    elevation: chunk.elevation.clamp(0.0, 1.0),
                     extra: chunk.extra,
                 },
             );
@@ -282,6 +284,8 @@ impl World {
                     .extra
                     .remove("pollen")
                     .and_then(|value| serde_json::from_value(value).ok());
+                // The limit is derived each tick; a projected copy must not settle into the plant's record.
+                plant.extra.remove("limit");
                 let age_days = plant
                     .extra
                     .get("ageDays")

@@ -83,7 +83,10 @@ import { nv } from './nouveauAssets';
 import { describeHex, type Habitat } from '@/game/hexDescription';
 
 // Kit tile and legacy biome name (used by the calm view's seasonal tint) for each habitat.
-const HABITAT_LOOK: Record<Habitat, { tile: string; biome: string }> = {
+const HABITAT_LOOK: Record<Habitat, { tile: string; biome: string; wash?: string }> = {
+  open_water: { tile: nv('hex-water'), biome: 'wetland' },
+  // Marsh: grassland under a wash of water.
+  wetland: { tile: nv('hex-grassland'), biome: 'wetland', wash: 'rgba(52, 110, 128, 0.38)' },
   woodland: { tile: nv('hex-forest'), biome: 'forest' },
   scrub: { tile: nv('hex-grassland'), biome: 'grassland' }, // the grassland tile shows scattered trees
   meadow: { tile: nv('hex-grassland'), biome: 'grassland' },
@@ -153,7 +156,7 @@ const hexBackground = computed(() => {
   const texture = look.value.tile;
   const baseColor = baseFill(props.chunk, props.vizMode);
   return {
-    backgroundImage: texture ? `url(${texture})` : undefined,
+    backgroundImage: texture ? [look.value.wash && `linear-gradient(${look.value.wash}, ${look.value.wash})`, `url(${texture})`].filter(Boolean).join(', ') : undefined,
     backgroundColor: texture ? undefined : baseColor,
     backgroundSize: 'cover',
     backgroundRepeat: 'no-repeat',

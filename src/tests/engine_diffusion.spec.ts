@@ -1,30 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { RNGManager } from '@/simulation/SeededRNG'
+import { describe, it, expect } from 'vitest'
 import { SimulationEngine } from '@/simulation/SimulationEngine'
 
 describe('SimulationEngine chunk diffusion', () => {
-  beforeEach(() => RNGManager.initialize(21))
-
-  it('diffuses moisture from wet to dry neighbor', () => {
-    const engine = new SimulationEngine({
-      worldWidth: 2,
-      worldHeight: 1,
-      chunkSize: 32,
-      tickRate: 60,
-      masterSeed: 21,
-      maxActiveChunks: 2,
-    })
+  // A twin world with the same seed has the same weather, so comparing against it isolates the flow.
+  const world = (left: number, right: number) => {
+    const engine = new SimulationEngine({ worldWidth: 2, worldHeight: 1, chunkSize: 32, tickRate: 60, masterSeed: 21, maxActiveChunks: 2 })
     engine.activateAllChunks()
-    const left = engine.getChunk(0, 0)!
-    const right = engine.getChunk(1, 0)!
-
-    left.biomeState.moisture = 0.2
-    right.biomeState.moisture = 0.8
-
+    engine.getChunk(0, 0)!.biomeState.moisture = left
+    engine.getChunk(1, 0)!.biomeState.moisture = right
     engine.update()
+    return [engine.getChunk(0, 0)!.biomeState.moisture, engine.getChunk(1, 0)!.biomeState.moisture]
+  }
 
-    expect(left.biomeState.moisture).toBeGreaterThan(0.2)
-    expect(right.biomeState.moisture).toBeLessThan(0.8)
+  it('moves water from a wet chunk to a dry neighbour', () => {
+    const [dryAfter, wetAfter] = world(0.2, 0.8)
+    const [evenLeft, evenRight] = world(0.5, 0.5)
+    expect(dryAfter - 0.2).toBeGreaterThan(evenLeft - 0.5)
+    expect(wetAfter - 0.8).toBeLessThan(evenRight - 0.5)
   })
 })
-

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { advance, SITES, STABLE, STABLE_SEASONS, STAGES, surveySite, type SiteSurvey } from '@/game/sites'
+import { advance, elevationOf, siteById, SITES, STABLE, STABLE_SEASONS, STAGES, surveySite, type SiteSurvey } from '@/game/sites'
+import { SimulationEngine } from '@/simulation/SimulationEngine'
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 
 const targets = { cover: 0.5, plantKinds: 3, pollinatorKinds: 1, birdKinds: 1 }
@@ -42,5 +43,22 @@ describe('restoration sites', () => {
     expect(progress.heldSeasons).toBe(0)
     for (let season = 0; season < STABLE_SEASONS; season++) progress = advance(advance(progress, thriving, targets, false), thriving, targets, true)
     expect(progress.stage).toBe(STABLE)
+  })
+
+  it('shape the wetland as a basin whose floor gathers a pond from wet ground', () => {
+    const hollow = siteById('wetland')!
+    const height = elevationOf(hollow)!
+    expect(height(0, 0)).toBeCloseTo(1)
+    expect([height(2, 2), height(3, 3)]).toEqual([0, 0])
+    expect(height(1, 2)).toBeGreaterThan(0)
+    expect(elevationOf(siteById('meadow')!)).toBeUndefined()
+
+    const engine = new SimulationEngine({ worldWidth: 5, worldHeight: 5, chunkSize: 32, tickRate: 10, masterSeed: 3, maxActiveChunks: 25 })
+    engine.applyScenarioConditions({ biomeStates: { moisture: 0.85 }, elevation: (x, y) => Math.hypot(x - 2, y - 2) / Math.hypot(2, 2) })
+    for (let day = 0; day < 60; day++) engine.update()
+    const floor = engine.readChunk(2, 2)!
+    expect(floor.elevation).toBe(0)
+    expect(floor.biomeState.standingWater).toBeGreaterThan(0)
+    expect(engine.readChunk(0, 0)!.biomeState.moisture).toBeLessThan(floor.biomeState.moisture)
   })
 })

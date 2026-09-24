@@ -111,6 +111,7 @@ export class SpeciesDataAdapter {
       lifespanTicks: Math.round(dbSpecies.max_age * DAYS_PER_YEAR / clock),
       maturityDays: Math.round(dbSpecies.reproduction_age * DAYS_PER_YEAR / clock),
       clonalRate: dbSpecies.clonal_method ? CLONAL_RATE[dbSpecies.clonal_method] : 0,
+      floodTolerance: dbSpecies.flood_tolerance ?? 0,
       reproductionThreshold: typeof dbSpecies.sim_reproduction_threshold === 'number'
         ? dbSpecies.sim_reproduction_threshold
         : dbSpecies.max_biomass * MATURITY_BIOMASS_FRACTION,

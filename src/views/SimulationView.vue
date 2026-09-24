@@ -437,7 +437,7 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
-import { siteById, STAGES, surveySite } from "@/game/sites";
+import { elevationOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
@@ -604,7 +604,7 @@ function initializeWorld(carriedPouch?: unknown[]) {
     timePerTickMinutes: 1440,
   };
   engine.value = new SimulationEngine(config);
-  engine.value.applyScenarioConditions({ biomeStates: site.conditions, establishedSpecies: site.established, initialSpecies: site.established });
+  engine.value.applyScenarioConditions({ biomeStates: site.conditions, elevation: elevationOf(site), establishedSpecies: site.established, initialSpecies: site.established });
 
   historyFrames.value = [];
   selectedHistoryIndex.value = -1;

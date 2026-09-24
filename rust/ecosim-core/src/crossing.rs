@@ -58,6 +58,7 @@ fn blend(id: String, parents: &[&SpeciesDefinition], hybrid_of: Vec<String>) -> 
         dispersal_range: avg(|d| d.dispersal_range),
         maturity_days: avg(|d| d.maturity_days),
         clonal_rate: avg(|d| d.clonal_rate),
+        flood_tolerance: avg(|d| d.flood_tolerance),
         ecology: first.ecology.as_ref().map(|_| Ecology {
             flowering_seasons: ecology(|e| &e.flowering_seasons),
             fruiting_seasons: ecology(|e| &e.fruiting_seasons),

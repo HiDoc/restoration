@@ -920,9 +920,12 @@ export class SimulationEngine {
     initialSpecies?: string[];
     /** Species that start as adult plants in the centre, as if the meadow had grown for years. */
     establishedSpecies?: string[];
+    /** The lie of the land: each hex's height, 0 (hollow) to 1 (rise). */
+    elevation?: (x: number, y: number) => number;
   }): void {
-    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies } = conditions;
+    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies, elevation } = conditions;
     this.projectionEdited = true;
+    if (elevation) this.chunks.forEach(chunk => { chunk.elevation = elevation(chunk.x, chunk.y); });
 
     // Apply biome states to all chunks
     if (biomeStates) {

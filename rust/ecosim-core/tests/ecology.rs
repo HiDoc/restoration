@@ -738,3 +738,87 @@ fn plants_die_of_the_stress_that_limits_them() {
     ageing.step(120).unwrap();
     assert_eq!(death_causes(&ageing), ["old_age".to_owned()].into());
 }
+
+/// Shape the land: `height(x, y)` for each hex.
+fn shape(world: &mut World, height: impl Fn(i32, i32) -> f64) {
+    for habitat in world.components.habitats.values_mut() {
+        habitat.elevation = height(habitat.x, habitat.y);
+    }
+}
+
+fn hex(world: &World, x: i32, y: i32) -> &Biome {
+    let (entity, _) = world
+        .components
+        .habitats
+        .iter()
+        .find(|(_, h)| (h.x, h.y) == (x, y))
+        .unwrap();
+    &world.components.biomes[entity]
+}
+
+#[test]
+fn water_runs_into_a_hollow_and_pools_on_its_floor() {
+    let mut basin = world(8);
+    let (w, h) = (
+        basin.config.world_width as i32,
+        basin.config.world_height as i32,
+    );
+    let (cx, cy) = (w / 2, h / 2);
+    shape(&mut basin, |x, y| {
+        (((x - cx).pow(2) + (y - cy).pow(2)) as f64).sqrt() / w as f64
+    });
+    for biome in basin.components.biomes.values_mut() {
+        biome.moisture = 0.8;
+    }
+    basin.step(60).unwrap();
+    let floor = hex(&basin, cx, cy);
+    let rim = hex(&basin, 0, 0);
+    assert!(floor.standing_water > 0.0, "a pond on the floor");
+    assert!(floor.moisture + floor.standing_water > rim.moisture + 0.3);
+}
+
+#[test]
+fn a_shallow_pond_dries_out_in_summer() {
+    let mut pond = world(8);
+    for biome in pond.components.biomes.values_mut() {
+        biome.set_water(1.2);
+    }
+    pond.step(60).unwrap();
+    assert!(
+        pond.components
+            .biomes
+            .values()
+            .any(|b| b.standing_water > 0.0),
+        "spring rain keeps it"
+    );
+    pond.step(80).unwrap();
+    assert!(pond
+        .components
+        .biomes
+        .values()
+        .all(|b| b.standing_water == 0.0));
+}
+
+#[test]
+fn flooding_drowns_plants_that_cannot_stand_it() {
+    let flooded = |tolerance: f64| {
+        let mut marsh = world_with(
+            6,
+            SpeciesDefinition {
+                flood_tolerance: tolerance,
+                seed_production: 0.0,
+                ..SpeciesDefinition::default()
+            },
+        );
+        shape(&mut marsh, |_, _| 0.0);
+        for biome in marsh.components.biomes.values_mut() {
+            biome.set_water(1.8);
+        }
+        marsh.step(60).unwrap();
+        marsh
+    };
+    let dryland = flooded(0.0);
+    assert!(dryland.components.organisms.is_empty());
+    assert_eq!(death_causes(&dryland), ["waterlogging".to_owned()].into());
+    assert!(!flooded(1.0).components.organisms.is_empty());
+}

@@ -60,6 +60,8 @@ pub struct Biome {
     pub pollution: f64,
     pub invasion: f64,
     pub succession: f64,
+    /// Water standing above saturated ground, as a pond's depth [0-1].
+    pub standing_water: f64,
 }
 impl Default for Biome {
     fn default() -> Self {
@@ -72,10 +74,17 @@ impl Default for Biome {
             pollution: 0.05,
             invasion: 0.1,
             succession: 0.2,
+            standing_water: 0.0,
         }
     }
 }
 impl Biome {
+    /// Share a hex's water between the soil and, past saturation, standing water.
+    pub fn set_water(&mut self, water: f64) {
+        let water = water.max(0.0);
+        self.moisture = water.min(1.0);
+        self.standing_water = (water - 1.0).clamp(0.0, 1.0);
+    }
     pub fn normalize(&mut self) {
         for value in [
             &mut self.vitality,
@@ -86,6 +95,7 @@ impl Biome {
             &mut self.pollution,
             &mut self.invasion,
             &mut self.succession,
+            &mut self.standing_water,
         ] {
             *value = value.clamp(0.0, 1.0);
         }
@@ -100,6 +110,7 @@ impl Biome {
             "pollution" => &mut self.pollution,
             "invasion" => &mut self.invasion,
             "succession" => &mut self.succession,
+            "standing_water" => &mut self.standing_water,
             _ => return,
         };
         *field = (*field + amount).clamp(0.0, 1.0);
@@ -170,8 +181,16 @@ pub struct ChunkSnapshot {
     pub ritual_residues: Vec<(String, Value)>,
     #[serde(default)]
     pub seed_bank: Vec<Seed>,
+    /// Height of the ground, 0 in a hollow to 1 on a rise; water runs downhill.
+    #[serde(default = "flat")]
+    pub elevation: f64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+/// The height of ground nobody has shaped: level with its neighbours.
+pub fn flat() -> f64 {
+    0.5
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -209,6 +228,8 @@ pub struct SpeciesDefinition {
     pub genus: String,
     /// For a hybrid, the non-hybrid species it descends from, sorted.
     pub hybrid_of: Vec<String>,
+    /// How well roots stand standing water [0-1]: 0 drowns, 1 is a marsh plant.
+    pub flood_tolerance: f64,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -246,6 +267,7 @@ impl Default for SpeciesDefinition {
             ecology: None,
             genus: String::new(),
             hybrid_of: vec![],
+            flood_tolerance: 0.0,
         }
     }
 }
@@ -331,6 +353,8 @@ pub struct Habitat {
     pub y: i32,
     pub seeds: Vec<Seed>,
     pub residues: Vec<(String, Value)>,
+    #[serde(default = "flat")]
+    pub elevation: f64,
     pub extra: BTreeMap<String, Value>,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

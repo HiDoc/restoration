@@ -51,6 +51,7 @@ export interface VegetalSpecies {
   // Ecological attributes
   pollution_tolerance: number
   drought_resistance: number
+  flood_tolerance?: number
   cold_hardiness: number
   wind_resistance: number
   

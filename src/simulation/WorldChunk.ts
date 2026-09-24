@@ -18,6 +18,7 @@ export interface BiomeState {
   pollution: number;     // [0-1] Contamination level
   invasion: number;      // [0-1] Invasive species pressure
   succession: number;    // [0-1] Ecological succession stage (0=pioneer, 1=climax)
+  standingWater?: number; // [0-1] Water standing above saturated ground (pond depth)
 }
 
 /**
@@ -110,6 +111,8 @@ export class WorldChunk {
   // Core state
   public biomeState: BiomeState;
   public climateState: ClimateState;
+  /** Height of the ground, 0 in a hollow to 1 on a rise; water runs downhill. */
+  public elevation = 0.5;
   public lastUpdateTick: number = 0;
   
   // Entities (sparse storage)
@@ -448,6 +451,7 @@ export class WorldChunk {
       species: Array.from(this.species.entries()),
       ritualResidues: Array.from(this.ritualResidues.entries()),
       seedBank: this.seedBank,
+      elevation: this.elevation,
       rngSeed: this.rngSeed,
       rngState: this.rng.getState()
     };
@@ -475,6 +479,7 @@ export class WorldChunk {
       this.ritualResidues.set(id, residue);
     });
     this.seedBank = state.seedBank || [];
+    this.elevation = state.elevation ?? 0.5;
     
     this.rngSeed = state.rngSeed;
     this.rng.setState(state.rngState);

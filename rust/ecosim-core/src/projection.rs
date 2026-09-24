@@ -31,6 +31,7 @@ struct Chunk<'a> {
     species: Vec<(&'a str, Plant<'a>)>,
     ritual_residues: &'a [(String, Value)],
     seed_bank: &'a [Seed],
+    elevation: f64,
     #[serde(flatten)]
     extra: &'a BTreeMap<String, Value>,
 }
@@ -129,6 +130,7 @@ impl World {
                 species: by_chunk.remove(entity).unwrap_or_default(),
                 ritual_residues: &habitat.residues,
                 seed_bank: &habitat.seeds,
+                elevation: habitat.elevation,
                 extra: &habitat.extra,
             })
             .collect();

@@ -305,6 +305,15 @@ UPDATE vegetal_species SET clonal_method = 'rhizome' WHERE id IN ('common_grass'
 UPDATE vegetal_species SET clonal_method = 'stolon' WHERE id = 'white_clover';
 UPDATE vegetal_species SET clonal_method = 'bulb' WHERE id IN ('wild_bluebell', 'spanish_bluebell');
 
+-- Flood tolerance: how long roots survive under standing water. Willows, downy birch and pedunculate oak
+-- grow on floodplains and wet heath; beech and bracken die in waterlogged ground.
+UPDATE vegetal_species SET flood_tolerance = 0.6 WHERE id IN ('pioneer_willow', 'downy_birch');
+UPDATE vegetal_species SET flood_tolerance = 0.5 WHERE id = 'english_oak';
+UPDATE vegetal_species SET flood_tolerance = 0.4 WHERE id = 'lady_fern';
+UPDATE vegetal_species SET flood_tolerance = 0.3 WHERE id IN ('common_grass', 'moss_cushion');
+UPDATE vegetal_species SET flood_tolerance = 0.2 WHERE id IN ('silver_birch', 'white_clover', 'hawthorn', 'midland_hawthorn');
+UPDATE vegetal_species SET flood_tolerance = 0.1 WHERE id IN ('wild_bluebell', 'spanish_bluebell', 'sessile_oak', 'scots_pine');
+
 -- SIMULATION OVERRIDES (optional)
 INSERT OR REPLACE INTO simulation_species_overrides (
   species_id, seed_production, reproduction_threshold, seed_maturity_ticks, dispersal_range, reproduction_seasons, rarity

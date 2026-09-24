@@ -15,7 +15,8 @@ export interface Site {
   id: string
   name: string
   blurb: string
-  world: { width: number; height: number; seed: number }
+  /** A basin's floor lies in the middle, its rim at the map's edge; unset is flat ground. */
+  world: { width: number; height: number; seed: number; terrain?: 'basin' }
   /** Starting ground, applied to every hex. */
   conditions?: { moisture?: number; pollution?: number; nutrients?: number }
   /** Plants already growing in the centre when the site is founded. */
@@ -46,8 +47,31 @@ export const SITES: Site[] = [
     established: ['bracken_fern', 'english_oak', 'silver_birch'],
     starterSeeds: { sessile_oak: 2, midland_hawthorn: 3, wild_bluebell: 3 },
     targets: { cover: 0.6, plantKinds: 10, pollinatorKinds: 2, birdKinds: 4 },
+    unlocks: 'wetland',
+  },
+  {
+    id: 'wetland',
+    name: 'Wet Hollow',
+    blurb: 'A basin drained for grazing. Ditches choked long ago, and rain gathers on its floor again each winter.',
+    world: { width: 6, height: 6, seed: 1618, terrain: 'basin' },
+    conditions: { moisture: 0.35, nutrients: 0.55 },
+    established: ['pioneer_willow', 'downy_birch', 'common_grass'],
+    starterSeeds: { lady_fern: 3, english_oak: 2 },
+    targets: { cover: 0.5, plantKinds: 8, pollinatorKinds: 2, birdKinds: 3 },
   },
 ]
+
+/** The lie of a site's land, as the engine's elevation of each hex. */
+export function elevationOf(site: Site): ((x: number, y: number) => number) | undefined {
+  if (site.world.terrain !== 'basin') return undefined
+  const { width, height } = site.world
+  const [cx, cy] = [(width - 1) / 2, (height - 1) / 2]
+  const distance = (x: number, y: number) => Math.hypot(x - cx, y - cy)
+  // The hexes nearest the middle form the floor at height 0, a true hollow that holds its water.
+  const floor = distance(Math.floor(cx), Math.floor(cy))
+  const rim = distance(0, 0)
+  return (x, y) => (distance(x, y) - floor) / (rim - floor)
+}
 
 export const siteById = (id: string) => SITES.find(site => site.id === id)
 

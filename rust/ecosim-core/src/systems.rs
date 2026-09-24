@@ -14,6 +14,13 @@ fn trait_value(extra: &BTreeMap<String, Value>, id: &str) -> f64 {
         .clamp(0.0, 1.0)
 }
 
+/// How much a full step of height (0 to 1) raises water's head, in moisture units.
+const RELIEF: f64 = 0.3;
+/// Share of standing water per day that level ground (elevation 0.5) sheds as runoff, doubled on a rise.
+const RUNOFF: f64 = 0.8;
+/// Open water loses more to the air than soil does.
+const OPEN_WATER_EVAPORATION: f64 = 1.6;
+
 impl World {
     fn days(&self) -> f64 {
         self.config.time_per_tick_minutes as f64 / 1440.0
@@ -141,17 +148,25 @@ impl World {
             };
             let evaporation =
                 (0.004 + climate.temperature.max(0.0) * 0.00025 + climate.wind * 0.004)
-                    * (1.0 - biome.canopy * 0.45);
-            let drainage = (biome.moisture - 0.6).max(0.0) * 0.025;
-            biome.moisture =
-                (biome.moisture + input - (evaporation + drainage) * days).clamp(0.0, 1.0);
+                    * (1.0 - biome.canopy * 0.45)
+                    * if biome.standing_water > 0.0 {
+                        OPEN_WATER_EVAPORATION
+                    } else {
+                        1.0
+                    };
+            // Deep drainage: a hollow sits on its own water table and loses little.
+            let drainage = (biome.moisture - 0.6).max(0.0) * 0.05 * habitat.elevation;
+            // Surface runoff: level or sloping ground sheds a downpour within days; only a hollow holds it.
+            let runoff = biome.standing_water * RUNOFF * habitat.elevation;
+            let water = biome.moisture + biome.standing_water + input
+                - (evaporation + drainage + runoff) * days;
+            biome.set_water(water);
             habitat
                 .extra
                 .insert("waterTable".into(), json!(0.15 + biome.moisture * 0.65));
-            habitat.extra.insert(
-                "surfaceWater".into(),
-                json!((biome.moisture - 0.9).max(0.0)),
-            );
+            habitat
+                .extra
+                .insert("surfaceWater".into(), json!(biome.standing_water));
         }
     }
 
@@ -197,7 +212,9 @@ impl World {
             let drought = trait_value(&organism.extra, "drought_tolerance");
             let cold = trait_value(&organism.extra, "cold_resistance");
             let dry = (def.moisture_range.min - biome.moisture).max(0.0) * (1.5 - drought);
-            let wet = (biome.moisture - def.moisture_range.max).max(0.0) * 0.4;
+            // Standing water drowns roots that cannot take it; saturated soil stresses dryland plants.
+            let wet = (biome.moisture - def.moisture_range.max).max(0.0) * 0.4
+                + biome.standing_water * (1.0 - def.flood_tolerance);
             let moisture_stress = (dry + wet).min(1.0);
             let chill =
                 (def.temperature_range.min - climate.temperature - cold * 5.0).max(0.0) / 20.0;
@@ -538,10 +555,15 @@ impl World {
                 if seed.viability < 0.05 {
                     return false;
                 }
+                // A seed under water waits unless its kind roots in a flooded bed.
+                let drowned = self.definitions.get(&seed.species_id).map_or(0.0, |def| {
+                    biome.standing_water * (1.0 - def.flood_tolerance)
+                });
                 if seed.maturity_ticks > 0
                     || winter
                     || *count >= self.config.max_population_per_chunk
                     || biome.moisture < 0.08
+                    || drowned > 0.3
                 {
                     return true;
                 }
@@ -634,6 +656,8 @@ impl World {
         }
     }
 
+    /// Water runs from high head to low (soil water, standing water and height), never more than the source
+    /// can give, so slopes drain into hollows; pollution spreads evenly.
     pub(crate) fn diffusion_system(&mut self) {
         let days = self.days();
         let coordinates: BTreeMap<_, _> = self
@@ -649,7 +673,11 @@ impl World {
                 if let Some(neighbor) = coordinates.get(&(h.x + offset.0, h.y + offset.1)) {
                     let a = &self.components.biomes[entity];
                     let b = &self.components.biomes[neighbor];
-                    let moisture = (a.moisture - b.moisture) * 0.025 * days;
+                    let (ea, eb) = (h.elevation, self.components.habitats[neighbor].elevation);
+                    let water = |biome: &Biome| biome.moisture + biome.standing_water;
+                    let head = |biome: &Biome, elevation: f64| water(biome) + elevation * RELIEF;
+                    let moisture = ((head(a, ea) - head(b, eb)) * 0.025 * days)
+                        .clamp(-water(b) * 0.5, water(a) * 0.5);
                     let pollution = (a.pollution - b.pollution) * 0.01 * days;
                     let d = deltas.entry(*entity).or_default();
                     d.0 -= moisture;
@@ -662,7 +690,7 @@ impl World {
         }
         for (entity, (moisture, pollution)) in deltas {
             let biome = self.components.biomes.get_mut(&entity).unwrap();
-            biome.apply("moisture", moisture);
+            biome.set_water(biome.moisture + biome.standing_water + moisture);
             biome.apply("pollution", pollution);
         }
     }

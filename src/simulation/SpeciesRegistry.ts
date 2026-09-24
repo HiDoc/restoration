@@ -29,6 +29,7 @@ export interface SpeciesDefinition {
   lifespanTicks: number;        // Maximum age in ticks
   maturityDays?: number;        // Age before first flowering; unset means biomass alone decides
   clonalRate?: number;          // New shoots per plant per growing day (runners, rhizomes, bulbs)
+  floodTolerance?: number;      // How well roots stand standing water [0-1]
   reproductionThreshold: number; // Minimum biomass to reproduce
   reproductionNeed: number;     // Environmental quality threshold to reproduce [0-1]
   seedProduction: number;       // Seeds per reproductive cycle

@@ -677,3 +677,64 @@ fn a_backcross_stays_in_the_hybrid_taxon() {
         .iter()
         .any(|e| e.kind == "species_reproduce" && e.data["speciesId"] == "hybrid_native__spanish"));
 }
+
+#[test]
+fn animals_feed_on_hybrids_as_on_their_parents() {
+    let (mut patch, hex) = bluebell_patch(5);
+    let bee = || vec![animal("bee", "native", &["spanish"], false)];
+    patch.set_fauna_definitions(bee()).unwrap();
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    patch.step(110).unwrap();
+    let links = |w: &World| {
+        let bee = &w.fauna_definitions["bee"];
+        (
+            bee.forage
+                .iter()
+                .any(|l| l.plant == "hybrid_native__spanish"),
+            bee.hosts.iter().any(|h| h == "hybrid_native__spanish"),
+        )
+    };
+    assert_eq!(links(&patch), (true, true));
+    // The host resends its catalogue definitions; hybrids keep their links.
+    patch.set_fauna_definitions(bee()).unwrap();
+    assert_eq!(links(&patch), (true, true));
+}
+
+fn death_causes(world: &World) -> std::collections::BTreeSet<String> {
+    world
+        .events
+        .iter()
+        .filter(|e| e.kind == "species_die")
+        .map(|e| e.data["cause"].as_str().unwrap_or("").to_owned())
+        .collect()
+}
+
+#[test]
+fn plants_die_of_the_stress_that_limits_them() {
+    let mut parched = world_with(
+        4,
+        SpeciesDefinition {
+            moisture_range: Range { min: 0.9, max: 1.0 },
+            ..SpeciesDefinition::default()
+        },
+    );
+    parched.step(200).unwrap();
+    assert!(parched
+        .components
+        .growth
+        .values()
+        .all(|g| g.limit.as_deref() == Some("drought")));
+    assert_eq!(death_causes(&parched), ["drought".to_owned()].into());
+
+    let mut ageing = world_with(
+        4,
+        SpeciesDefinition {
+            lifespan_ticks: 20,
+            seed_production: 0.0,
+            ..SpeciesDefinition::default()
+        },
+    );
+    ageing.step(120).unwrap();
+    assert_eq!(death_causes(&ageing), ["old_age".to_owned()].into());
+}

@@ -55,7 +55,9 @@ export function codexEntries(knowledge: Knowledge): CodexEntry[] {
       seasonFact('Fruits', plant.ecology?.fruitingSeasons ?? [], seen?.fruiting),
     ].filter(fact => fact.known.length + fact.missing > 0)
     if ((plant.clonalRate ?? 0) > 0) facts.push({ label: 'Spreads without seed', known: seen?.spreads ? ['yes'] : [], missing: seen?.spreads ? 0 : 1 })
-    const partners = LINKS.filter(link => link.plant === plant.id).map(link => ({
+    // A hybrid is visited by whatever visits its parents, once per animal (as the engine links it).
+    const feeds = (link: (typeof LINKS)[number]) => link.plant === plant.id || plant.hybridOf?.includes(link.plant)
+    const partners = LINKS.filter((link, i, all) => feeds(link) && all.findIndex(l => feeds(l) && l.animal === link.animal) === i).map(link => ({
       id: link.animal, name: NAMES.get(link.animal) ?? link.animal, takes: link.takes, known: pairKey(link.animal, plant.id) in knowledge.interactions,
     }))
     const pedigree = plant.hybridOf?.map(id => NAMES.get(id) ?? id).join(' × ')

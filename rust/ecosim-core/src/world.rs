@@ -105,6 +105,7 @@ impl World {
             }
         }
         self.fauna_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
+        self.feed_on_hybrids();
         Ok(())
     }
 
@@ -127,6 +128,7 @@ impl World {
         for def in definitions {
             self.definitions.insert(def.id.clone(), def);
         }
+        self.feed_on_hybrids();
         Ok(())
     }
 
@@ -314,6 +316,7 @@ impl World {
                         age_days,
                         biomass: plant.biomass.max(0.0),
                         health: plant.health.clamp(0.0, 1.0),
+                        limit: None,
                     },
                 );
                 self.components.reproduction.insert(
@@ -366,6 +369,7 @@ impl World {
                 health: 0.9,
                 age: 0,
                 age_days: 0.0,
+                limit: None,
             },
         );
         self.components.reproduction.insert(

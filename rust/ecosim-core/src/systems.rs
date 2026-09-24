@@ -196,14 +196,13 @@ impl World {
             growth.age_days += days;
             let drought = trait_value(&organism.extra, "drought_tolerance");
             let cold = trait_value(&organism.extra, "cold_resistance");
-            let moisture_stress = ((def.moisture_range.min - biome.moisture).max(0.0)
-                * (1.5 - drought)
-                + (biome.moisture - def.moisture_range.max).max(0.0) * 0.4)
-                .min(1.0);
-            let temperature_stress =
-                ((def.temperature_range.min - climate.temperature - cold * 5.0).max(0.0)
-                    + (climate.temperature - def.temperature_range.max).max(0.0))
-                    / 20.0;
+            let dry = (def.moisture_range.min - biome.moisture).max(0.0) * (1.5 - drought);
+            let wet = (biome.moisture - def.moisture_range.max).max(0.0) * 0.4;
+            let moisture_stress = (dry + wet).min(1.0);
+            let chill =
+                (def.temperature_range.min - climate.temperature - cold * 5.0).max(0.0) / 20.0;
+            let heat = (climate.temperature - def.temperature_range.max).max(0.0) / 20.0;
+            let temperature_stress = chill + heat;
             let ground_light =
                 climate.light * (1.0 - biome.canopy * (1.0 - def.shade_tolerance_max));
             let light_stress = (def.light_requirement - ground_light).max(0.0);
@@ -218,9 +217,33 @@ impl World {
                 + light_stress * 0.4)
                 * if dormant { 0.25 } else { 1.0 };
             let recovery = if biome.moisture < 0.04 { 0.0 } else { 0.006 };
-            growth.health = (growth.health
-                + (recovery - stress * 0.06 - (density - 0.8).max(0.0) * 0.025) * days)
-                .clamp(0.0, 1.0);
+            let crowding = (density - 0.8).max(0.0) * 0.025;
+            growth.health =
+                (growth.health + (recovery - stress * 0.06 - crowding) * days).clamp(0.0, 1.0);
+            // A plant losing health is limited by whichever stress costs it most, in health per day.
+            let scale = 0.06 * if dormant { 0.25 } else { 1.0 };
+            let costs = [
+                ("drought", dry.min(1.0) * 0.8 * scale),
+                ("waterlogging", wet * 0.8 * scale),
+                ("cold", chill * 0.7 * scale),
+                ("heat", heat * 0.7 * scale),
+                ("pollution", biome.pollution * 0.7 * scale),
+                ("shade", light_stress * 0.4 * scale),
+                ("crowding", crowding),
+            ];
+            let (worst, cost) = costs
+                .into_iter()
+                .fold(("", 0.0), |a, b| if b.1 > a.1 { b } else { a });
+            let limit = if growth.age_days > def.lifespan_ticks as f64 {
+                Some("old_age")
+            } else if stress * 0.06 + crowding > recovery && cost > 0.0 {
+                Some(worst)
+            } else {
+                None
+            };
+            if growth.limit.as_deref() != limit {
+                growth.limit = limit.map(str::to_owned);
+            }
             let nutrient = 0.65 + trait_value(&organism.extra, "nutrient_efficiency") * 0.7;
             let efficiency = 0.6 + trait_value(&organism.extra, "growth_efficiency") * 0.8;
             let suitability =
@@ -246,15 +269,10 @@ impl World {
                 growth.health = (growth.health - 0.025 * days).max(0.0);
             }
             if growth.health <= 0.0 {
-                let cause = if lifetime_days > def.lifespan_ticks as f64 {
-                    "natural_aging"
-                } else if biome.moisture < def.moisture_range.min {
-                    "drought"
-                } else if biome.pollution > 0.5 {
-                    "pollution"
-                } else {
-                    "environmental_stress"
-                };
+                let cause = growth
+                    .limit
+                    .clone()
+                    .unwrap_or_else(|| "environmental_stress".into());
                 dead.push((
                     *entity,
                     position.chunk,

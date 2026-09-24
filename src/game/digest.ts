@@ -1,4 +1,5 @@
 import { EventType, type SimulationEvent } from '@/simulation/EventJournal'
+import { CAUSES, mostCommon } from './causes'
 
 export type DigestIcon = 'season' | 'sighting' | 'arrival' | 'interaction' | 'flower' | 'seed' | 'spread' | 'decline' | 'lost' | 'weather' | 'more'
 
@@ -28,13 +29,6 @@ const WEATHER: Record<string, string> = {
   cold_snap: 'A cold snap swept in.',
 }
 
-const CAUSES: Record<string, string> = {
-  drought: 'drought',
-  natural_aging: 'old age',
-  pollution: 'pollution',
-  environmental_stress: 'harsh conditions',
-}
-
 // A digest is read at a glance; the rest is summarised in one line.
 const MAX_LINES = 8
 
@@ -51,12 +45,6 @@ function bySpecies(events: readonly SimulationEvent[], type: EventType, key = 's
     groups.set(id, [...(groups.get(id) ?? []), event])
   }
   return groups
-}
-
-function mostCommon(values: string[]): string | undefined {
-  const counts = new Map<string, number>()
-  values.forEach(value => counts.set(value, (counts.get(value) ?? 0) + 1))
-  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0]
 }
 
 /** What changed while time was advanced, most notable first, in plain words. */
@@ -109,7 +97,7 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
       lines.push({ icon: 'spread', text: `${nameOf(id)} spread: ${before} → ${after} plants.`, chunkId: last(births.get(id))?.chunkId })
     } else if (after > 0 && -delta >= notable) {
       const died = deaths.get(id) ?? []
-      const cause = CAUSES[mostCommon(died.map(event => event.data?.cause)) ?? '']
+      const cause = CAUSES[mostCommon(died.map(event => event.data?.cause)) ?? '']?.noun
       lines.push({
         icon: 'decline',
         text: `${nameOf(id)} declined: ${before} → ${after} plants${cause ? `, mostly from ${cause}` : ''}.`,

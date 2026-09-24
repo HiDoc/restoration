@@ -46,4 +46,13 @@ describe('describeHex', () => {
     expect(describeHex(hex([], { biomeState: { moisture: 0.98 } }), info).habitat).toBe('bare')
     expect(describeHex(hex([['grass', 'vegetative', 5]], { biomeState: { pollution: 0.8 } }), info).habitat).toBe('blighted')
   })
+
+  it('says why a plant struggles when at least half of it does', () => {
+    const plants = (limits: Array<string | undefined>) => ({
+      biomeState: { moisture: 0.1 },
+      species: limits.map(limit => ({ speciesId: 'bluebell', phenologyStage: 'vegetative', limit })),
+    })
+    expect(describeHex(plants(['drought', 'drought', undefined]), info).plants[0].limit).toBe('too dry')
+    expect(describeHex(plants(['drought', undefined, undefined]), info).plants[0].limit).toBeUndefined()
+  })
 })

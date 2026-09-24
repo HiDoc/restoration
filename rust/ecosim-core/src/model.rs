@@ -302,6 +302,9 @@ pub struct Growth {
     pub age: u64,
     #[serde(default)]
     pub age_days: f64,
+    /// What is costing this plant health, when it is losing any: its largest stress.
+    #[serde(default)]
+    pub limit: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Reproduction {

@@ -337,22 +337,37 @@ knowledge store.
 ---
 
 ## Milestone B: breadth and the restoration loop
+Decided 2026-09-24: sites are separate maps with one shared Codex and seed pouch (hybrids bred in one site can
+restore another); three sites (meadow, woodland, wetland); cause tracking comes first because site stages and
+mysteries both explain themselves through it.
 
-- [ ] **Catalogue breadth:** 30+ plants, 15 birds, 15 pollinators, interactions to match (the CLAUDE.md
-      target is 50+ species).
-- [ ] **Connectivity:** in Rust, a habitat graph over hexes. Fauna dispersal needs connected suitable hexes, so
-      corridors become buildable and a corridor that joins two forests triggers crossings and a digest line.
-- [ ] **Ecosystem shift replaces collapse:** Rust tracks the limiting factor per species (drought, pollinator
-      loss, pollution, competition). The collapse pause shows an "Ecosystem shift" dialog with the discovered
-      causes, and Inspect/Continue buttons; the Restart framing goes.
-- [ ] **Mysteries:** a restoration site seeds anomalies ("flowers never set seed here"). Each has a hidden
-      cause: no pollinator reaches the area, groundwater depletion, or nectar with no larval host. It is
-      solved when the causal condition changes, and the Codex logs the explanation.
-- [ ] **Rare positive events:** seeded table in Rust (superbloom, butterfly migration, mast year, firefly
-      emergence, temporary pond, spontaneous hybrid, ancient seed germination), weighted by conditions. These
-      appear in the digest.
-- [ ] **Restoration sites:** scenarios become untimed sites (degraded → pioneer → pollinators → birds →
-      stable). Finishing one unlocks the next biome.
+- [x] **B0 Carry-over.** Hybrids inherit their parents' fauna links (bees visit hybrid bluebells).
+- [x] **B1 Causes and ecosystem shift.** Rust names each plant's limiting factor from the stress terms it
+      already computes (drought, waterlogging, cold, heat, shade, pollution, crowding, no pollinator, age) and
+      projects the worst per species per hex. Death events carry that factor as their cause. The hex card says
+      why a plant struggles ("struggling: too dry"). The collapse pause becomes an "Ecosystem shift" dialog
+      listing the causes the player witnessed, with Inspect (the worst-hit hex) and Continue; Restart goes.
+      Done (2026-09-24): limit = the stress costing the most health per day while health falls, or `old_age`
+      past lifespan; "no pollinator" is derived in the projection for a fruiting bloom nothing visited. Death
+      causes now: drought, waterlogging, cold, heat, shade, pollution, crowding, old_age. Wording in
+      `src/game/causes.ts`. Browser: meadow hawthorn/clover read "no pollinator visits" in autumn; a polluted
+      map ends in "Pollution took 74 plants: Spanish Bluebell and Bluebell." and Continue resumes time.
+      Follow-up: the legacy TS update loop in `WorldChunk` (`CauseOfDeath`, `updateSpecies`) is dead code.
+- [ ] **B2 Restoration sites.** Sites replace scenarios: a map (size, seed, degraded starting conditions,
+      starting plants), untimed stages (degraded → pioneers → pollinators → birds → stable, each with a
+      measurable condition) and the next site it unlocks. A profile holds the Codex, the pouch, site progress
+      and one save per site; travelling carries seeds. Site selector replaces the scenario selector.
+- [ ] **B3 Wetland hydrology.** Rust standing water: a water table per hex from terrain and rain, ponds in low
+      hexes, waterlogging stress; a wetland habitat in the hex description and map tiles.
+- [ ] **B4 Catalogue breadth.** 30+ plants (meadow, woodland and wetland sets, with congeneric pairs), 15 birds,
+      15 pollinators and their interactions, all real species with sourced trait values.
+- [ ] **B5 Connectivity.** A habitat graph over hexes in Rust; fauna spread only through connected suitable
+      hexes, so corridors matter. A corridor joining two patches gives a digest line.
+- [ ] **B6 Mysteries.** Each site seeds anomalies with hidden causes (no pollinator reaches a patch, falling
+      water table, nectar without larval host); solved when the cause changes; the Codex logs the explanation.
+- [ ] **B7 Rare events.** Seeded, condition-weighted table in Rust (superbloom, butterfly migration, mast year,
+      temporary pond, spontaneous hybrid between co-flowering congeners, ancient seed germination), in the
+      digest.
 
 ## Milestone C: depth
 

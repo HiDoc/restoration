@@ -52,6 +52,9 @@ struct Plant<'a> {
     last_reproduction_attempt: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pollen: Option<&'a Pollen>,
+    /// Why the plant struggles, if it does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<&'a str>,
     #[serde(flatten)]
     extra: PlantExtras<'a>,
 }
@@ -100,6 +103,14 @@ impl World {
                         .cloned()
                         .unwrap_or(Value::from(0)),
                     pollen: reproduction.pollen.as_ref(),
+                    limit: growth.limit.as_deref().or_else(|| {
+                        // Healthy but barren: an animal-pollinated bloom nothing visited.
+                        let def = self.definitions.get(&organism.species_id)?;
+                        (reproduction.stage == "fruiting"
+                            && matches!(def.pollination.as_str(), "insect" | "bird")
+                            && reproduction.pollinated < 0.2)
+                            .then_some("no_pollinator")
+                    }),
                     extra: PlantExtras(&organism.extra),
                 },
             ));

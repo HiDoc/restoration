@@ -9,7 +9,7 @@
     <div v-if="runtimeError" class="border-b border-rose-400/30 bg-slate-950 px-4 py-3 text-sm text-rose-100" role="alert">
       The simulation stopped unexpectedly. Load a saved ecosystem or restart to continue.
       <button type="button" class="sci-btn ml-3 px-3 py-1" @click="loadLatestSnapshot">Load</button>
-      <button type="button" class="sci-btn ml-2 px-3 py-1" @click="restartAfterExtinction">Restart</button>
+      <button type="button" class="sci-btn ml-2 px-3 py-1" @click="restart">Restart</button>
     </div>
     <!-- Contemplative View -->
     <template v-if="viewMode === 'contemplative'">
@@ -71,14 +71,6 @@
           <button type="button" class="nv-img-btn" title="Scenarios" aria-label="Choose scenario" @click="scenarioStore.openScenarioSelector()"><img :src="nv('btn-map')" alt="" /></button>
         </div>
       </header>
-
-      <div v-if="extinction.triggered" class="nv-panel mx-3 mt-2 flex flex-shrink-0 items-center justify-between gap-3 px-4 py-2" role="status">
-        <span class="text-sm font-bold text-[#8f3a24]">All species collapsed on day {{ extinction.sinceTick }}</span>
-        <div class="flex items-center gap-2">
-          <button type="button" class="nv-btn" @click="restartAfterExtinction">Restart</button>
-          <button type="button" class="nv-btn" @click="loadLatestSnapshot">Load save</button>
-        </div>
-      </div>
 
       <main class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)_18rem] lg:overflow-hidden xl:grid-cols-[8.75rem_15rem_minmax(0,1fr)_18rem]">
         <img :src="nv('portrait-strip')" alt="" class="nv-portrait hidden h-full min-h-0 w-full object-cover object-top xl:block" />
@@ -203,7 +195,9 @@
             <ul class="grid gap-0.5 text-sm">
               <li v-for="plant in hexStory.plants.slice(0, 5)" :key="plant.id" class="nv-tooltip-row">
                 <span class="flex items-center gap-2"><img :src="nv(ACTIVITY_ICONS[plant.activity])" alt="" class="h-4 w-4 object-contain" />{{ plant.name }}</span>
-                <span class="nv-small opacity-80">{{ ACTIVITY_WORDS[plant.activity] }} · {{ plant.count }}</span>
+                <span class="nv-small opacity-80">
+                  <span v-if="plant.limit" class="font-bold text-[#f0b48a]">{{ plant.limit }}</span><template v-else>{{ ACTIVITY_WORDS[plant.activity] }}</template> · {{ plant.count }}
+                </span>
               </li>
             </ul>
             <h4 v-if="hexStory.animals.length" class="nv-small mt-2 uppercase tracking-[0.15em] opacity-70">Animals</h4>
@@ -330,6 +324,25 @@
         <img :src="nv('dock-right')" alt="A healthy tomorrow takes root today" class="hidden h-[4.25rem] w-auto flex-shrink-0 xl:block" />
       </footer>
 
+    <!-- The land emptied: say what the player saw cause it, and let life go on -->
+    <div v-if="extinction.triggered" class="sci-modal-overlay">
+      <div class="sci-modal nv-ornate max-w-md" role="dialog" aria-labelledby="shift-title">
+        <h2 id="shift-title" class="nv-heading text-center text-xl">Ecosystem shift</h2>
+        <p class="nv-small nv-muted text-center">Year {{ currentYear }} · Day {{ simDays }}</p>
+        <p class="nv-small mt-2 text-center">No plants or living seed remain. The land will stay open until something arrives or you sow it.</p>
+        <ul class="mt-3 grid gap-1.5">
+          <li v-if="extinction.causes.length === 0" class="nv-small nv-muted text-center">The last plants faded without a clear cause.</li>
+          <li v-for="cause in extinction.causes" :key="cause.text" class="nv-row text-sm">
+            <span>{{ cause.text }}</span>
+            <button v-if="cause.chunkId" type="button" class="nv-link flex-shrink-0" @click="inspectShift(cause.chunkId)">Inspect</button>
+          </li>
+        </ul>
+        <div class="mt-3 flex justify-center">
+          <button type="button" class="nv-btn px-5 py-1.5 text-sm font-bold" @click="acknowledgeShift">Continue</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="digest" class="sci-modal-overlay" @click.self="digest = null">
       <div class="sci-modal nv-ornate max-w-md" role="dialog" aria-labelledby="digest-title">
         <h2 id="digest-title" class="nv-heading text-center text-xl">{{ digest.title }}</h2>
@@ -414,11 +427,6 @@
       @apply-intervention="applyInterventionFromInspector"
     />
     <p v-if="saveNotice" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
-    <div v-if="extinction.triggered && viewMode === 'contemplative'" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] rounded-lg bg-slate-950 px-4 py-3 text-sm" role="status">
-      No living plants or viable seeds remain.
-      <button type="button" class="sci-btn ml-3 px-3 py-1" @click="restartAfterExtinction">Restart</button>
-      <button type="button" class="sci-btn ml-2 px-3 py-1" @click="loadLatestSnapshot">Load</button>
-    </div>
     </template>
   </div>
 </template>
@@ -445,6 +453,7 @@ import { buildDigest, type DigestLine } from "@/game/digest";
 import { plantStartingMeadow } from "@/game/startingMeadow";
 import { habitatFit, rewardSpecies, REWARD_SEEDS, STARTER_SEEDS } from "@/game/seeds";
 import { crossBarrier } from "@/game/hybrids";
+import { explainShift, type ShiftCause } from "@/game/shift";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
@@ -534,7 +543,8 @@ const goalsStore = useGoalsStore();
 const tutorialStore = useTutorialStore();
 const scenarioStore = useScenarioStore();
 
-const extinction = reactive({ triggered: false, sinceTick: 0 });
+// An emptied land pauses once with its causes; after Continue it waits for life to return before watching again.
+const extinction = reactive({ triggered: false, acknowledged: false, sinceTick: 0, causes: [] as ShiftCause[] });
 let extinctionGraceUntilTick = 50;
 let resumeAfterYearEnd = false;
 
@@ -615,7 +625,7 @@ function initializeWorld() {
   selectedChunkForInspection.value = null;
   selected.value = null;
   extinctionGraceUntilTick = 50;
-  extinction.triggered = false;
+  extinction.triggered = extinction.acknowledged = false;
   updateStats();
   initSpeciesSnapshot(engine.value.readChunks());
   seenWeather.clear();
@@ -724,14 +734,19 @@ function updateStats() {
       chunk.seedBank.some(seed => seed.viability > 0)
     );
     if (stats.totalSpecies <= 0 && !hasViableSeeds) {
-      if (!extinction.triggered) {
+      if (!extinction.triggered && !extinction.acknowledged) {
         pause();
-        extinction.triggered = true;
-        extinction.sinceTick = stats.currentTick;
-        pushEvent('💀 All species have gone extinct. Simulation paused.');
+        const seasonTicks = (engine.value.getConfig().seasonLengthTicks ?? 90) * 1440 / (engine.value.getConfig().timePerTickMinutes ?? 1440);
+        Object.assign(extinction, {
+          triggered: true,
+          sinceTick: stats.currentTick,
+          causes: explainShift(engine.value.getEventJournal().getAllEvents(), stats.currentTick - seasonTicks, id => speciesInfo(id).name),
+        });
+        pushEvent('The land has emptied: an ecosystem shift.');
       }
-    } else if (extinction.triggered) {
+    } else {
       extinction.triggered = false;
+      extinction.acknowledged = false;
     }
   }
 }
@@ -1003,7 +1018,7 @@ async function loadLatestSnapshot() {
     completedYear.value = legacy ? engine.value.getCurrentYear() : state.yearEnd.completedYear;
     resumeAfterYearEnd = legacy ? false : state.yearEnd.resume;
     extinctionGraceUntilTick = legacy ? engine.value.getCurrentTick() + 50 : state.extinctionGraceUntilTick;
-    extinction.triggered = false;
+    extinction.triggered = extinction.acknowledged = false;
     runtimeError.value = null;
     showChunkInspector.value = false;
     selectedChunkForInspection.value = null;
@@ -1193,6 +1208,16 @@ function advanceTime(span: 'week' | 'season') {
   requestAnimationFrame(frame);
 }
 
+function acknowledgeShift() {
+  extinction.triggered = false;
+  extinction.acknowledged = true;
+}
+
+function inspectShift(chunkId: string) {
+  acknowledgeShift();
+  inspectDigestLine(chunkId);
+}
+
 function inspectDigestLine(chunkId: string) {
   const [, x, y] = chunkId.split('_').map(Number);
   digest.value = null;
@@ -1358,13 +1383,11 @@ function loadViewModePreference() {
   } catch {}
 }
 
-async function restartAfterExtinction() {
+async function restart() {
   pause();
   width.value = options.worldWidth;
   height.value = options.worldHeight;
-  extinction.triggered = false;
   await init();
-  pushEvent('🌱 Simulation restarted after extinction.');
 }
 
 function initSpeciesSnapshot(chunks: ReadonlyMap<string, any>) {

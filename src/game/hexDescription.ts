@@ -1,10 +1,18 @@
 import { speciesInfo, type SpeciesInfo } from './speciesInfo'
+import { CAUSES, mostCommon } from './causes'
 
 // No wetland yet: the engine has no standing water and the catalogue no wetland plants to define one.
 export type Habitat = 'woodland' | 'scrub' | 'meadow' | 'dry_grassland' | 'blighted' | 'bare'
 export type PlantActivity = 'flowering' | 'fruiting' | 'dormant' | 'growing'
 
-export interface HexPlant { id: string; name: string; count: number; activity: PlantActivity }
+export interface HexPlant {
+  id: string
+  name: string
+  count: number
+  activity: PlantActivity
+  /** Why most of them struggle, in words ("too dry"), when at least half do. */
+  limit?: string
+}
 export interface HexAnimal { id: string; name: string; count: number; group: string }
 
 export interface HexDescription {
@@ -18,7 +26,7 @@ export interface HexDescription {
 
 export interface HexState {
   biomeState?: { moisture?: number; pollution?: number; canopy?: number }
-  species?: { forEach(fn: (plant: { speciesId: string; phenologyStage?: string }) => void): void }
+  species?: { forEach(fn: (plant: { speciesId: string; phenologyStage?: string; limit?: string }) => void): void }
   fauna?: Record<string, number>
 }
 
@@ -45,19 +53,21 @@ function habitatOf(hex: HexState, plants: HexPlant[], kind: (id: string) => stri
 
 /** What a hex is and what is going on in it, told the way a visitor would see it. */
 export function describeHex(hex: HexState, info: (id: string) => SpeciesInfo = speciesInfo): HexDescription {
-  const bySpecies = new Map<string, { count: number; stages: Set<string> }>()
+  const bySpecies = new Map<string, { count: number; stages: Set<string>; limits: string[] }>()
   hex.species?.forEach(plant => {
-    const entry = bySpecies.get(plant.speciesId) ?? { count: 0, stages: new Set<string>() }
+    const entry = bySpecies.get(plant.speciesId) ?? { count: 0, stages: new Set<string>(), limits: [] }
     entry.count += 1
     entry.stages.add(plant.phenologyStage ?? 'vegetative')
+    if (plant.limit) entry.limits.push(plant.limit)
     bySpecies.set(plant.speciesId, entry)
   })
   const plants: HexPlant[] = [...bySpecies]
-    .map(([id, { count, stages }]) => ({
+    .map(([id, { count, stages, limits }]) => ({
       id,
       name: info(id).name,
       count,
       activity: stages.has('flowering') ? 'flowering' : stages.has('fruiting') ? 'fruiting' : stages.has('dormant') && stages.size === 1 ? 'dormant' : 'growing',
+      limit: limits.length * 2 >= count ? CAUSES[mostCommon(limits) ?? '']?.state : undefined,
     } as HexPlant))
     .sort((a, b) => b.count - a.count)
   const animals: HexAnimal[] = Object.entries(hex.fauna ?? {})

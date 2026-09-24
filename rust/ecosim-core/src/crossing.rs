@@ -126,8 +126,38 @@ impl World {
                 .collect();
             let hybrid = blend(id.clone(), &defs, parents.clone());
             self.definitions.insert(id.clone(), hybrid);
+            self.feed_on_hybrids();
         }
         id
+    }
+
+    /// Animals treat a hybrid like its parents: each gains the first link it has to one of them, and a larval
+    /// host parent makes the hybrid a host. Idempotent, so it runs whenever either definition set changes.
+    pub(crate) fn feed_on_hybrids(&mut self) {
+        let hybrids: Vec<(String, Vec<String>)> = self
+            .definitions
+            .values()
+            .filter(|def| !def.hybrid_of.is_empty())
+            .map(|def| (def.id.clone(), def.hybrid_of.clone()))
+            .collect();
+        for animal in self.fauna_definitions.values_mut() {
+            for (hybrid, parents) in &hybrids {
+                if !animal.forage.iter().any(|link| &link.plant == hybrid) {
+                    if let Some(link) = animal.forage.iter().find(|l| parents.contains(&l.plant)) {
+                        let link = FaunaLink {
+                            plant: hybrid.clone(),
+                            ..link.clone()
+                        };
+                        animal.forage.push(link);
+                    }
+                }
+                if !animal.hosts.contains(hybrid)
+                    && animal.hosts.iter().any(|h| parents.contains(h))
+                {
+                    animal.hosts.push(hybrid.clone());
+                }
+            }
+        }
     }
 }
 

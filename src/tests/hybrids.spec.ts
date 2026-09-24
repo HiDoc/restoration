@@ -67,6 +67,7 @@ describe('breeding a hybrid bluebell in the starting meadow', () => {
     knowledge.observe(engine)
     const entry = codexEntries(knowledge.knowledge).find(e => e.id === HYBRID)!
     expect(entry.pedigree).toBe('Spanish Bluebell × Bluebell')
+    expect(entry.partners.map(p => p.id)).toEqual(['buff_tailed_bumblebee'])
     knowledge.rename(HYBRID, 'Garden Ghost')
     expect(species(HYBRID)!.name).toBe('Garden Ghost')
     const saved = JSON.parse(JSON.stringify(knowledge.exportState()))

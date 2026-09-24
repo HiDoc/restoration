@@ -48,7 +48,7 @@ describe('buildDigest', () => {
         event('species_die', { speciesId: 'scots_pine', cause: 'drought' }, 'chunk_4_4'),
         event('species_die', { speciesId: 'wild_bluebell', cause: 'drought' }, 'chunk_1_2'),
         event('species_die', { speciesId: 'wild_bluebell', cause: 'drought' }, 'chunk_1_3'),
-        event('species_die', { speciesId: 'wild_bluebell', cause: 'natural_aging' }, 'chunk_1_4'),
+        event('species_die', { speciesId: 'wild_bluebell', cause: 'old_age' }, 'chunk_1_4'),
         event('species_spawn', { speciesId: 'white_clover' }, 'chunk_5_5'),
       ],
       populationBefore: new Map([['scots_pine', 2], ['wild_bluebell', 20], ['white_clover', 10]]),

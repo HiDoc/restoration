@@ -3,6 +3,7 @@ import { emptyKnowledge, learn, see, pairKey } from '@/game/knowledge'
 import { codexEntries, codexTotals, knowledgeSummary } from '@/game/codex'
 import type { SimulationEvent } from '@/simulation/EventJournal'
 import type { Season } from '@/simulation/SpeciesRegistry'
+import catalogue from '@/database/catalogue.json'
 
 const event = (type: string, data: Record<string, unknown>, tick = 10, chunkId = 'chunk_2_2') =>
   ({ tick, timestamp: 0, type, data, chunkId }) as SimulationEvent
@@ -55,13 +56,13 @@ describe('codex', () => {
 
   it('counts each section and summarises for goals', () => {
     const k = emptyKnowledge()
-    learn(k, [event('interaction_observed', { faunaId: 'goldfinch', plantId: 'common_grass' })], seasonOf)
+    learn(k, [event('interaction_observed', { faunaId: 'greenfinch', plantId: 'common_grass' })], seasonOf)
     const totals = codexTotals(k)
-    expect(totals.plant).toEqual({ known: 1, total: 16 })
-    expect(totals.bird).toEqual({ known: 1, total: 12 })
-    expect(totals.pollinator).toEqual({ known: 0, total: 4 })
+    expect(totals.plant).toEqual({ known: 1, total: catalogue.plants.length })
+    expect(totals.bird).toEqual({ known: 1, total: catalogue.birds.length })
+    expect(totals.pollinator).toEqual({ known: 0, total: catalogue.pollinators.length })
     expect(totals.interaction.known).toBe(1)
-    // The Goldfinch's only catalogue link is Red Fescue seed, so seeing it completes the Goldfinch's entry.
+    // The Greenfinch's only catalogue link is Red Fescue seed, so seeing it completes the Greenfinch's entry.
     expect(knowledgeSummary(k)).toEqual({ knownSpecies: 2, completeEntries: 1, interactions: 1 })
   })
 

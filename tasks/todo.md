@@ -400,8 +400,28 @@ mysteries both explain themselves through it.
       grass, birch and willow there read "waterlogged". Also fixed: a projected plant `limit` no longer sticks
       in the plant's record on sync; `engine_diffusion` compares against a same-weather twin.
       Follow-ups: the moisture overlay does not distinguish ponds; wetland flora comes with B4.
-- [ ] **B4 Catalogue breadth.** 30+ plants (meadow, woodland and wetland sets, with congeneric pairs), 15 birds,
-      15 pollinators and their interactions, all real species with sourced trait values.
+- [x] **B4 Catalogue breadth.** All real species with trait values from their ecology. Congeners only where
+      they hybridise in the wild (the crossing rule is by genus).
+  - [x] Plants 16 → 41 (the list below is 25 new). Meadow: Common Knapweed, Bird's-foot Trefoil, Oxeye Daisy, Yellow Rattle, Meadow
+        Buttercup, Common Sorrel, Yarrow, Cowslip. Woodland: Primrose (× Cowslip → false oxlip), Wood Anemone,
+        Hazel, Holly, Honeysuckle, Common Dog-violet, Bramble. Wetland: Alder, Marsh Marigold, Yellow Flag,
+        Purple Loosestrife, Meadowsweet, Ragged-Robin, Grey Willow (× Goat Willow), Cuckooflower, Alder
+        Buckthorn. Edge: Common Nettle.
+  - [x] Pollinators 4 → 15: Red-tailed Bumblebee, Common Carder Bee, Tawny Mining Bee, Meadow Brown,
+        Orange-tip, Small Copper, Brimstone, Peacock, Silver-washed Fritillary, Six-spot Burnet, Drone Fly;
+        each butterfly and moth with its real larval host.
+  - [x] Birds 12 → 15: Siskin (alder and birch seed), Reed Bunting, Reed Warbler (a summer migrant).
+  - [x] Fauna builder: a bird's diet decides what it takes (a granivore on a tree takes seed, not insects);
+        long-distance migrants are present in spring and summer only.
+  - [x] Sites use the new flora: wetland starts with Grey Willow, Meadowsweet and Marsh Marigold patches and
+        Yellow Flag seed; woodland gets Hazel, Primrose and Wood Anemone.
+  - [x] Tests: catalogue integrity (every butterfly has a host in the catalogue, every link names real
+        species), balance of the starting meadow, counts in Codex tests.
+      Done (2026-09-24): 41 plants, 15 birds, 15 pollinators, 131 interactions. Every site as founded holds
+      its plants for two years, sets seed and draws animals (`catalogue_balance.spec` per site; the wetland
+      draws Reed Warbler and Reed Bunting, Siskin once Alder is sown). Codex shows 41 / 15 / 15.
+      Follow-ups: moth and butterfly sprites share the SVG stand-in; Alder, a N-fixer, does not yet enrich soil
+      (no engine effect for nitrogen fixation).
 - [ ] **B5 Connectivity.** A habitat graph over hexes in Rust; fauna spread only through connected suitable
       hexes, so corridors matter. A corridor joining two patches gives a digest line.
 - [ ] **B6 Mysteries.** Each site seeds anomalies with hidden causes (no pollinator reaches a patch, falling

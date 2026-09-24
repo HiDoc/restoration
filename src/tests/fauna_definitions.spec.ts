@@ -6,7 +6,17 @@ const fauna = new Map(buildFaunaDefinitions(catalogue).map(def => [def.id, def])
 
 describe('buildFaunaDefinitions', () => {
   it('gives butterflies their larval hosts and makes them depend on one', () => {
-    expect(fauna.get('common_blue')).toMatchObject({ group: 'butterfly', hosts: ['white_clover'], needsHost: true, activeSeasons: ['spring', 'summer'] })
+    expect(fauna.get('common_blue')).toMatchObject({ group: 'butterfly', needsHost: true, activeSeasons: ['spring', 'summer'] })
+    expect(fauna.get('common_blue')!.hosts).toEqual(expect.arrayContaining(['white_clover', 'birds_foot_trefoil']))
+  })
+
+  it('gives every butterfly and moth a larval host that is in the catalogue', () => {
+    const plants = new Set(catalogue.plants.map(plant => plant.id))
+    for (const def of fauna.values()) {
+      if (!def.needsHost) continue
+      expect(def.hosts.length, def.id).toBeGreaterThan(0)
+      for (const host of def.hosts) expect(plants.has(host), `${def.id} → ${host}`).toBe(true)
+    }
   })
 
   it('lets bees pollinate the flowers they take nectar from', () => {
@@ -19,6 +29,13 @@ describe('buildFaunaDefinitions', () => {
     expect(fauna.get('goldfinch')!.forage).toContainEqual(expect.objectContaining({ plant: 'common_grass', takes: 'seed', disperses: false }))
     expect(fauna.get('blue_tit')!.forage).toContainEqual(expect.objectContaining({ plant: 'english_oak', takes: 'insects' }))
     expect(fauna.get('robin_european')!.hosts).toContain('hawthorn')
+    // A seed eater on a tree takes seed, not insects.
+    expect(fauna.get('siskin')!.forage).toContainEqual(expect.objectContaining({ plant: 'alder', takes: 'seed' }))
+  })
+
+  it('keeps long-distance migrants to the breeding months', () => {
+    expect(fauna.get('reed_warbler')!.activeSeasons).toEqual(['spring', 'summer'])
+    expect(fauna.get('blackbird')!.activeSeasons).toHaveLength(4)
   })
 
   it('keeps pollination links off birds', () => {

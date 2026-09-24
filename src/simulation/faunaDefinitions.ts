@@ -57,15 +57,21 @@ export function buildFaunaDefinitions(catalogue: Catalogue): FaunaDefinition[] {
   const birds = catalogue.birds.map((b): FaunaDefinition => ({
     id: b.id,
     group: 'bird',
-    activeSeasons: ALL_YEAR, // every catalogue bird is resident or a short-distance migrant
+    // Long-distance migrants spend only the breeding months here.
+    activeSeasons: b.migration_pattern === 'long_distance' ? ['spring', 'summer'] : ALL_YEAR,
     temperatureRange: { min: b.temp_range_min, max: b.temp_range_max },
     pollutionTolerance: BIRD_POLLUTION_TOLERANCE,
     foragingRange: b.body_mass_g > 150 ? 2 : 1,
     capacityPerForage: CAPACITY_PER_FORAGE.bird,
     forage: linksOf(b.id, ['seed_dispersal', 'feeding']).map(link => {
       const disperses = link.interaction_type === 'seed_dispersal'
+      // A bird takes what its diet is: seed eaters seed, insect eaters insects; omnivores the seed of grasses
+      // and herbs, and the insects on shrubs and trees.
       const category = categoryOf.get(link.species_a_id)
-      const takes = disperses ? 'fruit' : category === 'grass' || category === 'herb' ? 'seed' : 'insects'
+      const takes = disperses ? 'fruit'
+        : b.diet_type === 'granivore' ? 'seed'
+        : b.diet_type === 'insectivore' ? 'insects'
+        : category === 'grass' || category === 'herb' ? 'seed' : 'insects'
       return { plant: link.species_a_id, strength: link.interaction_strength, takes, pollinates: false, disperses }
     }),
     hosts: linksOf(b.id, ['nesting']).map(link => link.species_a_id),

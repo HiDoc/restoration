@@ -81,7 +81,8 @@ export class SpeciesDataAdapter {
       { db: 'temperate_forest', sim: BiomeType.TEMPERATE_FOREST },
       { db: 'coniferous_forest', sim: BiomeType.BOREAL_FOREST },
       { db: 'grassland', sim: BiomeType.GRASSLAND },
-      { db: 'forest_edge', sim: BiomeType.TEMPERATE_FOREST } // Map edge to temperate for now
+      { db: 'forest_edge', sim: BiomeType.TEMPERATE_FOREST }, // Map edge to temperate for now
+      { db: 'wetland', sim: BiomeType.WETLAND }
     ]
     
     // Several catalogue biomes share one simulation biome, so their species lists are merged.

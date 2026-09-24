@@ -58,7 +58,8 @@ export interface RuntimeSnapshot {
   simTimeDays: number;
   chunks: any[];
   weatherEvents?: any[];
-  hybridizationEvents?: number;
+  /** Hybrid taxa bred so far, as Rust defines them. */
+  hybrids?: Array<Record<string, unknown> & { id: string; hybridOf: string[] }>;
   /** Seeds in the player's pouch per species. */
   inventory?: Record<string, number>;
 }

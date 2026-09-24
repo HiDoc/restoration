@@ -104,6 +104,7 @@ export class SpeciesDataAdapter {
       id: dbSpecies.id,
       name: dbSpecies.common_name || dbSpecies.name,
       scientificName: dbSpecies.name,
+      genus: dbSpecies.name.split(' ')[0],
       category: this.convertSpeciesCategory(dbSpecies.type),
       maxBiomass: dbSpecies.max_biomass,
       growthRate: dbSpecies.growth_rate * clock,

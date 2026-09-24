@@ -15,7 +15,8 @@ export interface SimulationEvent {
 export enum EventType {
   // Player actions
   PLAYER_PLANT = 'player_plant',
-  PLAYER_HYBRIDIZE = 'player_hybridize', 
+  PLAYER_COLLECT = 'player_collect',
+  PLAYER_CROSS = 'player_cross',
   PLAYER_IRRIGATE = 'player_irrigate',
   PLAYER_CLEANSE = 'player_cleanse',
   PLAYER_RITUAL = 'player_ritual',
@@ -34,7 +35,6 @@ export enum EventType {
   INTERACTION_OBSERVED = 'interaction_observed',
   SEED_SELECTION = 'seed_selection',
   POLLINATOR_MOVE = 'pollinator_move',
-  HYBRID_CREATED = 'hybrid_created',
   
   // Simulation control
   SIM_START = 'sim_start',
@@ -139,7 +139,8 @@ export class EventJournal {
   getPlayerEvents(playerId?: string): SimulationEvent[] {
     const playerEventTypes = [
       EventType.PLAYER_PLANT,
-      EventType.PLAYER_HYBRIDIZE,
+      EventType.PLAYER_COLLECT,
+      EventType.PLAYER_CROSS,
       EventType.PLAYER_IRRIGATE,
       EventType.PLAYER_CLEANSE,
       EventType.PLAYER_RITUAL
@@ -259,7 +260,8 @@ export class EventJournal {
 
     const playerEventTypes = [
       EventType.PLAYER_PLANT,
-      EventType.PLAYER_HYBRIDIZE,
+      EventType.PLAYER_COLLECT,
+      EventType.PLAYER_CROSS,
       EventType.PLAYER_IRRIGATE,
       EventType.PLAYER_CLEANSE,
       EventType.PLAYER_RITUAL

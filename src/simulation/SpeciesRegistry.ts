@@ -1,7 +1,8 @@
 import catalogue from '../database/catalogue.json';
+import { hybridName } from '../game/hybrids';
 
 /**
- * Species registry with finite, closed ontology for species and hybrids
+ * Species registry: the catalogue's wild species plus hybrids the player has bred
  */
 
 export interface SpeciesTrait {
@@ -16,6 +17,10 @@ export interface SpeciesDefinition {
   id: string;
   name: string;
   scientificName?: string;
+  /** Only species of one genus can cross; unset means the species crosses with nothing. */
+  genus?: string;
+  /** For a bred hybrid, the non-hybrid species it descends from. */
+  hybridOf?: string[];
   category: SpeciesCategory;
   
   // Core attributes
@@ -147,82 +152,18 @@ export enum BiomeType {
 }
 
 /**
- * Hybrid definition - results from crossing two parent species
- */
-export interface HybridDefinition {
-  id: string;
-  name: string;
-  parentA: string;              // Species ID
-  parentB: string;              // Species ID
-  catalyst?: string;            // Required catalyst item/condition
-  
-  // Success conditions
-  successRate: number;          // Probability of successful hybridization
-  environmentalRequirements: {  // Conditions needed for hybridization
-    temperatureRange?: { min: number; max: number };
-    moistureMin?: number;
-    seasonRequired?: string;
-    biomeRequired?: BiomeType;
-  };
-  
-  // Hybrid properties
-  lifespanTicks: number;        // How long the hybrid lasts
-  effectRadius: number;         // Area of influence
-  effectStrength: number;       // Magnitude of effects
-  
-  // Effects on environment
-  biomeEffects: {
-    [key in keyof import('./WorldChunk').BiomeState]?: number;
-  };
-  
-  // Special abilities
-  abilities: HybridAbility[];
-  
-  // Rarity and unlock conditions
-  rarity: SpeciesRarity;
-  unlockConditions: string[];   // What must be achieved to discover this hybrid
-  
-  // Visual representation
-  visualProps: {
-    color: string;
-    glowIntensity: number;
-    particleEffect?: string;
-  };
-}
-
-export interface HybridAbility {
-  name: string;
-  description: string;
-  type: HybridAbilityType;
-  parameters: Record<string, number>;
-}
-
-export enum HybridAbilityType {
-  CLEANSE_POLLUTION = 'cleanse_pollution',
-  ENHANCE_FERTILITY = 'enhance_fertility', 
-  ACCELERATE_GROWTH = 'accelerate_growth',
-  WATER_GENERATION = 'water_generation',
-  PEST_RESISTANCE = 'pest_resistance',
-  SUCCESSION_BOOST = 'succession_boost',
-  CANOPY_MANIPULATION = 'canopy_manipulation',
-  POLLINATOR_ATTRACTION = 'pollinator_attraction'
-}
-
-/**
  * Species Registry - maintains the finite ontology
  */
 export class SpeciesRegistry {
   private static instance: SpeciesRegistry;
   
   private species: Map<string, SpeciesDefinition> = new Map();
-  private hybrids: Map<string, HybridDefinition> = new Map();
   private categoryIndex: Map<SpeciesCategory, string[]> = new Map();
   private biomeIndex: Map<BiomeType, string[]> = new Map();
   private rarityIndex: Map<SpeciesRarity, string[]> = new Map();
 
   private constructor() {
     this.initializeBaseSpecies();
-    this.initializeHybrids();
     this.buildIndices();
   }
 
@@ -236,110 +177,6 @@ export class SpeciesRegistry {
   /** Wild species come from the catalogue built from the SQLite seed data (`npm run build:catalogue`). */
   private initializeBaseSpecies(): void {
     for (const species of catalogue.plants as SpeciesDefinition[]) this.species.set(species.id, species);
-  }
-
-  /**
-   * Initialize hybrid definitions
-   */
-  private initializeHybrids(): void {
-    this.hybrids.set('purifier_moss', {
-      id: 'purifier_moss',
-      name: 'Purifier Moss',
-      parentA: 'shadow_moss',
-      parentB: 'healing_fern',
-      catalyst: 'moonwater',
-      successRate: 0.3,
-      environmentalRequirements: {
-        moistureMin: 0.8,
-        seasonRequired: 'spring'
-      },
-      lifespanTicks: 3000,
-      effectRadius: 2,
-      effectStrength: 0.8,
-      biomeEffects: {
-        pollution: -0.05,
-        vitality: 0.02
-      },
-      abilities: [
-        {
-          name: 'pollution_cleansing',
-          description: 'Actively removes pollution from surrounding area',
-          type: HybridAbilityType.CLEANSE_POLLUTION,
-          parameters: { cleansingRate: 0.05, radius: 2 }
-        }
-      ],
-      rarity: SpeciesRarity.RARE,
-      unlockConditions: ['discover_moonwater', 'mature_healing_fern', 'polluted_area_restoration'],
-      visualProps: { color: '#4a9d6f', glowIntensity: 0.3, particleEffect: 'sparkles' }
-    });
-
-    this.hybrids.set('growth_bloom', {
-      id: 'growth_bloom',
-      name: 'Growth Bloom',
-      parentA: 'common_grass', 
-      parentB: 'healing_fern',
-      successRate: 0.6,
-      environmentalRequirements: {
-        temperatureRange: { min: 15, max: 25 },
-        moistureMin: 0.5
-      },
-      lifespanTicks: 1500,
-      effectRadius: 3,
-      effectStrength: 1.0,
-      biomeEffects: {
-        soil: 0.03,
-        vitality: 0.04
-      },
-      abilities: [
-        {
-          name: 'accelerated_growth',
-          description: 'Speeds up growth of nearby plants',
-          type: HybridAbilityType.ACCELERATE_GROWTH,
-          parameters: { growthBoost: 1.5, radius: 3 }
-        }
-      ],
-      rarity: SpeciesRarity.UNCOMMON,
-      unlockConditions: ['basic_hybridization'],
-      visualProps: { color: '#7fb069', glowIntensity: 0.5, particleEffect: 'pollen' }
-    });
-
-    this.hybrids.set('ancient_sentinel', {
-      id: 'ancient_sentinel',
-      name: 'Ancient Sentinel',
-      parentA: 'crimson_oak',
-      parentB: 'silver_birch',
-      catalyst: 'druid_blessing',
-      successRate: 0.1,
-      environmentalRequirements: {
-        biomeRequired: BiomeType.TEMPERATE_FOREST,
-        seasonRequired: 'autumn'
-      },
-      lifespanTicks: 10000,
-      effectRadius: 5,
-      effectStrength: 1.5,
-      biomeEffects: {
-        succession: 0.02,
-        diversity: 0.03,
-        canopy: 0.01
-      },
-      abilities: [
-        {
-          name: 'ecosystem_guardian',
-          description: 'Protects and stabilizes the surrounding ecosystem',
-          type: HybridAbilityType.SUCCESSION_BOOST,
-          parameters: { stabilityBoost: 0.3, radius: 5 }
-        },
-        {
-          name: 'ancient_wisdom',
-          description: 'Accelerates succession in surrounding area',
-          type: HybridAbilityType.SUCCESSION_BOOST,
-          parameters: { successionRate: 0.02, radius: 5 }
-        }
-      ],
-      rarity: SpeciesRarity.LEGENDARY,
-      unlockConditions: ['master_hybridization', 'ancient_grove_discovered', 'druid_alliance'],
-      visualProps: { color: '#d4af37', glowIntensity: 0.8, particleEffect: 'golden_leaves' }
-    });
   }
 
   /**
@@ -380,16 +217,8 @@ export class SpeciesRegistry {
     return this.species.get(id);
   }
 
-  getHybrid(id: string): HybridDefinition | undefined {
-    return this.hybrids.get(id);
-  }
-
   getAllSpecies(): SpeciesDefinition[] {
     return Array.from(this.species.values());
-  }
-
-  getAllHybrids(): HybridDefinition[] {
-    return Array.from(this.hybrids.values());
   }
 
   getSpeciesByCategory(category: SpeciesCategory): SpeciesDefinition[] {
@@ -408,65 +237,10 @@ export class SpeciesRegistry {
   }
 
   /**
-   * Find compatible hybrids for two species
-   */
-  findCompatibleHybrids(speciesA: string, speciesB: string): HybridDefinition[] {
-    return Array.from(this.hybrids.values()).filter(hybrid => 
-      (hybrid.parentA === speciesA && hybrid.parentB === speciesB) ||
-      (hybrid.parentA === speciesB && hybrid.parentB === speciesA)
-    );
-  }
-
-  /**
-   * Get hybrids by rarity
-   */
-  getHybridsByRarity(rarity: SpeciesRarity): HybridDefinition[] {
-    return Array.from(this.hybrids.values()).filter(hybrid => hybrid.rarity === rarity);
-  }
-
-  /**
-   * Check if a hybrid can be created given current conditions
-   */
-  canCreateHybrid(hybridId: string, temperature: number, moisture: number, biome: BiomeType, season: string, unlockedConditions: string[]): boolean {
-    const hybrid = this.hybrids.get(hybridId);
-    if (!hybrid) return false;
-
-    // Check unlock conditions
-    const hasAllConditions = hybrid.unlockConditions.every(condition => 
-      unlockedConditions.includes(condition)
-    );
-    if (!hasAllConditions) return false;
-
-    // Check environmental requirements
-    const req = hybrid.environmentalRequirements;
-    
-    if (req.temperatureRange) {
-      if (temperature < req.temperatureRange.min || temperature > req.temperatureRange.max) {
-        return false;
-      }
-    }
-
-    if (req.moistureMin && moisture < req.moistureMin) {
-      return false;
-    }
-
-    if (req.biomeRequired && biome !== req.biomeRequired) {
-      return false;
-    }
-
-    if (req.seasonRequired && season !== req.seasonRequired) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
    * Get species statistics
    */
   getStatistics(): {
     totalSpecies: number;
-    totalHybrids: number;
     categoryCounts: Record<string, number>;
     rarityDistribution: Record<string, number>;
     averageLifespan: number;
@@ -483,7 +257,6 @@ export class SpeciesRegistry {
 
     return {
       totalSpecies: this.species.size,
-      totalHybrids: this.hybrids.size,
       categoryCounts,
       rarityDistribution,
       averageLifespan: this.species.size > 0 ? totalLifespan / this.species.size : 0
@@ -498,38 +271,49 @@ export class SpeciesRegistry {
     this.buildIndices();
   }
 
+  /** Species the world starts from; hybrids are defined by the engine as they are bred. */
+  getWildSpecies(): SpeciesDefinition[] {
+    return this.getAllSpecies().filter(species => !species.hybridOf?.length);
+  }
+
   /**
-   * Add custom hybrid
+   * Register a hybrid the engine has defined: its first parent's description with the engine's blended values,
+   * an invented name and the botanical hybrid formula.
    */
-  addHybrid(hybrid: HybridDefinition): void {
-    this.hybrids.set(hybrid.id, hybrid);
+  addHybrid(engineDefinition: Partial<SpeciesDefinition> & { id: string; hybridOf: string[] }): void {
+    if (this.species.has(engineDefinition.id)) return;
+    const parents = engineDefinition.hybridOf.map(id => this.species.get(id)).filter((p): p is SpeciesDefinition => !!p);
+    if (parents.length === 0) return;
+    this.addSpecies({
+      ...parents[0],
+      ...engineDefinition,
+      name: hybridName(engineDefinition.id, parents.map(p => p.name)),
+      scientificName: parents.map(p => p.scientificName ?? p.name).join(' × '),
+    } as SpeciesDefinition);
+  }
+
+  /** Name a hybrid: the player's chosen name, or its invented one when none is given. */
+  nameHybrid(id: string, name?: string): void {
+    const hybrid = this.species.get(id);
+    if (!hybrid?.hybridOf?.length) return;
+    hybrid.name = name ?? hybridName(id, hybrid.hybridOf.map(parent => this.species.get(parent)?.name ?? parent));
   }
 
   /**
    * Export registry data
    */
-  exportData(): { species: SpeciesDefinition[]; hybrids: HybridDefinition[] } {
-    return {
-      species: Array.from(this.species.values()),
-      hybrids: Array.from(this.hybrids.values())
-    };
+  exportData(): { species: SpeciesDefinition[] } {
+    return { species: Array.from(this.species.values()) };
   }
 
   /**
    * Import registry data
    */
-  importData(data: { species: SpeciesDefinition[]; hybrids: HybridDefinition[] }): void {
+  importData(data: { species: SpeciesDefinition[] }): void {
     this.species.clear();
-    this.hybrids.clear();
-
     data.species.forEach(species => {
       this.species.set(species.id, species);
     });
-
-    data.hybrids.forEach(hybrid => {
-      this.hybrids.set(hybrid.id, hybrid);
-    });
-
     this.buildIndices();
   }
 }

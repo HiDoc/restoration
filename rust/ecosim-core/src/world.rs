@@ -153,7 +153,6 @@ impl World {
                     climate_state: Climate::default(),
                     last_update_tick: 0,
                     species: vec![],
-                    hybrids: vec![],
                     ritual_residues: vec![],
                     seed_bank: vec![],
                     extra: BTreeMap::new(),
@@ -198,9 +197,8 @@ impl World {
                 return Err("Chunk coordinates outside world".into());
             }
             if chunk
-                .hybrids
+                .ritual_residues
                 .iter()
-                .chain(chunk.ritual_residues.iter())
                 .any(|(_, value)| !value.is_object())
             {
                 return Err("Effect records must be objects".into());
@@ -270,14 +268,18 @@ impl World {
                     x: chunk.x,
                     y: chunk.y,
                     seeds: chunk.seed_bank,
-                    hybrids: chunk.hybrids,
                     residues: chunk.ritual_residues,
                     extra: chunk.extra,
                 },
             );
             let mut plants = chunk.species;
             plants.sort_by(|a, b| a.1.id.cmp(&b.1.id));
-            for (_, plant) in plants {
+            for (_, mut plant) in plants {
+                // Pollen rides in the projection's plant record; it belongs to the reproduction component.
+                let pollen = plant
+                    .extra
+                    .remove("pollen")
+                    .and_then(|value| serde_json::from_value(value).ok());
                 let age_days = plant
                     .extra
                     .get("ageDays")
@@ -320,6 +322,7 @@ impl World {
                         stage: plant.phenology_stage,
                         reserve: plant.reproductive_output.max(0.0),
                         pollinated: 0.0,
+                        pollen,
                     },
                 );
             }
@@ -371,6 +374,7 @@ impl World {
                 stage: "vegetative".into(),
                 reserve: 0.0,
                 pollinated: 0.0,
+                pollen: None,
             },
         );
         id
@@ -424,15 +428,8 @@ impl World {
         {
             return Err("Unknown chunk".into());
         }
-        if ![
-            "plant",
-            "collect",
-            "irrigate",
-            "cleanse",
-            "ritual",
-            "hybridize",
-        ]
-        .contains(&command.kind.as_str())
+        if !["plant", "collect", "cross", "irrigate", "cleanse", "ritual"]
+            .contains(&command.kind.as_str())
         {
             return Err("Unknown intervention type".into());
         }
@@ -508,20 +505,20 @@ impl World {
                 if picked.is_empty() {
                     return Err("Nothing ripe to collect here".into());
                 }
+                // Counted by what the seed is, which differs from the plant for hand-pollinated blooms.
+                let mut counts = BTreeMap::<String, usize>::new();
                 for entity in picked {
-                    self.components
-                        .reproduction
-                        .get_mut(&entity)
-                        .unwrap()
-                        .reserve = 0.0;
+                    let bloom = self.components.reproduction.get_mut(&entity).unwrap();
+                    bloom.reserve = 0.0;
+                    let pollen = bloom.pollen.clone();
                     let organism = &self.components.organisms[&entity];
-                    let species = organism.species_id.clone();
-                    let parent = organism.extra.clone();
-                    let genetics = self.inherit_genetics(&parent);
+                    let (mother, parent) = (organism.species_id.clone(), organism.extra.clone());
+                    let (species, genetics) = self.seed_of(&mother, &parent, pollen.as_ref());
+                    *counts.entry(species.clone()).or_default() += 1;
                     self.inventory
                         .push(pouch_seed(species, [("genetics".into(), genetics)].into()));
                 }
-                self.emit("seeds_collected", chunk, json!({ "counts": taken }));
+                self.emit("seeds_collected", chunk, json!({ "counts": counts }));
             }
             "irrigate" => self
                 .components
@@ -541,14 +538,50 @@ impl World {
                 biome.apply("moisture", 0.1);
                 biome.apply("pollution", -0.1);
             }
-            "hybridize" => {
-                let hybrid_id = command
-                    .data
-                    .get("hybridId")
-                    .and_then(Value::as_str)
-                    .unwrap_or("growth_bloom");
-                let id = format!("hybrid_{}", self.allocate());
-                self.components.habitats.get_mut(&chunk).unwrap().hybrids.push((id.clone(), json!({"id":id,"hybridId":hybrid_id,"x":command.x,"y":command.y,"parentA":command.data.get("parentA").cloned().unwrap_or(json!("common_grass")),"parentB":command.data.get("parentB").cloned().unwrap_or(json!("healing_fern")),"effectRadius":1,"strength":0.8,"duration":90})));
+            "cross" => {
+                let receiver = command.data["receiver"].as_str().unwrap_or("");
+                let donor = command.data["donor"].as_str().unwrap_or("");
+                let genus = |id: &str| self.definitions.get(id).map_or("", |d| d.genus.as_str());
+                if receiver == donor {
+                    return Err("A species cannot be crossed with itself".into());
+                }
+                if genus(receiver).is_empty() || genus(receiver) != genus(donor) {
+                    return Err("Too distant to cross: only plants of one genus can".into());
+                }
+                let flowering = |species: &str, open: bool| {
+                    self.components
+                        .organisms
+                        .iter()
+                        .find_map(|(entity, organism)| {
+                            let reproduction = &self.components.reproduction[entity];
+                            (self.components.positions[entity].chunk == chunk
+                                && organism.species_id == species
+                                && reproduction.stage == "flowering"
+                                && (!open || reproduction.pollen.is_none()))
+                            .then_some(*entity)
+                        })
+                };
+                let mother = flowering(receiver, true)
+                    .ok_or(format!("No unpollinated {receiver} is in flower here"))?;
+                let father =
+                    flowering(donor, false).ok_or(format!("No {donor} is in flower here"))?;
+                let genetics = self.components.organisms[&father]
+                    .extra
+                    .get("genetics")
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                let (receiver, donor) = (receiver.to_owned(), donor.to_owned());
+                let bloom = self.components.reproduction.get_mut(&mother).unwrap();
+                bloom.pollinated = 1.0;
+                bloom.pollen = Some(Pollen {
+                    species_id: donor.clone(),
+                    genetics,
+                });
+                self.emit(
+                    "cross_pollinated",
+                    chunk,
+                    json!({ "receiver": receiver, "donor": donor }),
+                );
             }
             _ => return Err("Unknown intervention type".into()),
         }
@@ -701,11 +734,7 @@ impl World {
                 || habitat.x as u32 >= self.config.world_width
                 || habitat.y as u32 >= self.config.world_height
                 || habitat.seeds.len() > 4096
-                || habitat
-                    .hybrids
-                    .iter()
-                    .chain(habitat.residues.iter())
-                    .any(|(_, value)| !value.is_object())
+                || habitat.residues.iter().any(|(_, value)| !value.is_object())
             {
                 return Err("Invalid habitat component".into());
             }

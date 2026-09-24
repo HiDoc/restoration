@@ -135,7 +135,48 @@ INSERT OR REPLACE INTO vegetal_species (
  0.1, 0.3, 0.7, 0.2,
  'wind', 'wind', 'none', 'autumn',
  0.0, FALSE, FALSE,
- 'green', 'brown', 'low');
+ 'green', 'brown', 'low'),
+
+-- Congeners of the plants above. Species of one genus can hybridise, as these pairs do in the wild.
+('spanish_bluebell', 'Hyacinthoides hispanica', 'Spanish Bluebell', 'Asparagaceae', 'flower', 'mid',
+ 0.7, 0.13, 15, 4, 0.45,
+ -5.0, 25.0, 14.0, 0.3, 0.8, 0.5,
+ 0.2, 0.9, 0.5, 0.7,
+ 5.0, 7.5, 6.3, 0.4,
+ 0.2, 0.5, 0.6, 0.3,
+ 'insect', 'animal', 'spring', 'summer',
+ 0.0, FALSE, TRUE,
+ 'blue', 'white', 'ground'),
+
+('midland_hawthorn', 'Crataegus laevigata', 'Midland Hawthorn', 'Rosaceae', 'shrub', 'early',
+ 3.5, 0.15, 60, 8, 0.6,
+ -15.0, 28.0, 17.0, 0.3, 0.9, 0.5,
+ 0.2, 1.0, 0.6, 0.7,
+ 5.5, 8.0, 6.8, 0.5,
+ 0.4, 0.6, 0.7, 0.7,
+ 'insect', 'animal', 'spring', 'autumn',
+ 0.1, FALSE, TRUE,
+ 'white', 'red', 'medium'),
+
+('downy_birch', 'Betula pubescens', 'Downy Birch', 'Betulaceae', 'tree', 'early',
+ 7.0, 0.28, 80, 10, 0.5,
+ -30.0, 22.0, 11.0, 0.5, 1.0, 0.75,
+ 0.5, 1.0, 0.9, 0.2,
+ 3.5, 7.0, 5.5, 0.4,
+ 0.3, 0.3, 1.0, 0.5,
+ 'wind', 'wind', 'spring', 'autumn',
+ 0.2, FALSE, TRUE,
+ 'white', 'green', 'tall'),
+
+('sessile_oak', 'Quercus petraea', 'Sessile Oak', 'Fagaceae', 'tree', 'mid',
+ 14.0, 0.07, 250, 30, 0.7,
+ -20.0, 27.0, 15.0, 0.2, 0.7, 0.45,
+ 0.4, 1.0, 0.8, 0.4,
+ 4.0, 7.0, 5.5, 0.5,
+ 0.2, 0.7, 0.8, 0.7,
+ 'wind', 'animal', 'late spring', 'autumn',
+ 0.1, FALSE, TRUE,
+ 'brown', 'green', 'canopy');
 
 -- BIRD SPECIES DATA
 INSERT OR REPLACE INTO bird_species (
@@ -257,12 +298,12 @@ INSERT OR REPLACE INTO bird_species (
  'common', 'LC', 'diurnal', '[5,6,7,18,19,20]');
 
 -- Spring ephemerals: flower and set seed in spring, then die back to a dormant bulb until late winter.
-UPDATE vegetal_species SET fruit_season = 'late spring', dormant_season = 'summer-autumn' WHERE id = 'wild_bluebell';
+UPDATE vegetal_species SET fruit_season = 'late spring', dormant_season = 'summer-autumn' WHERE id IN ('wild_bluebell', 'spanish_bluebell');
 
 -- Vegetative spread: how each plant makes new shoots without seed.
 UPDATE vegetal_species SET clonal_method = 'rhizome' WHERE id IN ('common_grass', 'bracken_fern');
 UPDATE vegetal_species SET clonal_method = 'stolon' WHERE id = 'white_clover';
-UPDATE vegetal_species SET clonal_method = 'bulb' WHERE id = 'wild_bluebell';
+UPDATE vegetal_species SET clonal_method = 'bulb' WHERE id IN ('wild_bluebell', 'spanish_bluebell');
 
 -- SIMULATION OVERRIDES (optional)
 INSERT OR REPLACE INTO simulation_species_overrides (
@@ -290,7 +331,10 @@ INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, sp
 ('pioneer_willow', 'vegetal', 'red_mason_bee', 'pollinator', 'pollination', 0.6, 'Early spring pollen for nest provisioning'),
 ('hawthorn', 'vegetal', 'red_mason_bee', 'pollinator', 'pollination', 0.6, 'Pollinates hawthorn blossom in late spring'),
 ('hawthorn', 'vegetal', 'marmalade_hoverfly', 'pollinator', 'pollination', 0.5, 'Feeds on the open, shallow flowers'),
-('hawthorn', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.4, 'Visits blossom alongside solitary bees');
+('hawthorn', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.4, 'Visits blossom alongside solitary bees'),
+('spanish_bluebell', 'vegetal', 'buff_tailed_bumblebee', 'pollinator', 'pollination', 0.6, 'Open, upright bells are easy for bumblebees to work'),
+('midland_hawthorn', 'vegetal', 'red_mason_bee', 'pollinator', 'pollination', 0.6, 'Flowers a week before common hawthorn'),
+('midland_hawthorn', 'vegetal', 'marmalade_hoverfly', 'pollinator', 'pollination', 0.4, 'Feeds on the open flowers');
 
 -- Larval host relationships (species_b caterpillars feed on species_a)
 INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
@@ -302,7 +346,10 @@ INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, sp
 ('hawthorn', 'vegetal', 'robin_european', 'bird', 'seed_dispersal', 0.6, 'Secondary disperser'),
 ('hawthorn', 'vegetal', 'song_thrush', 'bird', 'seed_dispersal', 0.7, 'Important autumn disperser'),
 ('english_oak', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.9, 'Primary acorn disperser and cacher'),
-('beech', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.8, 'Important beechnut disperser');
+('beech', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.8, 'Important beechnut disperser'),
+('midland_hawthorn', 'vegetal', 'blackbird', 'bird', 'seed_dispersal', 0.7, 'Eats the haws like those of common hawthorn'),
+('midland_hawthorn', 'vegetal', 'song_thrush', 'bird', 'seed_dispersal', 0.6, 'Autumn disperser'),
+('sessile_oak', 'vegetal', 'jay', 'bird', 'seed_dispersal', 0.9, 'Caches acorns as it does those of English oak');
 
 -- Nesting relationships
 INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
@@ -323,7 +370,10 @@ INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, sp
 ('common_grass', 'vegetal', 'goldfinch', 'bird', 'feeding', 0.7, 'Primary seed source'),
 ('common_grass', 'vegetal', 'greenfinch', 'bird', 'feeding', 0.6, 'Grass seed specialist'),
 ('hawthorn', 'vegetal', 'blue_tit', 'bird', 'feeding', 0.4, 'Forages insects among the blossom'),
-('english_oak', 'vegetal', 'wood_pigeon', 'bird', 'feeding', 0.6, 'Eats acorns but digests the seed, so a predator rather than a disperser');
+('english_oak', 'vegetal', 'wood_pigeon', 'bird', 'feeding', 0.6, 'Eats acorns but digests the seed, so a predator rather than a disperser'),
+('sessile_oak', 'vegetal', 'blue_tit', 'bird', 'feeding', 0.8, 'Caterpillars on the spring leaves feed its chicks'),
+('sessile_oak', 'vegetal', 'wood_pigeon', 'bird', 'feeding', 0.5, 'Eats acorns'),
+('downy_birch', 'vegetal', 'blue_tit', 'bird', 'feeding', 0.6, 'Aphids and small insects in the canopy');
 
 -- BIOME ASSOCIATIONS
 -- Forest biome associations
@@ -338,6 +388,10 @@ INSERT INTO biome_associations (species_id, species_type, biome_type, abundance_
 ('lady_fern', 'vegetal', 'temperate_forest', 1.1),
 ('moss_cushion', 'vegetal', 'temperate_forest', 1.0),
 ('scots_pine', 'vegetal', 'coniferous_forest', 2.0),
+('sessile_oak', 'vegetal', 'temperate_forest', 1.8),
+('downy_birch', 'vegetal', 'temperate_forest', 1.2),
+('midland_hawthorn', 'vegetal', 'temperate_forest', 1.5),
+('spanish_bluebell', 'vegetal', 'forest_edge', 1.2),
 -- Bird species in forest  
 ('robin_european', 'bird', 'temperate_forest', 1.8),
 ('blackbird', 'bird', 'temperate_forest', 1.6),

@@ -290,13 +290,44 @@ Follow-ups found in A5:
 - [ ] The legacy `hybridize` intervention still creates effect residues; A6 replaces it.
 
 ### A6. Hybridization v1
-- [ ] Rust `cross(receiver, donor)`: per trait, blend by dominance plus mutation from the seeded RNG. The
-      offspring gets a deterministic id derived from its parents and the RNG state, and is stored as a new
-      species definition flagged `hybrid`.
-- [ ] Pollen transfer is a player action between two plants in flower (spring or summer). The result is only a
-      seed; the traits stay hidden until it grows and is observed.
-- [ ] Name generator for hybrids (a descriptor word plus the parent genus, e.g. "Silver Thyme"). The Codex
-      entry shows the pedigree.
+Decided 2026-09-23: only plants of the same genus cross, as in nature, so the catalogue gains real partner
+species; hand-pollinated plants set hybrid seed on the plant, collected with A5's Collect.
+
+- [x] **A6.1 Partner species.** SQLite + catalogue: Spanish Bluebell (*Hyacinthoides hispanica*), Midland
+      Hawthorn (*Crataegus laevigata*), Downy Birch (*Betula pubescens*), Sessile Oak (*Quercus petraea*), with
+      their pollinator, disperser and feeding links. The starting meadow gains an established Spanish Bluebell
+      patch, a garden escape as in Britain, so a cross is possible in the first spring.
+- [x] **A6.2 Rust crossing.** `SpeciesDefinition.genus` (adapter: first word of the scientific name) and
+      `hybridOf` (base parent species). Command `cross {receiver, donor}` on a hex: both species flowering
+      there, same genus, different species; else an error naming why. The receiver's first unpollinated
+      flowering plant takes `pollen` (donor species + genetics) and full pollination. Every seed that plant
+      sets this bloom (dropped or collected) is hybrid: species `hybrid_<base parents sorted>` (a backcross
+      stays in the same hybrid taxon), created on first use with each numeric trait the mean of the base
+      parents and flowering/fruiting seasons their union; genetics per trait uniform between the two parents
+      from the seeded RNG, then the usual mutation. Pollen clears when the next bloom starts. Snapshot projects
+      hybrid definitions. Remove the legacy `hybridize` command and habitat `hybrids` effect residues.
+- [x] **A6.3 TS.** The engine registers hybrid definitions from the snapshot (parent's fields, Rust's
+      blended values). `src/game/hybrids.ts`: deterministic name from the id (descriptor + the parents' last
+      name word, "Dusk Bluebell"), pedigree text, genus compatibility for instant UI feedback. The player can
+      rename; names live in the knowledge store and are saved. The Codex lists known hybrids under Plants with
+      pedigree and a rename field. Delete `HybridizationSystem`, `HybridizationTree`, registry hybrid recipes
+      and `WorldChunk` hybrids; the Modify button and its dock tab go.
+- [x] **A6.4 UI.** The hex card offers "Cross-pollinate" when two or more species flower there: pick pollen
+      donor and receiver among them, with the compatibility reason before committing. Toast on success.
+- [x] **A6.5 Tests.** Rust: cross rules, hybrid seed and definition, backcross id, determinism and save/load.
+      TS: names, Codex pedigree, rename persistence, registration from snapshot.
+
+Out of scope, kept as follow-ups: genetics compaction (A0.5 follow-up); spontaneous wild hybrids between
+co-flowering congeners (Milestone B rare events).
+
+Done (2026-09-24). Full suite: 7 known failures only (year-end copy 5, diffusion, death cause); Rust 21 tests.
+In the browser, from a fresh game: cross Bluebell × Spanish Bluebell in spring, collect "Mist Bluebell" seed
+about ten weeks later, plant it (fit words apply), Codex entry with formula and pedigree, rename.
+Follow-ups found in A6:
+- [ ] Fauna forage links are keyed by plant id, so bees ignore hybrid bluebells and they set little seed.
+      Hybrids should inherit their parents' links in `buildFaunaDefinitions`/Rust.
+- [ ] Hybrid facts in the Codex are the parents' (union of seasons); nothing yet shows that individuals vary.
+      Belongs with the trait histograms in Milestone C.
 
 **Milestone A acceptance:** from a fresh save, a player completes the full loop within about 30 minutes without
 opening the Inspect lens. It's deterministic: the same seed and the same player commands give an identical

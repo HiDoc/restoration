@@ -1,4 +1,4 @@
-use crate::{model::*, world::World};
+use crate::{crossing::default_genetics, model::*, world::World};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -170,26 +170,6 @@ impl World {
                 }
                 duration > 0.0
             });
-            habitat.hybrids.retain_mut(|(_, hybrid)| {
-                let duration = hybrid["duration"].as_f64().unwrap_or(0.0) - days;
-                hybrid["duration"] = json!(duration);
-                let strength = hybrid["strength"].as_f64().unwrap_or(0.8) * days;
-                match hybrid["hybridId"].as_str().unwrap_or("") {
-                    "purifier_moss" => {
-                        biome.apply("pollution", -0.003 * strength);
-                        biome.apply("soil", 0.001 * strength);
-                    }
-                    "ancient_sentinel" => {
-                        biome.apply("succession", 0.002 * strength);
-                        biome.apply("soil", 0.002 * strength);
-                    }
-                    _ => {
-                        biome.apply("soil", 0.002 * strength);
-                        biome.apply("moisture", 0.001 * strength);
-                    }
-                }
-                duration > 0.0
-            });
         }
     }
 
@@ -315,11 +295,11 @@ impl World {
     }
 
     pub(crate) fn inherit_genetics(&mut self, extra: &BTreeMap<String, Value>) -> Value {
-        let mut genetics = extra.get("genetics").filter(|value|value.is_object()).cloned().unwrap_or_else(|| {
-            let traits:Vec<_> = ["drought_tolerance","cold_resistance","growth_efficiency","reproduction_vigor","nutrient_efficiency","light_sensitivity","competition_aggression"].iter()
-                .map(|id| json!([id,{"id":id,"name":id,"value":0.5,"baseValue":0.5,"mutationRate":0.08,"variance":0.2,"dominance":0.7,"beneficial":true}])).collect();
-            json!({"traits":{"__ecosimMap":traits},"generation":0,"mutations":[],"adaptationScore":0.5})
-        });
+        let mut genetics = extra
+            .get("genetics")
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(default_genetics);
         let generation = genetics["generation"]
             .as_u64()
             .unwrap_or(0)
@@ -409,6 +389,7 @@ impl World {
                 // A new bloom starts unpollinated; visits while it flowers decide the later fruit.
                 if reproduction.stage != "flowering" {
                     reproduction.pollinated = 0.0;
+                    reproduction.pollen = None;
                 }
                 let visits = visits
                     .get(&(position.chunk, organism.species_id.clone()))
@@ -460,6 +441,7 @@ impl World {
                     def.seed_maturity_ticks,
                     def.dispersal_range,
                     organism.extra.clone(),
+                    reproduction.pollen.clone(),
                 ));
             }
         }
@@ -472,11 +454,11 @@ impl World {
         for (chunk, species, event) in announcements {
             self.emit(event, chunk, json!({ "speciesId": species }));
         }
-        for (chunk, x, y, species, maturity, dispersal, extra) in offspring {
+        for (chunk, x, y, mother, maturity, dispersal, extra, pollen) in offspring {
             let mut target = chunk;
             // Fruit-eating birds carry seed out of the patch.
             let carried = dispersers
-                .get(&(chunk, species.clone()))
+                .get(&(chunk, mother.clone()))
                 .copied()
                 .unwrap_or(0.0)
                 .min(1.0);
@@ -491,8 +473,8 @@ impl World {
             if self.components.habitats[&target].seeds.len() >= 128 {
                 continue;
             }
-            let mut seed_extra = BTreeMap::new();
-            seed_extra.insert("genetics".into(), self.inherit_genetics(&extra));
+            let (species, genetics) = self.seed_of(&mother, &extra, pollen.as_ref());
+            let seed_extra = BTreeMap::from([("genetics".to_owned(), genetics)]);
             self.components
                 .habitats
                 .get_mut(&target)

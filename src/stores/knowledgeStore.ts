@@ -4,6 +4,7 @@ import type { SimulationEngine } from '@/simulation/SimulationEngine'
 import type { Season } from '@/simulation/SpeciesRegistry'
 import { emptyKnowledge, learn, see, type Discovery, type Knowledge } from '@/game/knowledge'
 import { codexTotals, knowledgeSummary } from '@/game/codex'
+import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 
 const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
 
@@ -27,19 +28,38 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     lastTick.value = tick
     const plants = new Set<string>()
     engine.readChunks().forEach(chunk => chunk.species.forEach(plant => plants.add(plant.speciesId)))
+    applyNames()
     return [...see(knowledge.value, plants, tick), ...learn(knowledge.value, fresh, seasonOf)]
+  }
+
+  /**
+   * The player's names for their hybrids replace the invented ones wherever the game names a species. Every
+   * hybrid is renamed, because the registry outlives a game and would otherwise keep a previous game's names.
+   */
+  function applyNames() {
+    const registry = SpeciesRegistry.getInstance()
+    for (const species of registry.getAllSpecies()) registry.nameHybrid(species.id, knowledge.value.names[species.id])
+  }
+
+  function rename(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    knowledge.value.names[id] = trimmed
+    applyNames()
   }
 
   function reset() {
     knowledge.value = emptyKnowledge()
+    applyNames()
     lastTick.value = -1
   }
 
   const exportState = () => ({ knowledge: knowledge.value, lastTick: lastTick.value })
   function importState(state: ReturnType<typeof exportState> | undefined) {
-    knowledge.value = state?.knowledge ?? emptyKnowledge()
+    knowledge.value = { ...emptyKnowledge(), ...state?.knowledge }
+    applyNames()
     lastTick.value = state?.lastTick ?? -1
   }
 
-  return { knowledge, summary, totals, observe, reset, exportState, importState }
+  return { knowledge, summary, totals, observe, rename, reset, exportState, importState }
 })

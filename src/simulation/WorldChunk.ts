@@ -77,22 +77,6 @@ export enum PhenologyStage {
 }
 
 /**
- * Hybrid data for special modified organisms
- */
-export interface HybridInstance {
-  id: string;
-  hybridId: string;
-  x: number;
-  y: number;
-  parentA: string;     // Species ID
-  parentB: string;     // Species ID  
-  catalyst?: string;   // Catalyst used in creation
-  effectRadius: number; // Area of influence
-  strength: number;    // Effect magnitude
-  duration: number;    // Remaining lifespan
-}
-
-/**
  * Ritual residue effects
  */
 export interface RitualResidue {
@@ -130,7 +114,6 @@ export class WorldChunk {
   
   // Entities (sparse storage)
   public species: Map<string, SpeciesInstance> = new Map();
-  public hybrids: Map<string, HybridInstance> = new Map();
   public ritualResidues: Map<string, RitualResidue> = new Map();
   public seedBank: SeedRecord[] = [];
   
@@ -179,9 +162,6 @@ export class WorldChunk {
     
     // Update species instances
     this.updateSpecies(deltaTime);
-    
-    // Update hybrids
-    this.updateHybrids(deltaTime);
     
     // Update ritual residues
     this.updateRitualResidues(deltaTime);
@@ -353,48 +333,6 @@ export class WorldChunk {
   }
 
   /**
-   * Update hybrid instances
-   */
-  private updateHybrids(deltaTime: number): void {
-    const toRemove: string[] = [];
-    
-    this.hybrids.forEach((hybrid, id) => {
-      hybrid.duration -= deltaTime;
-      
-      if (hybrid.duration <= 0) {
-        toRemove.push(id);
-        return;
-      }
-      
-      // Apply hybrid effects to local biome
-      this.applyHybridEffects(hybrid, deltaTime);
-    });
-    
-    toRemove.forEach(id => this.hybrids.delete(id));
-  }
-
-  /**
-   * Apply hybrid effects to biome state
-   */
-  private applyHybridEffects(hybrid: HybridInstance, deltaTime: number): void {
-    const effectStrength = hybrid.strength * deltaTime * 0.01;
-    
-    // Different hybrids have different effects
-    // This would be data-driven in a real implementation
-    switch (hybrid.hybridId) {
-      case 'cleaner_moss':
-        this.biomeState.pollution = Math.max(0, this.biomeState.pollution - effectStrength);
-        break;
-      case 'fertility_flower':
-        this.biomeState.soil = Math.min(1, this.biomeState.soil + effectStrength);
-        break;
-      case 'shade_tree':
-        this.biomeState.canopy = Math.min(1, this.biomeState.canopy + effectStrength * 0.5);
-        break;
-    }
-  }
-
-  /**
    * Update ritual residues
    */
   private updateRitualResidues(deltaTime: number): void {
@@ -484,13 +422,6 @@ export class WorldChunk {
   }
 
   /**
-   * Add hybrid instance to chunk
-   */
-  addHybrid(hybrid: HybridInstance): void {
-    this.hybrids.set(hybrid.id, hybrid);
-  }
-
-  /**
    * Add ritual residue to chunk
    */
   addRitualResidue(residue: RitualResidue): void {
@@ -515,7 +446,6 @@ export class WorldChunk {
       climateState: { ...this.climateState },
       lastUpdateTick: this.lastUpdateTick,
       species: Array.from(this.species.entries()),
-      hybrids: Array.from(this.hybrids.entries()),
       ritualResidues: Array.from(this.ritualResidues.entries()),
       seedBank: this.seedBank,
       rngSeed: this.rngSeed,
@@ -540,11 +470,6 @@ export class WorldChunk {
       this.species.set(id, instance);
     });
     
-    this.hybrids.clear();
-    state.hybrids.forEach(([id, hybrid]: [string, HybridInstance]) => {
-      this.hybrids.set(id, hybrid);
-    });
-    
     this.ritualResidues.clear();
     state.ritualResidues.forEach(([id, residue]: [string, RitualResidue]) => {
       this.ritualResidues.set(id, residue);
@@ -565,7 +490,6 @@ export class WorldChunk {
       this.biomeState.soil, 
       this.biomeState.moisture,
       this.species.size,
-      this.hybrids.size,
       this.ritualResidues.size,
       this.lastUpdateTick
     ];

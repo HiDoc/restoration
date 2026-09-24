@@ -25,10 +25,18 @@
         <ul v-if="active !== 'interaction'" class="grid gap-2 sm:grid-cols-2">
           <li v-for="entry in shown" :key="entry.id" class="nv-panel p-3">
             <template v-if="entry.known">
-              <div class="flex items-baseline justify-between gap-2">
-                <h3 class="font-bold">{{ entry.name }}</h3>
+              <div class="flex flex-wrap items-baseline justify-between gap-x-2">
+                <form v-if="renaming === entry.id" class="flex gap-1" @submit.prevent="rename(entry.id)">
+                  <input v-model="newName" class="nv-btn w-36 px-1 text-left" :aria-label="`New name for ${entry.name}`" maxlength="40" />
+                  <button type="submit" class="nv-link nv-small">Save</button>
+                </form>
+                <h3 v-else class="whitespace-nowrap font-bold">{{ entry.name }}</h3>
                 <span class="nv-small nv-muted italic">{{ entry.scientificName }}</span>
               </div>
+              <p v-if="entry.pedigree" class="nv-small mt-0.5">
+                Bred from {{ entry.pedigree }}
+                <button v-if="renaming !== entry.id" type="button" class="nv-link ml-1" @click="startRename(entry)">Rename</button>
+              </p>
               <span class="nv-bar mt-1 block w-full nv-bar-leaf" :aria-label="`${Math.round(entry.progress * 100)}% known`"><span :style="{ width: `${Math.round(entry.progress * 100)}%` }"></span></span>
               <dl class="nv-small mt-2 grid gap-0.5">
                 <div v-for="fact in entry.facts" :key="fact.label" class="flex justify-between gap-2">
@@ -74,18 +82,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
-import { codexEntries, type CodexGroup } from '@/game/codex'
+import { codexEntries, type CodexEntry, type CodexTab } from '@/game/codex'
 import { speciesInfo } from '@/game/speciesInfo'
 import { buildFaunaDefinitions } from '@/simulation/faunaDefinitions'
 import catalogue from '@/database/catalogue.json'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean; startTab?: CodexTab }>()
 defineEmits<{ close: [] }>()
 
-type Tab = CodexGroup | 'interaction'
-const TABS: Array<{ id: Tab; label: string }> = [
+const TABS: Array<{ id: CodexTab; label: string }> = [
   { id: 'plant', label: 'Plants' },
   { id: 'pollinator', label: 'Pollinators' },
   { id: 'bird', label: 'Birds' },
@@ -97,7 +104,20 @@ const LINK_COLOURS = { nectar: '#b08d2a', fruit: '#a8492f', seed: '#6f5e46', ins
 const TAKES_OF = new Map(buildFaunaDefinitions(catalogue).flatMap(def => def.forage.map(link => [`${def.id}|${link.plant}`, link.takes] as const)))
 
 const store = useKnowledgeStore()
-const active = ref<Tab>('plant')
+const active = ref<CodexTab>('plant')
+watch(() => props.show, open => { if (open) active.value = props.startTab ?? 'plant' })
+
+// Only hybrids the player bred can be renamed.
+const renaming = ref<string | null>(null)
+const newName = ref('')
+function startRename(entry: CodexEntry) {
+  renaming.value = entry.id
+  newName.value = entry.name
+}
+function rename(id: string) {
+  store.rename(id, newName.value)
+  renaming.value = null
+}
 const totals = computed(() => store.totals)
 const entries = computed(() => codexEntries(store.knowledge))
 // Seen species first, then the unknowns as `?` cards.

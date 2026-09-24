@@ -66,7 +66,7 @@
         </div>
         <p class="nv-serif ml-auto hidden text-right text-lg italic leading-tight text-[#e8d5a3]/85 lg:block">“Small changes.<br />Living worlds.”</p>
         <div class="ml-auto flex items-center gap-1.5 lg:ml-0">
-          <button type="button" class="research-panel nv-img-btn" title="Codex" aria-label="Open the Codex" @click="showCodex = true"><img :src="nv('btn-journal')" alt="" /></button>
+          <button type="button" class="research-panel nv-img-btn" title="Codex" aria-label="Open the Codex" @click="openCodex('plant')"><img :src="nv('btn-journal')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Contemplative view" aria-label="Switch to contemplative view" @click="toggleViewMode"><img :src="nv('btn-settings')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Scenarios" aria-label="Choose scenario" @click="scenarioStore.openScenarioSelector()"><img :src="nv('btn-map')" alt="" /></button>
         </div>
@@ -152,7 +152,7 @@
 
           <section class="intervention-panel nv-panel p-3">
             <h3 class="nv-subheading">Interventions</h3>
-            <div class="mt-1 grid grid-cols-4 gap-1">
+            <div class="mt-1 grid grid-cols-3 gap-1">
               <button
                 v-for="action in interventionActions"
                 :key="action.id"
@@ -225,8 +225,23 @@
             <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
               {{ speciesInfo(interventionStore.selectedPlantSpecies).name }}: <span class="font-bold">{{ plantFit.words }}</span>
             </p>
+            <form v-if="crossing && flowering.length > 1" class="nv-small mt-2 grid gap-1 border-t border-[#c9a227]/30 pt-2" @submit.prevent="crossPollinate">
+              <label class="grid gap-0.5">Pollinate
+                <select v-model="crossReceiver" class="nv-btn w-full">
+                  <option v-for="plant in flowering" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
+                </select>
+              </label>
+              <label class="grid gap-0.5">with pollen from
+                <select v-model="crossDonor" class="nv-btn w-full">
+                  <option v-for="plant in flowering" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
+                </select>
+              </label>
+              <p v-if="crossProblem" role="status">{{ crossProblem }}</p>
+              <button type="submit" class="nv-btn justify-self-end" :disabled="!!crossProblem">Pollinate</button>
+            </form>
             <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
               <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
+              <button v-if="flowering.length > 1 && !crossing" type="button" class="nv-btn" @click="startCross">Cross-pollinate</button>
               <button v-if="plantFit" type="button" class="nv-btn" @click="applyToSelected('plant')">Plant here</button>
               <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="applyToSelected('collect')">Collect seeds</button>
               <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
@@ -332,27 +347,6 @@
       </div>
     </div>
 
-    <!-- Hybridization Tree Modal (for analytical view) -->
-    <div
-      v-if="showHybridizationTree"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
-      @click.self="showHybridizationTree = false"
-    >
-      <div class="nv-skin nv-frame max-h-[90vh] w-[90vw] overflow-auto bg-slate-950">
-        <div class="flex justify-end mb-2">
-          <button
-            class="sci-btn text-xs py-1 px-3"
-            @click="showHybridizationTree = false"
-          >
-            ✕ Close
-          </button>
-        </div>
-        <HybridizationTree
-          :lineages="hybridizationLineages"
-          :stats="hybridizationStats"
-        />
-      </div>
-    </div>
     </div>
     </template>
 
@@ -367,7 +361,7 @@
       @confirm="onYearEndConfirm"
     />
 
-    <CodexPanel :show="showCodex" @close="showCodex = false" />
+    <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
 
 
 
@@ -443,13 +437,14 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 import YearEndSeedSelection from "@/components/simulation/YearEndSeedSelection.vue";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
-import HybridizationTree from "@/components/simulation/HybridizationTree.vue";
+import type { CodexTab } from "@/game/codex";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { plantStartingMeadow } from "@/game/startingMeadow";
 import { habitatFit, rewardSpecies, REWARD_SEEDS, STARTER_SEEDS } from "@/game/seeds";
+import { crossBarrier } from "@/game/hybrids";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
@@ -467,7 +462,6 @@ import { useGoalsStore } from "@/stores/goalsStore";
 import { useTutorialStore } from "@/stores/tutorialStore";
 import { useScenarioStore } from "@/stores/scenarioStore";
 import type { VizMode } from "@/components/simulation/types";
-import type { HybridLineage } from "@/simulation/HybridizationSystem";
 import type { InterventionType } from "@/simulation/InterventionManager";
 
 const engine: Ref<SimulationEngine | null> = ref(null);
@@ -543,17 +537,6 @@ const scenarioStore = useScenarioStore();
 const extinction = reactive({ triggered: false, sinceTick: 0 });
 let extinctionGraceUntilTick = 50;
 let resumeAfterYearEnd = false;
-
-// Hybridization system
-const showHybridizationTree = ref(false);
-const hybridizationLineages = ref<Map<string, HybridLineage>>(new Map());
-const hybridizationStats = ref({
-  totalHybrids: 0,
-  totalEvents: 0,
-  successfulEvents: 0,
-  averageGeneration: 0,
-  maxGeneration: 0
-});
 
 // Lightweight gameplay state
 const gameplay = reactive({
@@ -664,7 +647,6 @@ function initializeWorld() {
   // Initialize year progress
   updateYearProgress();
   captureHistory(stats.currentTick);
-  updateHybridizationData();
   loop.setStepMs(options.tickMs);
   loop.setSuspended(document.hidden);
 }
@@ -709,7 +691,6 @@ function refreshView() {
   updateStats();
   detectSpeciesChanges(chunks);
   detectWeatherEvents();
-  updateHybridizationData();
   captureHistory(stats.currentTick);
   // Auto save
   if (
@@ -830,18 +811,6 @@ function abbreviate(name: string): string {
 }
 
 
-function updateHybridizationData() {
-  if (!engine.value) return;
-  const report = engine.value.getHybridizationStatistics();
-  hybridizationStats.value = {
-    totalHybrids: report.totalHybrids,
-    totalEvents: report.hybridizationEvents,
-    successfulEvents: report.hybridizationEvents,
-    averageGeneration: 0,
-    maxGeneration: 0,
-  };
-}
-
 function pushEvent(msg: string) {
   const entry: SimulationEventEntry = {
     id: ++eventCounter,
@@ -887,16 +856,16 @@ function onSelectChunk(payload: { x: number; y: number }) {
   }
 }
 
-const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
+const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
 
-function applyIntervention(type: InterventionType, at: { x: number; y: number }) {
+function applyIntervention(type: InterventionType, at: { x: number; y: number }, data?: Record<string, string>) {
   if (!engine.value) return;
   const success = interventionStore.executeIntervention({
     chunkId: `chunk_${at.x}_${at.y}`,
     x: 0.5,
     y: 0.5,
     type,
-    data: type === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {},
+    data: data ?? (type === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {}),
   });
   notify(success ? INTERVENTION_ICONS[type] ?? 'icon-leaf' : 'icon-observe', interventionStore.actionMessage);
   if (success) {
@@ -905,9 +874,30 @@ function applyIntervention(type: InterventionType, at: { x: number; y: number })
   }
 }
 
-function applyToSelected(type: InterventionType) {
-  if (selected.value) applyIntervention(type, selected.value);
+function applyToSelected(type: InterventionType, data?: Record<string, string>) {
+  if (selected.value) applyIntervention(type, selected.value, data);
 }
+
+// Hand pollination between two species flowering in the selected hex.
+const crossing = ref(false);
+const crossReceiver = ref('');
+const crossDonor = ref('');
+const flowering = computed(() => hexStory.value?.plants.filter(plant => plant.activity === 'flowering') ?? []);
+const crossProblem = computed(() => {
+  const registry = SpeciesRegistry.getInstance();
+  return crossBarrier(registry.getSpecies(crossReceiver.value), registry.getSpecies(crossDonor.value));
+});
+function startCross() {
+  const [first, second] = flowering.value;
+  crossReceiver.value = first.id;
+  crossDonor.value = second.id;
+  crossing.value = true;
+}
+function crossPollinate() {
+  applyToSelected('cross', { receiver: crossReceiver.value, donor: crossDonor.value });
+  crossing.value = false;
+}
+watch(selected, () => { crossing.value = false; });
 
 // Handler for tutorial
 function startTutorial() {
@@ -1024,8 +1014,7 @@ async function loadLatestSnapshot() {
     seenWeather.clear();
     updateStats();
     initSpeciesSnapshot(engine.value.readChunks());
-    updateHybridizationData();
-    captureHistory(stats.currentTick);
+      captureHistory(stats.currentTick);
     saveNotice.value = legacy
       ? `Legacy ecosystem converted at day ${snap.tick}; player progression starts fresh. Press Play when ready.`
       : `Ecosystem loaded at day ${snap.tick}. Press Play when ready.`;
@@ -1114,6 +1103,11 @@ const cleanliness = computed(() => Math.max(0, Math.min(1, 1 - (stats.avgPolluti
 
 // ---- Codex and discoveries ----
 const showCodex = ref(false);
+const codexTab = ref<CodexTab>('plant');
+function openCodex(tab: CodexTab) {
+  codexTab.value = tab;
+  showCodex.value = true;
+}
 const toasts = ref<Array<{ id: number; icon: string; text: string }>>([]);
 let toastId = 0;
 // A few at a time: a burst of discoveries (e.g. after a Season) shouldn't bury the map.
@@ -1226,7 +1220,6 @@ const interventionActions = [
   { id: 'plant' as const, label: 'Plant', icon: 'icon-plants', hint: 'Plant the selected species in a hex' },
   { id: 'irrigate' as const, label: 'Restore', icon: 'icon-restore', hint: 'Restore water to a hex' },
   { id: 'cleanse' as const, label: 'Clean', icon: 'icon-clean', hint: 'Cleanse pollution from a hex' },
-  { id: 'hybridize' as const, label: 'Modify', icon: 'icon-modify', hint: 'Hybridize species in a hex' },
 ];
 
 interface StatRow { label: string; icon: string; value: string | number; bar?: number; barClass?: string }
@@ -1261,10 +1254,10 @@ function onScrubHistory(index: number) {
 function onDockSelect(key: string) {
   dockTab.value = key;
   if (key === 'overview') options.vizMode = 'rgb';
-  else if (key === 'species') showCodex.value = true;
+  else if (key === 'species') openCodex('plant');
   else if (key === 'climate') options.vizMode = 'temperature';
   else if (key === 'hydro') options.vizMode = 'moisture';
-  else if (key === 'interactions') showHybridizationTree.value = true;
+  else if (key === 'interactions') openCodex('interaction');
   else if (key === 'goals') scenarioCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   else if (key === 'events') eventsCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   else if (key === 'settings') options.showLabels = !options.showLabels;
@@ -1336,7 +1329,7 @@ const overviewRows = computed<StatRow[]>(() => [
   { label: 'Pollinator species', icon: 'icon-pollinators', value: life.value.pollinatorKinds },
 ]);
 const pouch = computed(() =>
-  Object.entries(interventionStore.seeds).map(([id, count]) => ({ id, count, name: speciesInfo(id).name }))
+  Object.entries(interventionStore.seeds).map(([id, count]) => ({ id, count, name: knowledgeStore.knowledge.names[id] ?? speciesInfo(id).name }))
 );
 // With Plant armed, the selected hex says how the chosen seed would fare before anything is spent.
 const plantFit = computed(() => {
@@ -1400,7 +1393,7 @@ function detectSpeciesChanges(chunks: ReadonlyMap<string, any>) {
         const name = reg.getSpecies(spId)?.name || spId;
         // Check if this is a hybrid (species ID starts with 'hybrid_')
         if (spId.startsWith('hybrid_')) {
-          pushEvent(`🧬 HYBRID created: ${name} in chunk (${chunk.x},${chunk.y})`);
+          pushEvent(`🧬 Hybrid ${name} sprouted in chunk (${chunk.x},${chunk.y})`);
         } else {
           pushEvent(`🆕 ${name} spawned in chunk (${chunk.x},${chunk.y})`);
         }

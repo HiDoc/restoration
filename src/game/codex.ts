@@ -1,9 +1,10 @@
 import catalogue from '@/database/catalogue.json'
 import { buildFaunaDefinitions, type FaunaLink } from '@/simulation/faunaDefinitions'
-import type { Season, SpeciesDefinition } from '@/simulation/SpeciesRegistry'
+import { SpeciesRegistry, type Season, type SpeciesDefinition } from '@/simulation/SpeciesRegistry'
 import { pairKey, type Knowledge } from './knowledge'
 
 export type CodexGroup = 'plant' | 'pollinator' | 'bird'
+export type CodexTab = CodexGroup | 'interaction'
 
 /** One fact about a species: the parts the player has seen, and how many are still `?`. */
 export interface CodexFact { label: string; known: string[]; missing: number }
@@ -17,6 +18,8 @@ export interface CodexEntry {
   known: boolean
   facts: CodexFact[]
   partners: CodexPartner[]
+  /** For a bred hybrid, its parents ("Bluebell × Spanish Bluebell"). */
+  pedigree?: string
   /** Share of this entry's facts and partners the player has seen [0-1]. */
   progress: number
 }
@@ -43,7 +46,9 @@ function entry(base: Omit<CodexEntry, 'progress' | 'known'>, knowledge: Knowledg
 
 /** Every species in the Codex, with what the player knows set against what is true. */
 export function codexEntries(knowledge: Knowledge): CodexEntry[] {
-  const plants = PLANTS.map(plant => {
+  // Hybrids exist in the Codex only once the player has seen one growing.
+  const hybrids = SpeciesRegistry.getInstance().getAllSpecies().filter(s => s.hybridOf?.length && s.id in knowledge.species)
+  const plants = [...PLANTS, ...hybrids].map(plant => {
     const seen = knowledge.species[plant.id]
     const facts = [
       seasonFact('Flowers', plant.ecology?.floweringSeasons ?? [], seen?.flowering),
@@ -53,7 +58,8 @@ export function codexEntries(knowledge: Knowledge): CodexEntry[] {
     const partners = LINKS.filter(link => link.plant === plant.id).map(link => ({
       id: link.animal, name: NAMES.get(link.animal) ?? link.animal, takes: link.takes, known: pairKey(link.animal, plant.id) in knowledge.interactions,
     }))
-    return entry({ id: plant.id, name: plant.name, scientificName: plant.scientificName ?? '', group: 'plant', facts, partners }, knowledge)
+    const pedigree = plant.hybridOf?.map(id => NAMES.get(id) ?? id).join(' × ')
+    return entry({ id: plant.id, name: knowledge.names[plant.id] ?? plant.name, scientificName: plant.scientificName ?? '', group: 'plant', facts, partners, pedigree }, knowledge)
   })
   const animals = ANIMALS.map(animal => {
     const partners = LINKS.filter(link => link.animal === animal.id).map(link => ({

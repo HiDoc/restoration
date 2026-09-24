@@ -1,9 +1,10 @@
 /**
  * InterventionManager - cooldowns for player interventions.
- * Planting and collecting are limited by seeds in hand instead; the environmental interventions by cooldown.
+ * Planting, collecting and crossing are limited by seeds and flowers instead; the environmental interventions
+ * by cooldown.
  */
 
-export type InterventionType = 'plant' | 'collect' | 'irrigate' | 'cleanse' | 'hybridize' | 'ritual';
+export type InterventionType = 'plant' | 'collect' | 'cross' | 'irrigate' | 'cleanse' | 'ritual';
 
 export interface InterventionDefinition {
   id: InterventionType;
@@ -26,9 +27,9 @@ export interface InterventionUsage {
 export const INTERVENTION_DEFINITIONS: Record<InterventionType, InterventionDefinition> = {
   plant: { id: 'plant', name: 'Plant', description: 'Sow a seed from your pouch in the selected hex', cooldownTicks: 0 },
   collect: { id: 'collect', name: 'Collect seeds', description: 'Gather seed from ripe plants in the selected hex', cooldownTicks: 0 },
+  cross: { id: 'cross', name: 'Cross-pollinate', description: 'Carry pollen between two flowering plants of one genus', cooldownTicks: 0 },
   irrigate: { id: 'irrigate', name: 'Irrigate', description: 'Increase moisture level in the selected chunk', cooldownTicks: 5 },
   cleanse: { id: 'cleanse', name: 'Cleanse Pollution', description: 'Reduce pollution level in the selected chunk', cooldownTicks: 8 },
-  hybridize: { id: 'hybridize', name: 'Force Hybridization', description: 'Attempt to create a hybrid between two species', cooldownTicks: 20 },
   ritual: { id: 'ritual', name: 'Ecological Ritual', description: 'Advanced intervention with special effects', cooldownTicks: 50 },
 };
 

@@ -167,8 +167,6 @@ pub struct ChunkSnapshot {
     #[serde(default)]
     pub species: Vec<(String, SpeciesInstance)>,
     #[serde(default)]
-    pub hybrids: Vec<(String, Value)>,
-    #[serde(default)]
     pub ritual_residues: Vec<(String, Value)>,
     #[serde(default)]
     pub seed_bank: Vec<Seed>,
@@ -207,6 +205,10 @@ pub struct SpeciesDefinition {
     pub clonal_rate: f64,
     /// Catalogue phenology; when absent, `reproduction_seasons` drives a flower-then-fruit cycle.
     pub ecology: Option<Ecology>,
+    /// Only species of one genus can cross. Empty means the species crosses with nothing.
+    pub genus: String,
+    /// For a hybrid, the non-hybrid species it descends from, sorted.
+    pub hybrid_of: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -242,6 +244,8 @@ impl Default for SpeciesDefinition {
             maturity_days: 0.0,
             clonal_rate: 0.0,
             ecology: None,
+            genus: String::new(),
+            hybrid_of: vec![],
         }
     }
 }
@@ -306,6 +310,16 @@ pub struct Reproduction {
     /// How well the current bloom was pollinated [0-1]; sets seed output when it fruits.
     #[serde(default)]
     pub pollinated: f64,
+    /// Pollen the player placed on this bloom; its seed is then hybrid.
+    #[serde(default)]
+    pub pollen: Option<Pollen>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pollen {
+    pub species_id: String,
+    pub genetics: Value,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Habitat {
@@ -313,7 +327,6 @@ pub struct Habitat {
     pub x: i32,
     pub y: i32,
     pub seeds: Vec<Seed>,
-    pub hybrids: Vec<(String, Value)>,
     pub residues: Vec<(String, Value)>,
     pub extra: BTreeMap<String, Value>,
 }

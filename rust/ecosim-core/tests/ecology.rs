@@ -545,3 +545,135 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
     let (_, planted) = meadow.components.organisms.last_key_value().unwrap();
     assert_eq!(planted.extra["genetics"], genetics);
 }
+
+/// Two bluebells of one genus and a clover of another, all flowering in spring and fruiting in summer, with
+/// mature plants of each in one hex.
+fn bluebell_patch(seed: u32) -> (World, String) {
+    let plant = |id: &str, genus: &str, max_biomass: f64| SpeciesDefinition {
+        id: id.into(),
+        genus: genus.into(),
+        max_biomass,
+        pollination: "insect".into(),
+        ecology: Some(Ecology {
+            flowering_seasons: vec!["spring".into()],
+            fruiting_seasons: vec!["summer".into()],
+            dormant_seasons: vec![],
+        }),
+        ..SpeciesDefinition::default()
+    };
+    let mut world = World::new(
+        Config {
+            master_seed: seed,
+            ..Config::default()
+        },
+        vec![],
+        vec![
+            plant("clover", "Trifolium", 0.5),
+            plant("native", "Hyacinthoides", 0.4),
+            plant("spanish", "Hyacinthoides", 0.8),
+        ],
+    )
+    .unwrap();
+    let (&hex, habitat) = world.components.habitats.iter().next().unwrap();
+    let id = habitat.id.clone();
+    for species in ["native", "spanish", "native", "spanish"] {
+        world.spawn(hex, species, 0.5, 0.5, 1.0);
+    }
+    (world, id)
+}
+
+fn cross(world: &mut World, hex: &str, receiver: &str, donor: &str) -> Result<(), String> {
+    world.submit(
+        serde_json::from_value(
+            json!({"type":"cross","chunkId":hex,"data":{"receiver":receiver,"donor":donor}}),
+        )
+        .unwrap(),
+    )
+}
+
+fn pollinated(world: &World) -> Vec<&str> {
+    world
+        .components
+        .reproduction
+        .iter()
+        .filter_map(|(entity, r)| {
+            r.pollen
+                .as_ref()
+                .map(|_| world.components.organisms[entity].species_id.as_str())
+        })
+        .collect()
+}
+
+#[test]
+fn only_flowering_plants_of_one_genus_cross() {
+    let (mut patch, hex) = bluebell_patch(5);
+    assert!(
+        cross(&mut patch, &hex, "native", "spanish").is_err(),
+        "not yet in flower"
+    );
+    patch.step(10).unwrap();
+    assert!(
+        cross(&mut patch, &hex, "native", "clover").is_err(),
+        "different genera"
+    );
+    assert!(
+        cross(&mut patch, &hex, "native", "native").is_err(),
+        "same species"
+    );
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    assert_eq!(pollinated(&patch), ["native"]);
+    assert!(patch.events.iter().any(|e| e.kind == "cross_pollinated"));
+}
+
+#[test]
+fn a_hand_pollinated_bloom_sets_seed_of_a_blended_hybrid() {
+    let (mut patch, hex) = bluebell_patch(5);
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    let mut replay: World = serde_json::from_str(&serde_json::to_string(&patch).unwrap()).unwrap();
+    patch.step(110).unwrap();
+    replay.step(110).unwrap();
+    assert_eq!(
+        state(&patch),
+        state(&replay),
+        "pollen and crossing survive save/load deterministically"
+    );
+
+    let hybrid = &patch.definitions["hybrid_native__spanish"];
+    assert_eq!(hybrid.hybrid_of, ["native", "spanish"]);
+    assert_eq!(hybrid.genus, "Hyacinthoides");
+    assert!(
+        (hybrid.max_biomass - 0.6).abs() < 1e-9,
+        "traits sit between the parents"
+    );
+    let hybrid_seed = patch
+        .events
+        .iter()
+        .filter(|e| {
+            e.kind == "species_reproduce" && e.data["speciesId"] == "hybrid_native__spanish"
+        })
+        .count();
+    assert!(hybrid_seed > 0, "the pollinated plant drops hybrid seed");
+    assert!(pollinated(&patch).len() <= 1);
+}
+
+#[test]
+fn a_backcross_stays_in_the_hybrid_taxon() {
+    let (mut patch, hex) = bluebell_patch(9);
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    patch.step(110).unwrap();
+    let chunk = *patch.components.habitats.keys().next().unwrap();
+    for _ in 0..2 {
+        patch.spawn(chunk, "hybrid_native__spanish", 0.5, 0.5, 1.0);
+    }
+    patch.step(270).unwrap(); // the next spring
+    cross(&mut patch, &hex, "hybrid_native__spanish", "native").unwrap();
+    patch.events.clear();
+    patch.step(100).unwrap();
+    assert_eq!(patch.definitions.len(), 4, "no new taxon");
+    assert!(patch
+        .events
+        .iter()
+        .any(|e| e.kind == "species_reproduce" && e.data["speciesId"] == "hybrid_native__spanish"));
+}

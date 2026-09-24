@@ -14,6 +14,8 @@ pub(crate) struct Snapshot<'a> {
     chunks: Vec<Chunk<'a>>,
     /// Seeds in hand per species.
     inventory: BTreeMap<&'a str, usize>,
+    /// Hybrid taxa bred so far; the host knows only the species it defined.
+    hybrids: Vec<&'a SpeciesDefinition>,
     weather_events: &'a [Weather],
 }
 
@@ -27,7 +29,6 @@ struct Chunk<'a> {
     climate_state: &'a Climate,
     last_update_tick: u64,
     species: Vec<(&'a str, Plant<'a>)>,
-    hybrids: &'a [(String, Value)],
     ritual_residues: &'a [(String, Value)],
     seed_bank: &'a [Seed],
     #[serde(flatten)]
@@ -49,6 +50,8 @@ struct Plant<'a> {
     reproductive_output: f64,
     reproductive_urge: f64,
     last_reproduction_attempt: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pollen: Option<&'a Pollen>,
     #[serde(flatten)]
     extra: PlantExtras<'a>,
 }
@@ -96,6 +99,7 @@ impl World {
                         .get("lastReproductionAttempt")
                         .cloned()
                         .unwrap_or(Value::from(0)),
+                    pollen: reproduction.pollen.as_ref(),
                     extra: PlantExtras(&organism.extra),
                 },
             ));
@@ -112,7 +116,6 @@ impl World {
                 climate_state: &self.components.climates[entity],
                 last_update_tick: self.tick,
                 species: by_chunk.remove(entity).unwrap_or_default(),
-                hybrids: &habitat.hybrids,
                 ritual_residues: &habitat.residues,
                 seed_bank: &habitat.seeds,
                 extra: &habitat.extra,
@@ -131,6 +134,11 @@ impl World {
                     *counts.entry(seed.species_id.as_str()).or_default() += 1;
                     counts
                 }),
+            hybrids: self
+                .definitions
+                .values()
+                .filter(|def| !def.hybrid_of.is_empty())
+                .collect(),
             weather_events: &self.weather,
         }
     }

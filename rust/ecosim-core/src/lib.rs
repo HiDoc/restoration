@@ -1,4 +1,5 @@
 //! Authoritative, deterministic ECS kernel. The browser only schedules whole ticks and projects snapshots.
+mod crossing;
 pub mod model;
 mod projection;
 mod systems;

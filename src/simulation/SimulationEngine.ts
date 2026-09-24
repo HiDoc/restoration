@@ -237,14 +237,11 @@ export class SimulationEngine {
   async setSpeciesAdapter(adapter: any): Promise<void> {
     this.speciesAdapter = adapter;
 
-    // Import species into the simulation registry while preserving existing hybrids
     try {
-      const registry = SpeciesRegistry.getInstance();
-      const exported = registry.exportData();
       const dbSpecies = (typeof adapter.getAllVegetalSpecies === 'function')
         ? adapter.getAllVegetalSpecies()
         : [];
-      registry.importData({ species: dbSpecies, hybrids: exported.hybrids });
+      SpeciesRegistry.getInstance().importData({ species: dbSpecies });
     } catch (e) {
       console.warn('Failed to import species from adapter:', e);
     }
@@ -852,14 +849,12 @@ export class SimulationEngine {
 
     let totalSpecies = 0;
     const uniqueSpecies = new Set<string>();
-    let totalHybrids = 0;
     let avgVitality = 0;
     let avgPollution = 0;
 
     this.chunks.forEach(chunk => {
       totalSpecies += chunk.species.size;
       chunk.species.forEach(instance => uniqueSpecies.add(instance.speciesId));
-      totalHybrids += chunk.hybrids.size;
       avgVitality += chunk.biomeState.vitality;
       avgPollution += chunk.biomeState.pollution;
     });
@@ -880,7 +875,6 @@ export class SimulationEngine {
       totalChunks: chunkCount,
       totalSpecies,
       uniqueSpecies: uniqueSpecies.size,
-      totalHybrids,
       avgVitality,
       avgPollution,
       avgUpdateTime,
@@ -1035,7 +1029,7 @@ export class SimulationEngine {
       ? runtime.request({
         op: 'init', config, tick: state.currentTick ?? 0, simTimeDays: savedDays,
         chunks: state.chunks.map((entry: [string, unknown]) => entry[1]),
-        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
+        speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA
       })
       : runtime.request({ op: 'import', state: state.rustState });
     if (!response.snapshot) throw new Error('Save is missing its simulation snapshot');
@@ -1177,7 +1171,7 @@ export class SimulationEngine {
       op: 'init',
       config: this.config,
       chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()),
-      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
+      speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA
     }));
   }
 
@@ -1190,7 +1184,7 @@ export class SimulationEngine {
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
       // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
       ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
-      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA } : {})
+      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getWildSpecies(), faunaDefinitions: FAUNA } : {})
     });
     this.projectionSignature = signature;
     this.projectionEdited = false;
@@ -1201,6 +1195,7 @@ export class SimulationEngine {
     if (response.snapshot) {
       const snapshot = response.snapshot;
       this.runtimeSnapshot = snapshot;
+      snapshot.hybrids?.forEach(hybrid => SpeciesRegistry.getInstance().addHybrid(hybrid));
       this.currentTick = snapshot.tick;
       this.simTimeDays = snapshot.simTimeDays;
       this.projectionStale = false;
@@ -1212,7 +1207,7 @@ export class SimulationEngine {
           chunk = new WorldChunk(state.x, state.y, state.rngSeed ?? 0);
           this.projection.set(state.id, chunk);
         }
-        chunk.importState({ species: [], hybrids: [], ritualResidues: [], seedBank: [], ...state });
+        chunk.importState({ species: [], ritualResidues: [], seedBank: [], ...state });
         for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight']) {
           if (key in state) (chunk as any)[key] = state[key];
         }
@@ -1243,10 +1238,6 @@ export class SimulationEngine {
     return this.runtimeSnapshot?.weatherEvents ?? [];
   }
 
-  getHybridizationStatistics(): { totalHybrids: number; hybridizationEvents: number } {
-    const totalHybrids = this.getStatistics().totalHybrids;
-    return { totalHybrids, hybridizationEvents: this.runtimeSnapshot?.hybridizationEvents ?? 0 };
-  }
 
   /** Reproducibility fingerprint excludes UI pacing and diagnostic timing. */
   getDeterministicStateHash(): string {

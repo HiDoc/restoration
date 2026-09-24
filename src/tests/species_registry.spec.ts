@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { SpeciesRegistry, SpeciesCategory, SpeciesRarity, BiomeType } from '@/simulation/SpeciesRegistry'
 
-describe('SpeciesRegistry finite ontology and hybrids', () => {
+describe('SpeciesRegistry', () => {
   it('holds the catalogue plants with their real traits', () => {
     const reg = SpeciesRegistry.getInstance()
     const ids = reg.getAllSpecies().map(s => s.id)
@@ -14,7 +14,7 @@ describe('SpeciesRegistry finite ontology and hybrids', () => {
     expect(reg.getSpecies('white_clover')?.ecology?.nitrogenFixation).toBe(true)
   })
 
-  it('indexes by rarity/biome/category and finds compatible hybrids', () => {
+  it('indexes by rarity/biome/category', () => {
     const reg = SpeciesRegistry.getInstance()
     expect(reg.getSpeciesByRarity(SpeciesRarity.RARE).map(s => s.id)).toContain('scots_pine')
 
@@ -25,29 +25,16 @@ describe('SpeciesRegistry finite ontology and hybrids', () => {
     const trees = reg.getSpeciesByCategory(SpeciesCategory.TREE).map(s => s.id)
     expect(trees).toEqual(expect.arrayContaining(['silver_birch', 'english_oak']))
 
-    // Legacy predetermined hybrid recipes still name invented parents until A6 replaces them with crossing.
-    const hybrids = reg.findCompatibleHybrids('shadow_moss','healing_fern').map(h => h.id)
-    expect(hybrids).toContain('purifier_moss')
   })
 
-  it('validates hybrid unlock and environmental requirements', () => {
+  it('registers an engine-bred hybrid under an invented name and the botanical formula', () => {
     const reg = SpeciesRegistry.getInstance()
-    const needed = ['discover_moonwater','mature_healing_fern','polluted_area_restoration']
-
-    // Fails without unlocks
-    expect(
-      reg.canCreateHybrid('purifier_moss', 18, 0.9, BiomeType.TEMPERATE_FOREST, 'spring', [])
-    ).toBe(false)
-
-    // Succeeds with unlocks and required season/moisture
-    expect(
-      reg.canCreateHybrid('purifier_moss', 18, 0.9, BiomeType.TEMPERATE_FOREST, 'spring', needed)
-    ).toBe(true)
-
-    // Fails if season mismatch
-    expect(
-      reg.canCreateHybrid('purifier_moss', 18, 0.9, BiomeType.TEMPERATE_FOREST, 'winter', needed)
-    ).toBe(false)
+    reg.addHybrid({ id: 'hybrid_spanish_bluebell__wild_bluebell', hybridOf: ['spanish_bluebell', 'wild_bluebell'], maxBiomass: 0.65 })
+    const hybrid = reg.getSpecies('hybrid_spanish_bluebell__wild_bluebell')!
+    expect(hybrid.name).toMatch(/ Bluebell$/)
+    expect(hybrid.scientificName).toBe('Hyacinthoides hispanica × Hyacinthoides non-scripta')
+    expect(hybrid.maxBiomass).toBe(0.65)
+    expect(hybrid.genus).toBe('Hyacinthoides')
+    expect(reg.getWildSpecies().map(s => s.id)).not.toContain(hybrid.id)
   })
 })
-

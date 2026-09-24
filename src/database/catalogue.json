@@ -4,6 +4,7 @@
       "id": "lady_fern",
       "name": "Lady Fern",
       "scientificName": "Athyrium filix-femina",
+      "genus": "Athyrium",
       "category": "fern",
       "maxBiomass": 1.8,
       "growthRate": 0.08,
@@ -72,6 +73,7 @@
       "id": "silver_birch",
       "name": "Silver Birch",
       "scientificName": "Betula pendula",
+      "genus": "Betula",
       "category": "tree",
       "maxBiomass": 8,
       "growthRate": 1.5,
@@ -143,9 +145,149 @@
       }
     },
     {
+      "id": "downy_birch",
+      "name": "Downy Birch",
+      "scientificName": "Betula pubescens",
+      "genus": "Betula",
+      "category": "tree",
+      "maxBiomass": 7,
+      "growthRate": 1.4000000000000001,
+      "lifespanTicks": 5760,
+      "maturityDays": 720,
+      "clonalRate": 0,
+      "reproductionThreshold": 1.05,
+      "reproductionNeed": 0.5,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
+      "temperatureRange": {
+        "min": -30,
+        "max": 22
+      },
+      "moistureRange": {
+        "min": 0.5,
+        "max": 1
+      },
+      "lightRequirement": 0.5,
+      "shadeToleranceMax": 0.2,
+      "pHRange": {
+        "min": 3.5,
+        "max": 7
+      },
+      "canopyLayer": "canopy",
+      "rootDepth": "medium",
+      "dispersalRange": 8,
+      "pollination": "wind",
+      "succession": "early",
+      "traits": [
+        {
+          "name": "fast_growth",
+          "value": 1,
+          "description": "Grows rapidly in suitable conditions"
+        },
+        {
+          "name": "cold_hardy",
+          "value": 1,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "white",
+        "size": 0.7,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "dormantSeasons": [],
+        "nitrogenFixation": false,
+        "allelopathy": 0.2
+      }
+    },
+    {
+      "id": "midland_hawthorn",
+      "name": "Midland Hawthorn",
+      "scientificName": "Crataegus laevigata",
+      "genus": "Crataegus",
+      "category": "shrub",
+      "maxBiomass": 3.5,
+      "growthRate": 0.75,
+      "lifespanTicks": 4320,
+      "maturityDays": 576,
+      "clonalRate": 0,
+      "reproductionThreshold": 0.525,
+      "reproductionNeed": 0.6,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
+      "temperatureRange": {
+        "min": -15,
+        "max": 28
+      },
+      "moistureRange": {
+        "min": 0.3,
+        "max": 0.9
+      },
+      "lightRequirement": 0.2,
+      "shadeToleranceMax": 0.7,
+      "pHRange": {
+        "min": 5.5,
+        "max": 8
+      },
+      "canopyLayer": "understory",
+      "rootDepth": "medium",
+      "dispersalRange": 6,
+      "pollination": "insect",
+      "succession": "early",
+      "traits": [],
+      "resistances": [
+        "cold",
+        "frost"
+      ],
+      "visualProps": {
+        "color": "white",
+        "size": 0.35,
+        "shape": "bush",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "temperate_zone"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "dormantSeasons": [],
+        "nitrogenFixation": false,
+        "allelopathy": 0.1
+      }
+    },
+    {
       "id": "hawthorn",
       "name": "Common Hawthorn",
       "scientificName": "Crataegus monogyna",
+      "genus": "Crataegus",
       "category": "shrub",
       "maxBiomass": 4,
       "growthRate": 0.8999999999999999,
@@ -218,6 +360,7 @@
       "id": "beech",
       "name": "European Beech",
       "scientificName": "Fagus sylvatica",
+      "genus": "Fagus",
       "category": "tree",
       "maxBiomass": 18,
       "growthRate": 0.3,
@@ -288,6 +431,7 @@
       "id": "common_grass",
       "name": "Red Fescue",
       "scientificName": "Festuca rubra",
+      "genus": "Festuca",
       "category": "grass",
       "maxBiomass": 0.3,
       "growthRate": 0.15,
@@ -361,9 +505,74 @@
       }
     },
     {
+      "id": "spanish_bluebell",
+      "name": "Spanish Bluebell",
+      "scientificName": "Hyacinthoides hispanica",
+      "genus": "Hyacinthoides",
+      "category": "herb",
+      "maxBiomass": 0.7,
+      "growthRate": 0.13,
+      "lifespanTicks": 5400,
+      "maturityDays": 1440,
+      "clonalRate": 0.002,
+      "reproductionThreshold": 0.105,
+      "reproductionNeed": 0.45,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
+      "temperatureRange": {
+        "min": -5,
+        "max": 25
+      },
+      "moistureRange": {
+        "min": 0.3,
+        "max": 0.8
+      },
+      "lightRequirement": 0.2,
+      "shadeToleranceMax": 0.7,
+      "pHRange": {
+        "min": 5,
+        "max": 7.5
+      },
+      "canopyLayer": "herb",
+      "rootDepth": "shallow",
+      "dispersalRange": 6,
+      "pollination": "insect",
+      "succession": "mid",
+      "traits": [],
+      "resistances": [],
+      "visualProps": {
+        "color": "blue",
+        "size": 0.06999999999999999,
+        "shape": "bloom",
+        "seasonalChanges": true
+      },
+      "rarity": "common",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "temperate_zone"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "spring"
+        ],
+        "dormantSeasons": [
+          "summer",
+          "autumn"
+        ],
+        "nitrogenFixation": false,
+        "allelopathy": 0
+      }
+    },
+    {
       "id": "wild_bluebell",
       "name": "Bluebell",
       "scientificName": "Hyacinthoides non-scripta",
+      "genus": "Hyacinthoides",
       "category": "herb",
       "maxBiomass": 0.6,
       "growthRate": 0.1,
@@ -441,6 +650,7 @@
       "id": "moss_cushion",
       "name": "Cushion Moss",
       "scientificName": "Leucobryum glaucum",
+      "genus": "Leucobryum",
       "category": "moss",
       "maxBiomass": 0.1,
       "growthRate": 0.05,
@@ -512,6 +722,7 @@
       "id": "scots_pine",
       "name": "Scots Pine",
       "scientificName": "Pinus sylvestris",
+      "genus": "Pinus",
       "category": "tree",
       "maxBiomass": 12,
       "growthRate": 0.25,
@@ -588,6 +799,7 @@
       "id": "bracken_fern",
       "name": "Bracken Fern",
       "scientificName": "Pteridium aquilinum",
+      "genus": "Pteridium",
       "category": "fern",
       "maxBiomass": 1.2,
       "growthRate": 0.12,
@@ -651,9 +863,81 @@
       }
     },
     {
+      "id": "sessile_oak",
+      "name": "Sessile Oak",
+      "scientificName": "Quercus petraea",
+      "genus": "Quercus",
+      "category": "tree",
+      "maxBiomass": 14,
+      "growthRate": 0.35000000000000003,
+      "lifespanTicks": 18000,
+      "maturityDays": 2160,
+      "clonalRate": 0,
+      "reproductionThreshold": 2.1,
+      "reproductionNeed": 0.7,
+      "seedProduction": 60,
+      "seedMaturityTicks": 20,
+      "temperatureRange": {
+        "min": -20,
+        "max": 27
+      },
+      "moistureRange": {
+        "min": 0.2,
+        "max": 0.7
+      },
+      "lightRequirement": 0.4,
+      "shadeToleranceMax": 0.4,
+      "pHRange": {
+        "min": 4,
+        "max": 7
+      },
+      "canopyLayer": "emergent",
+      "rootDepth": "deep",
+      "dispersalRange": 6,
+      "pollination": "wind",
+      "succession": "mid",
+      "traits": [
+        {
+          "name": "cold_hardy",
+          "value": 0.8,
+          "description": "Tolerates freezing temperatures"
+        }
+      ],
+      "resistances": [
+        "cold",
+        "frost",
+        "drought"
+      ],
+      "visualProps": {
+        "color": "brown",
+        "size": 1.4,
+        "shape": "deciduous",
+        "seasonalChanges": true
+      },
+      "rarity": "uncommon",
+      "preferredBiomes": [
+        "temperate_forest"
+      ],
+      "nativeRegions": [
+        "forest_interior"
+      ],
+      "ecology": {
+        "floweringSeasons": [
+          "spring"
+        ],
+        "fruitingSeasons": [
+          "autumn"
+        ],
+        "dormantSeasons": [],
+        "nitrogenFixation": false,
+        "allelopathy": 0.1
+      }
+    },
+    {
       "id": "english_oak",
       "name": "English Oak",
       "scientificName": "Quercus robur",
+      "genus": "Quercus",
       "category": "tree",
       "maxBiomass": 15,
       "growthRate": 0.4,
@@ -723,6 +1007,7 @@
       "id": "pioneer_willow",
       "name": "Goat Willow",
       "scientificName": "Salix caprea",
+      "genus": "Salix",
       "category": "shrub",
       "maxBiomass": 2.5,
       "growthRate": 1.25,
@@ -798,6 +1083,7 @@
       "id": "white_clover",
       "name": "White Clover",
       "scientificName": "Trifolium repens",
+      "genus": "Trifolium",
       "category": "herb",
       "maxBiomass": 0.4,
       "growthRate": 0.2,
@@ -1288,7 +1574,7 @@
   ],
   "interactions": [
     {
-      "id": 22,
+      "id": 28,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "blue_tit",
@@ -1299,7 +1585,7 @@
       "notes": "Caterpillar control during breeding"
     },
     {
-      "id": 23,
+      "id": 29,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "great_tit",
@@ -1310,7 +1596,18 @@
       "notes": "Insect pest management"
     },
     {
-      "id": 24,
+      "id": 37,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Caterpillars on the spring leaves feed its chicks"
+    },
+    {
+      "id": 30,
       "species_a_id": "silver_birch",
       "species_a_type": "vegetal",
       "species_b_id": "blue_tit",
@@ -1321,7 +1618,7 @@
       "notes": "Aphid and small insect control"
     },
     {
-      "id": 27,
+      "id": 33,
       "species_a_id": "common_grass",
       "species_a_type": "vegetal",
       "species_b_id": "goldfinch",
@@ -1332,7 +1629,7 @@
       "notes": "Primary seed source"
     },
     {
-      "id": 25,
+      "id": 31,
       "species_a_id": "bracken_fern",
       "species_a_type": "vegetal",
       "species_b_id": "wren",
@@ -1343,7 +1640,7 @@
       "notes": "Ground insect foraging"
     },
     {
-      "id": 28,
+      "id": 34,
       "species_a_id": "common_grass",
       "species_a_type": "vegetal",
       "species_b_id": "greenfinch",
@@ -1354,7 +1651,7 @@
       "notes": "Grass seed specialist"
     },
     {
-      "id": 30,
+      "id": 36,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "wood_pigeon",
@@ -1365,7 +1662,18 @@
       "notes": "Eats acorns but digests the seed, so a predator rather than a disperser"
     },
     {
-      "id": 26,
+      "id": 39,
+      "species_a_id": "downy_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "blue_tit",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Aphids and small insects in the canopy"
+    },
+    {
+      "id": 32,
       "species_a_id": "common_grass",
       "species_a_type": "vegetal",
       "species_b_id": "chaffinch",
@@ -1376,7 +1684,18 @@
       "notes": "Seed feeding relationship"
     },
     {
-      "id": 29,
+      "id": 38,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "wood_pigeon",
+      "species_b_type": "bird",
+      "interaction_type": "feeding",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": "Eats acorns"
+    },
+    {
+      "id": 35,
       "species_a_id": "hawthorn",
       "species_a_type": "vegetal",
       "species_b_id": "blue_tit",
@@ -1387,7 +1706,7 @@
       "notes": "Forages insects among the blossom"
     },
     {
-      "id": 10,
+      "id": 13,
       "species_a_id": "white_clover",
       "species_a_type": "vegetal",
       "species_b_id": "common_blue",
@@ -1398,7 +1717,7 @@
       "notes": "Caterpillars eat clovers; bird's-foot trefoil is preferred where present"
     },
     {
-      "id": 20,
+      "id": 26,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "nuthatch",
@@ -1409,7 +1728,7 @@
       "notes": "Specialized cavity nester"
     },
     {
-      "id": 18,
+      "id": 24,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "blue_tit",
@@ -1420,7 +1739,7 @@
       "notes": "Primary nesting tree"
     },
     {
-      "id": 19,
+      "id": 25,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "great_tit",
@@ -1431,7 +1750,7 @@
       "notes": "Cavity nesting preference"
     },
     {
-      "id": 16,
+      "id": 22,
       "species_a_id": "hawthorn",
       "species_a_type": "vegetal",
       "species_b_id": "robin_european",
@@ -1442,7 +1761,7 @@
       "notes": "Dense thorny branches provide protection"
     },
     {
-      "id": 21,
+      "id": 27,
       "species_a_id": "scots_pine",
       "species_a_type": "vegetal",
       "species_b_id": "chaffinch",
@@ -1453,7 +1772,7 @@
       "notes": "Conifer nesting preference"
     },
     {
-      "id": 17,
+      "id": 23,
       "species_a_id": "silver_birch",
       "species_a_type": "vegetal",
       "species_b_id": "blue_tit",
@@ -1519,6 +1838,28 @@
       "notes": "Pollinates hawthorn blossom in late spring"
     },
     {
+      "id": 10,
+      "species_a_id": "spanish_bluebell",
+      "species_a_type": "vegetal",
+      "species_b_id": "buff_tailed_bumblebee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Open, upright bells are easy for bumblebees to work"
+    },
+    {
+      "id": 11,
+      "species_a_id": "midland_hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "red_mason_bee",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Flowers a week before common hawthorn"
+    },
+    {
       "id": 2,
       "species_a_id": "white_clover",
       "species_a_type": "vegetal",
@@ -1552,6 +1893,17 @@
       "notes": "Visits blossom alongside solitary bees"
     },
     {
+      "id": 12,
+      "species_a_id": "midland_hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "marmalade_hoverfly",
+      "species_b_type": "pollinator",
+      "interaction_type": "pollination",
+      "interaction_strength": 0.4,
+      "seasonal_modifier": null,
+      "notes": "Feeds on the open flowers"
+    },
+    {
       "id": 3,
       "species_a_id": "white_clover",
       "species_a_type": "vegetal",
@@ -1563,7 +1915,7 @@
       "notes": "Visits open clover heads"
     },
     {
-      "id": 14,
+      "id": 17,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
       "species_b_id": "jay",
@@ -1574,7 +1926,18 @@
       "notes": "Primary acorn disperser and cacher"
     },
     {
-      "id": 11,
+      "id": 21,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "jay",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": "Caches acorns as it does those of English oak"
+    },
+    {
+      "id": 14,
       "species_a_id": "hawthorn",
       "species_a_type": "vegetal",
       "species_b_id": "blackbird",
@@ -1585,7 +1948,7 @@
       "notes": "Primary disperser of hawthorn berries"
     },
     {
-      "id": 15,
+      "id": 18,
       "species_a_id": "beech",
       "species_a_type": "vegetal",
       "species_b_id": "jay",
@@ -1596,7 +1959,7 @@
       "notes": "Important beechnut disperser"
     },
     {
-      "id": 13,
+      "id": 16,
       "species_a_id": "hawthorn",
       "species_a_type": "vegetal",
       "species_b_id": "song_thrush",
@@ -1607,7 +1970,18 @@
       "notes": "Important autumn disperser"
     },
     {
-      "id": 12,
+      "id": 19,
+      "species_a_id": "midland_hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "blackbird",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Eats the haws like those of common hawthorn"
+    },
+    {
+      "id": 15,
       "species_a_id": "hawthorn",
       "species_a_type": "vegetal",
       "species_b_id": "robin_european",
@@ -1616,6 +1990,17 @@
       "interaction_strength": 0.6,
       "seasonal_modifier": null,
       "notes": "Secondary disperser"
+    },
+    {
+      "id": 20,
+      "species_a_id": "midland_hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "song_thrush",
+      "species_b_type": "bird",
+      "interaction_type": "seed_dispersal",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": "Autumn disperser"
     }
   ]
 }

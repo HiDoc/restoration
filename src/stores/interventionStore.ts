@@ -61,6 +61,7 @@ export const useInterventionStore = defineStore('intervention', () => {
   /** Why an intervention the engine accepted in principle did not take in that hex. */
   function failureMessage(intervention: PlayerIntervention): string {
     if (intervention.type === 'collect') return 'Nothing ripe to collect here yet.';
+    if (intervention.type === 'cross') return 'No open flower of that plant is left to pollinate here.';
     if (intervention.type === 'plant') {
       return seeds.value[intervention.data?.speciesId] ? 'There is no room for another plant here.' : 'You have no seeds of that species.';
     }
@@ -86,6 +87,8 @@ export const useInterventionStore = defineStore('intervention', () => {
     actionMessage.value =
       intervention.type === 'collect' ? collectedMessage(before)
       : intervention.type === 'plant' ? `Planted ${speciesInfo(intervention.data.speciesId).name}.`
+      : intervention.type === 'cross'
+        ? `${speciesInfo(intervention.data.receiver).name} carries ${speciesInfo(intervention.data.donor).name} pollen. Collect its seed when it ripens.`
       : `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied.`;
     return true;
   }

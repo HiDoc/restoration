@@ -23,13 +23,16 @@ export interface Knowledge {
   interactions: Record<string, InteractionKnowledge>
   /** Names the player gave the hybrids they bred. */
   names: Record<string, string>
+  /** Mysteries the player has come across, by tick noticed and solved. */
+  mysteries: Record<string, { noticed: number; solved?: number }>
 }
 
 export type Discovery =
   | { kind: 'species'; id: string; chunkId?: string }
   | { kind: 'interaction'; animal: string; plant: string; chunkId?: string }
+  | { kind: 'mystery'; id: string; solved: boolean }
 
-export const emptyKnowledge = (): Knowledge => ({ species: {}, interactions: {}, names: {} })
+export const emptyKnowledge = (): Knowledge => ({ species: {}, interactions: {}, names: {}, mysteries: {} })
 export const pairKey = (animal: string, plant: string) => `${animal}|${plant}`
 
 function meet(knowledge: Knowledge, id: string, tick: number, found: Discovery[], chunkId?: string): SpeciesKnowledge {

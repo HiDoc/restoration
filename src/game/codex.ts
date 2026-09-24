@@ -2,9 +2,10 @@ import catalogue from '@/database/catalogue.json'
 import { buildFaunaDefinitions, type FaunaLink } from '@/simulation/faunaDefinitions'
 import { SpeciesRegistry, type Season, type SpeciesDefinition } from '@/simulation/SpeciesRegistry'
 import { pairKey, type Knowledge } from './knowledge'
+import { MYSTERIES } from './mysteries'
 
 export type CodexGroup = 'plant' | 'pollinator' | 'bird'
-export type CodexTab = CodexGroup | 'interaction'
+export type CodexTab = CodexGroup | 'interaction' | 'mystery'
 
 /** One fact about a species: the parts the player has seen, and how many are still `?`. */
 export interface CodexFact { label: string; known: string[]; missing: number }
@@ -75,7 +76,7 @@ export function codexEntries(knowledge: Knowledge): CodexEntry[] {
 export interface Tally { known: number; total: number }
 
 /** Known/total for each Codex section. */
-export function codexTotals(knowledge: Knowledge): Record<CodexGroup | 'interaction', Tally> {
+export function codexTotals(knowledge: Knowledge): Record<CodexTab, Tally> {
   const entries = codexEntries(knowledge)
   const tally = (group: CodexGroup) => ({ known: entries.filter(e => e.group === group && e.known).length, total: entries.filter(e => e.group === group).length })
   return {
@@ -83,6 +84,7 @@ export function codexTotals(knowledge: Knowledge): Record<CodexGroup | 'interact
     pollinator: tally('pollinator'),
     bird: tally('bird'),
     interaction: { known: LINKS.filter(link => pairKey(link.animal, link.plant) in knowledge.interactions).length, total: LINKS.length },
+    mystery: { known: MYSTERIES.filter(m => knowledge.mysteries[m.id]?.solved !== undefined).length, total: MYSTERIES.length },
   }
 }
 

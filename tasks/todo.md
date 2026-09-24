@@ -438,8 +438,26 @@ mysteries both explain themselves through it.
       arrives within two years until cover links the hollow to the edge.
       Follow-ups: the map does not yet show which hexes are cut off; a hint on the hex card ("no way in for
       butterflies") would make corridors discoverable.
-- [ ] **B6 Mysteries.** Each site seeds anomalies with hidden causes (no pollinator reaches a patch, falling
-      water table, nectar without larval host); solved when the cause changes; the Codex logs the explanation.
+- [x] **B6 Mysteries.** Each site has one anomaly with a cause the simulation really produces, checked by
+      probing the sites before authoring (a pond that dries each summer and fritillaries on bramble were
+      dropped: shade does not keep the pond, and fritillaries arrive too rarely to rely on).
+  - [x] `src/game/mysteries.ts`: a mystery has a question, a clue, an explanation, and two predicates over
+        the site's map and season: noticed (the symptom) and solved (the cause gone). Pure and testable.
+        - Old Meadow: "Clover blooms everywhere, so why do no Common Blues come?" Isolation: the butterfly
+          flies only a hex, and the meadow is an island until cover reaches the edge.
+        - Felled Wood: "Why is the wood silent all summer?" No summer nectar: oak, birch, hazel and bracken
+          feed no bees. Solved by two kinds of pollinator in a summer (bramble, honeysuckle).
+        - Wet Hollow: "The willows flower in early spring, so why do their catkins set no seed?" Spring bees
+          cannot reach the hollow; solved when a later crop is mostly pollinated.
+  - [x] Knowledge records each mystery (noticed, solved) with the Codex in the profile; toasts on both.
+  - [x] Codex "Mysteries" tab: the question, the clue while open, the explanation once solved.
+  - [x] Tests: predicates on made-up maps; notice-then-solve in the knowledge reducer; the meadow's mystery
+        appears in the first summer and resolves by the second year in a real run.
+      Done (2026-09-24). Browser: the first summer in the Old Meadow brings "A mystery: Clover blooms all over
+      the meadow…" and the Codex's Mysteries tab lists it with its clue.
+      Follow-ups: all three causes are about pollinators and reach; a water or soil mystery needs a mechanic
+      the player can change (e.g. a pond that can be deepened). The clue shows at once rather than after a
+      season unsolved.
 - [ ] **B7 Rare events.** Seeded, condition-weighted table in Rust (superbloom, butterfly migration, mast year,
       temporary pond, spontaneous hybrid between co-flowering congeners, ancient seed germination), in the
       digest.

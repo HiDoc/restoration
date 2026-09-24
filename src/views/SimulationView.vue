@@ -441,6 +441,7 @@ import { elevationOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
+import { MYSTERIES } from "@/game/mysteries";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
@@ -1048,6 +1049,8 @@ async function travel(siteId: string) {
 function reportSite(sim: SimulationEngine) {
   const config = sim.getConfig();
   const seasonIndex = Math.floor(sim.getCurrentTick() * (config.timePerTickMinutes ?? 1440) / 1440 / (config.seasonLengthTicks ?? 90));
+  const season = (['spring', 'summer', 'autumn', 'winter'] as const)[seasonIndex % 4];
+  announce(knowledgeStore.investigate(profile.currentSite, { season, chunks: sim.readChunks().values() }, sim.getCurrentTick()));
   const news = profile.update(surveySite(sim.readChunks().values()), seasonIndex);
   if (!news.reached) return;
   const text = news.restored ? `${profile.site.name} is restored.` : `${profile.site.name} has reached a new stage: ${news.reached}.`;
@@ -1161,7 +1164,12 @@ function notify(icon: string, text: string) {
 function announce(found: Discovery[]) {
   for (const discovery of found.slice(0, MAX_TOASTS)) {
     if (discovery.kind === 'species') notify('icon-observe', `New in your Codex: ${speciesInfo(discovery.id).name}`);
-    else notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`);
+    else if (discovery.kind === 'interaction') notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`);
+    else {
+      const mystery = MYSTERIES.find(m => m.id === discovery.id);
+      notify('icon-journal', discovery.solved ? 'A mystery is solved. The Codex explains.' : `A mystery: ${mystery?.question}`);
+      if (discovery.solved) profile.save();
+    }
   }
 }
 

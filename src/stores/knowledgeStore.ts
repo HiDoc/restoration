@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { SimulationEngine } from '@/simulation/SimulationEngine'
 import type { Season } from '@/simulation/SpeciesRegistry'
 import { emptyKnowledge, learn, see, type Discovery, type Knowledge } from '@/game/knowledge'
+import { investigate as investigateSite, type SiteView } from '@/game/mysteries'
 import { codexTotals, knowledgeSummary } from '@/game/codex'
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 
@@ -41,6 +42,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     for (const species of registry.getAllSpecies()) registry.nameHybrid(species.id, knowledge.value.names[species.id])
   }
 
+  /** Look for the current site's mysteries in what the map shows now. */
+  function investigate(siteId: string, view: SiteView, tick: number): Discovery[] {
+    return investigateSite(knowledge.value, siteId, view, tick)
+  }
+
   function rename(id: string, name: string) {
     const trimmed = name.trim()
     if (!trimmed) return
@@ -66,5 +72,5 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     lastTick.value = state?.lastTick ?? -1
   }
 
-  return { knowledge, summary, totals, observe, rename, followWorld, reset, exportState, importState }
+  return { knowledge, summary, totals, observe, investigate, rename, followWorld, reset, exportState, importState }
 })

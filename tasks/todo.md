@@ -172,9 +172,9 @@ seed; Bluebell and Scots Pine die out in year one. The adapter maps real values 
       Inspect links that select the hex.
 
 Follow-ups found in A1:
-- [ ] A new game still opens on Red Fescue alone; the slice's starting meadow (established Fescue, Clover, Bluebell,
+- [x] (Done with the starting meadow, then B2 sites.) A new game still opens on Red Fescue alone; the slice's starting meadow (established Fescue, Clover, Bluebell,
       Hawthorn) should be the default start. Belongs with the slice scenario.
-- [ ] Legacy predetermined hybrids (Purifier Moss etc.) still name invented parents; the Modify intervention uses
+- [x] (Removed in A6.) Legacy predetermined hybrids (Purifier Moss etc.) still name invented parents; the Modify intervention uses
       them. Remove with A6.
 - [ ] The Recent Events list misses births during a time-lapse (it diffs species per refresh, not per tick);
       rebuild it from journal events with the knowledge store (A4).
@@ -203,12 +203,12 @@ Today `pollinatorDensity` is a formula (diversity, canopy, light, pollution) and
 - [x] **A2.6 Digest.** First sightings, pairs seen together, arrivals; at most 8 lines with "…and N more".
 
 Follow-ups found in A2:
-- [ ] Every "seen together" pair repeats each season; show only pairs new to the player once the knowledge store
+- [x] (A4: the digest reports only pairs new to the player.) Every "seen together" pair repeats each season; show only pairs new to the player once the knowledge store
       exists (A4).
 - [ ] Pollinators reach all 36 hexes within a season of the centre flowering; revisit spread rates when the map
       has distinct habitats.
-- [ ] Hex textures switch to wetland above 0.75 moisture, so most of the map turns to water every spring (A3).
-- [ ] Default game start: make the slice meadow the new-game world (today a new game has grass only, so only
+- [x] (A3; B3 wetland needs standing water.) Hex textures switch to wetland above 0.75 moisture, so most of the map turns to water every spring (A3).
+- [x] (Done.) Default game start: make the slice meadow the new-game world (today a new game has grass only, so only
       finches come).
 
 ### A3. Consequence first, numbers last
@@ -287,7 +287,7 @@ Follow-ups found in A5:
 - [ ] Collecting seed a plant gave only on fruiting start is impossible for about ten days; the hex card could
       say "ripening" instead of offering Collect until then.
 - [ ] Reward toasts can be pushed out by a burst of discovery toasts after a Season.
-- [ ] The legacy `hybridize` intervention still creates effect residues; A6 replaces it.
+- [x] (Removed in A6.) The legacy `hybridize` intervention still creates effect residues; A6 replaces it.
 
 ### A6. Hybridization v1
 Decided 2026-09-23: only plants of the same genus cross, as in nature, so the catalogue gains real partner
@@ -324,7 +324,7 @@ Done (2026-09-24). Full suite: 7 known failures only (year-end copy 5, diffusion
 In the browser, from a fresh game: cross Bluebell × Spanish Bluebell in spring, collect "Mist Bluebell" seed
 about ten weeks later, plant it (fit words apply), Codex entry with formula and pedigree, rename.
 Follow-ups found in A6:
-- [ ] Fauna forage links are keyed by plant id, so bees ignore hybrid bluebells and they set little seed.
+- [x] (B0.) Fauna forage links are keyed by plant id, so bees ignore hybrid bluebells and they set little seed.
       Hybrids should inherit their parents' links in `buildFaunaDefinitions`/Rust.
 - [ ] Hybrid facts in the Codex are the parents' (union of seasons); nothing yet shows that individuals vary.
       Belongs with the trait histograms in Milestone C.
@@ -484,16 +484,91 @@ mysteries both explain themselves through it.
 
 ## Milestone C: depth
 
-- [ ] **Named individuals:** rare or hybrid organisms get an id (#A17), age, parents, seeds produced and
-      descendants, all in Rust. Codex entries for notable individuals, with a note when one dies of old age.
-- [ ] **Adaptation:** the year-end selection becomes "propagate survivors". Show trait distributions per
-      population across generations (a small histogram in the Codex), so drought tolerance visibly shifts
-      over 5–6 generations.
-- [ ] **Mini activities** (10–60 s each): photograph a new species (fills its Codex illustration), soil sample
-      (reveals a hidden hex property), water sample, follow a pollinator (reveals one interaction),
-      choose seed parents.
-- [ ] **Workflow copy:** the guided workflow becomes Explore → Discover → Plant → Observe → Hybridize →
-      Restore. Dock tabs become Overview · Codex · Seeds · Hybrids · Journal · Settings.
+Decided 2026-09-24: selection happens through play (the yearly seed-selection pause and its master-genome
+machinery go); activities are the ★ items from the activity list given that day, with the rest in the backlog
+below. Two rules for every activity: it takes 10–60 s of real time with the simulation paused, and it
+reveals knowledge the player then holds (estimates and words), not the engine's raw values.
+
+### C0. Foundations
+- [ ] **Compact genetics** (the A0.5 follow-up): Rust genetics become `{traits: {id: value}, generation,
+      parents}` instead of seven objects repeating static fields plus a mutation log. Keep the five traits the
+      engine uses (drought tolerance, cold resistance, growth efficiency, reproductive vigour, nutrient
+      efficiency) and drop the two it never reads. Old saves convert on load. Expected: the snapshot shrinks
+      several-fold, and ticks that read the world get faster.
+- [ ] **Retire the year-end selection:** `YearEndSeedSelection`, the engine's master/pending genomes and
+      selected seeds, the TS `GeneticSystem`, and their tests (`yearend_workflow`, `engine_year_end_*`,
+      `vegetation_master_genome_germination`, `genetic_mutation_coverage`). Seasons no longer stop at day 360.
+- [ ] **Provenance:** a seed records its mother, father (if crossed) and the site it was collected on.
+- [ ] **Follow-up sweep:** the Recent Events list rebuilt from journal events (it misses births during a
+      time-lapse); toasts link to their Codex entry.
+
+### C1. Individuals: mark & revisit ★
+- [ ] Rust: a plant can be *tagged*: it keeps a short id (#A17), and the engine records its seeds set,
+      descendants that germinated, and cause of death. Player-planted and hybrid plants are tagged
+      automatically; any plant can be tagged from the hex card.
+- [ ] A **Journal** (dock tab) lists tagged individuals: age, stage, health in words, parents, descendants,
+      and a line when one dies ("#A17, your first Sessile Oak, died of drought at 12").
+- [ ] Name a tagged individual (hybrid naming already exists).
+
+### C2. Seed collecting ★ and choosing seed parents ★
+- [ ] Collect opens a panel of the ripe plants in the hex, each with its visible traits in words ("hardy in
+      drought", "vigorous"), estimated from what the player has seen of it, not the exact values.
+- [ ] The player picks which plants give seed. Timing matters: seed taken early in fruiting is less viable
+      (viability follows how ripe the reserve is) instead of any reflex challenge.
+- [ ] **Adaptation in the Codex:** per species, the spread of each trait among living plants now and a
+      generation ago, as a small histogram; a probe first confirms drought tolerance shifts visibly over
+      5–6 generations under drought.
+
+### C3. Hybrid notebook ★
+- [ ] Before crossing, the player predicts each trait of the offspring (lower, between, higher than the
+      parents). After the seed germinates and the plant is tagged, the notebook compares prediction and outcome.
+
+### C4. Measuring the land
+- [ ] **Soil & water samples ★:** the Measurements toggle goes; a hex's pH class, moisture, nutrients,
+      pollution and groundwater are known once sampled, shown as the sample's reading until conditions change
+      materially (then "changed since sampling"). Needs a soil pH per hex in Rust (the catalogue already has
+      pH ranges per species).
+- [ ] **Water tracing ★:** release a marker in a hex and watch it follow the water's flow; reveals which hexes
+      drain into which. Rust projects the net flow between neighbours.
+- [ ] **Seed germination tray ★:** a soil sample from a hex, grown on under good conditions, shows which
+      species lie dormant in its seed bank (without the counts).
+
+### C5. Watching
+- [ ] **Follow a pollinator ★:** keep a bee or butterfly in view as it moves between flowers across hexes;
+      keeping up reveals one of its interactions and its preferred habitat in the Codex.
+- [ ] **Field photography ★:** frame an animal or plant in a hex; a photo of natural behaviour (feeding,
+      nectaring) records the observation and can reveal an interaction. The photo is composed from the game's
+      own sprites and tiles; proper species illustrations need artwork the project does not have.
+- [ ] **Sound listening ★:** pause and listen to a hex: birds and insects present are added to the Codex as
+      "heard, not seen" until a sighting.
+- [ ] **Phenology journal ★:** first flower, first fruit and first arrival each year per species, marked as
+      the player notices them, building a calendar for this world.
+
+### C6. Common garden experiment ★
+- [ ] Plant seed of one species from different sites (provenance, C0) side by side in one hex; the Journal
+      compares the tagged plants over seasons, separating inherited differences from where they grew.
+
+### C7. Fungi and fungal inspection ★
+- [ ] New kingdom: real mycorrhizal and saprotrophic fungi (Fly Agaric with birch, Penny Bun with oak and
+      beech, Chanterelle, Honey Fungus, Candlesnuff), their host links, and an engine effect (mycorrhizal
+      partners improve nutrient uptake and drought tolerance; fruiting bodies in autumn). The catalogue's
+      `mycorrhizal_association` flag is where this starts.
+- [ ] Inspecting fruiting bodies in autumn discovers the fungus and its plant partners.
+
+### C8. Workflow copy
+- [ ] The guided workflow becomes Explore → Discover → Plant → Observe → Hybridize → Restore. Dock tabs become
+      Overview · Codex · Seeds · Journal · Sites · Settings.
+
+**Order:** C0 first. C1 → C2 → C3 → C6 build on individuals and provenance. C4 and C5 depend only on C0 and
+can run alongside. C7 is the largest and last. Each step is probed in the simulation before its content is
+written, as the mysteries were.
+
+### Backlog: further activities
+Quadrat survey, bird watching, track identification, flower observation, seed dispersal watching, rain
+observation, canopy light survey, pollinator count, propagation, transplanting, pruning, deadwood placement,
+pond shaping (would give Wet Hollow a water mystery the player can solve), stone arrangement, nest box, insect
+hotel, compost observation, root inspection, pollen microscopy, seed sorting, reciprocal transplant, map
+sketching, night survey (needs nocturnal species), seasonal comparison. Name a hybrid exists since A6.
 
 ---
 
@@ -509,7 +584,15 @@ mysteries both explain themselves through it.
 | A5 collect/plant | Rust + Vue | M | A1 |
 | A6 hybridization | Rust + Vue | L | A4, A5 |
 | B | all | XL | A |
-| C | all | L | B |
+| C0 foundations | Rust + TS | M | B |
+| C1 individuals | Rust + Vue | M | C0 |
+| C2 seed collecting + adaptation | Rust + Vue | M | C1 |
+| C3 hybrid notebook | Vue | S | C2 |
+| C4 measuring | Rust + Vue | M | C0 |
+| C5 watching | Vue | M | C0 |
+| C6 common garden | Vue | S | C1, C2 |
+| C7 fungi | data + Rust + Vue | L | C0 |
+| C8 workflow copy | Vue | S | – |
 
 A1 and A2 can run in parallel after A0; so can A3 and A5.
 

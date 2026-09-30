@@ -131,7 +131,7 @@ const entries = computed(() => {
   void version.value
   const engine = interventions.engine
   if (!props.show || !engine) return []
-  return journalEntries(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name, siteName)
+  return journalEntries(engine.getTags(), engine.readChunksDetailed().values(), id => speciesInfo(id).name, siteName)
 })
 
 const knowledge = useKnowledgeStore()

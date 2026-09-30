@@ -158,12 +158,23 @@ impl Default for Climate {
 #[serde(rename_all = "camelCase")]
 pub struct Seed {
     pub species_id: String,
+    /// A summary projection leaves out place and ripening time; a sync keeps the stored seed's.
+    #[serde(default = "Seed::unplaced")]
     pub x: f64,
+    #[serde(default = "Seed::unplaced")]
     pub y: f64,
     pub viability: f64,
+    #[serde(default)]
     pub maturity_ticks: u64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+impl Seed {
+    /// Marks a place the host did not send.
+    fn unplaced() -> f64 {
+        f64::NAN
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -171,8 +182,11 @@ pub struct Seed {
 pub struct SpeciesInstance {
     pub id: String,
     pub species_id: String,
-    pub x: f64,
-    pub y: f64,
+    /// Absent in a summary projection; a plant already in the world then keeps its place.
+    #[serde(default)]
+    pub x: Option<f64>,
+    #[serde(default)]
+    pub y: Option<f64>,
     pub age: u64,
     pub biomass: f64,
     pub health: f64,

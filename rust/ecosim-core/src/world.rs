@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// Bump when a saved world can no longer be read with serde defaults for the new fields; the game then opens
+/// the site afresh with a message instead of loading an older save.
 pub const SAVE_VERSION: u32 = 1;
 /// Seed a fruiting plant has ripened since it last dropped or gave seed; about ten days' worth for a grass.
 pub const RIPE_RESERVE: f64 = 0.1;
@@ -320,7 +322,18 @@ impl World {
                 .filter(|(_, p)| p.chunk == entity)
                 .map(|(e, _)| *e)
                 .collect();
+            // What a summary projection leaves out of each plant (place, pollen, genetics) is kept from before.
+            let mut before = BTreeMap::new();
             for id in removals {
+                let organism = &self.components.organisms[&id];
+                before.insert(
+                    organism.id.clone(),
+                    (
+                        self.components.positions[&id].clone(),
+                        self.components.reproduction[&id].clone(),
+                        organism.extra.clone(),
+                    ),
+                );
                 self.despawn(id);
             }
             // Flow and samples are the engine's own, projected for reading; copies must not settle into the hex.
@@ -329,9 +342,9 @@ impl World {
             extra.remove("sample");
             extra.remove("fungi");
             extra.remove("fruiting");
-            // Projected seeds carry no genetics: a seed coming back without them is matched, in order, to the
-            // hex's existing seeds of its species, which keep theirs. The host only adds or removes seeds.
-            let mut kept = BTreeMap::<String, VecDeque<BTreeMap<String, Value>>>::new();
+            // Projected seeds carry no genetics (nor, in a summary, their place): a seed coming back without them is
+            // matched, in order, to the hex's stored seeds of its species. The host only adds or removes seeds.
+            let mut kept = BTreeMap::<String, VecDeque<Seed>>::new();
             for seed in self
                 .components
                 .habitats
@@ -339,17 +352,27 @@ impl World {
                 .map(|h| std::mem::take(&mut h.seeds))
                 .unwrap_or_default()
             {
-                kept.entry(seed.species_id)
+                kept.entry(seed.species_id.clone())
                     .or_default()
-                    .push_back(seed.extra);
+                    .push_back(seed);
             }
             let mut seeds = chunk.seed_bank;
             for seed in seeds
                 .iter_mut()
                 .filter(|s| !s.extra.contains_key("genetics"))
             {
-                if let Some(extra) = kept.get_mut(&seed.species_id).and_then(VecDeque::pop_front) {
-                    seed.extra = extra;
+                if let Some(stored) = kept.get_mut(&seed.species_id).and_then(VecDeque::pop_front) {
+                    // The host sees and edits viability only; the rest is the stored seed's.
+                    *seed = Seed {
+                        viability: seed.viability,
+                        ..stored
+                    };
+                }
+            }
+            // A seed the host added without a place lies in the middle of the hex.
+            for seed in &mut seeds {
+                if seed.x.is_nan() || seed.y.is_nan() {
+                    (seed.x, seed.y) = (0.5, 0.5);
                 }
             }
             let mut biome = chunk.biome_state;
@@ -371,22 +394,31 @@ impl World {
             let mut plants = chunk.species;
             plants.sort_by(|a, b| a.1.id.cmp(&b.1.id));
             for (_, mut plant) in plants {
+                let (place, kept_bloom, kept) = before.remove(&plant.id).map_or(
+                    (None, None, BTreeMap::new()),
+                    |(p, bloom, extra): (Position, Reproduction, _)| (Some(p), Some(bloom), extra),
+                );
                 // Pollen rides in the projection's plant record; it belongs to the reproduction component.
-                let pollen = plant
-                    .extra
-                    .remove("pollen")
-                    .and_then(|value| serde_json::from_value(value).ok());
-                // The limit is derived each tick; a projected copy must not settle into the plant's record.
-                plant.extra.remove("limit");
-                // Plants the host adds (a site's starting plants) are founders.
-                let extra = self.seed_record(std::mem::take(&mut plant.extra));
+                let pollen = match plant.extra.remove("pollen") {
+                    Some(value) => serde_json::from_value(value).ok(),
+                    None => kept_bloom.as_ref().and_then(|b| b.pollen.clone()),
+                };
+                for (key, value) in kept {
+                    plant.extra.entry(key).or_insert(value);
+                }
+                // Derived each tick, or the projection's copy of a component: none settles into the record.
+                for key in ["limit", "reproductiveUrge"] {
+                    plant.extra.remove(key);
+                }
                 let age_days = plant
                     .extra
-                    .get("ageDays")
-                    .and_then(Value::as_f64)
+                    .remove("ageDays")
+                    .and_then(|v| v.as_f64())
                     .unwrap_or(
                         plant.age as f64 * self.config.time_per_tick_minutes as f64 / 1440.0,
                     );
+                // Plants the host adds (a site's starting plants) are founders.
+                let extra = self.seed_record(std::mem::take(&mut plant.extra));
                 let id = plant_lookup
                     .get(&plant.id)
                     .copied()
@@ -395,8 +427,16 @@ impl World {
                     id,
                     Position {
                         chunk: entity,
-                        x: plant.x.clamp(0.0, 1.0),
-                        y: plant.y.clamp(0.0, 1.0),
+                        x: plant
+                            .x
+                            .or(place.as_ref().map(|p| p.x))
+                            .unwrap_or(0.5)
+                            .clamp(0.0, 1.0),
+                        y: plant
+                            .y
+                            .or(place.as_ref().map(|p| p.y))
+                            .unwrap_or(0.5)
+                            .clamp(0.0, 1.0),
                     },
                 );
                 self.components.organisms.insert(
@@ -422,7 +462,7 @@ impl World {
                     Reproduction {
                         stage: plant.phenology_stage,
                         reserve: plant.reproductive_output.max(0.0),
-                        pollinated: 0.0,
+                        pollinated: kept_bloom.map_or(0.0, |b| b.pollinated),
                         pollen,
                     },
                 );
@@ -755,7 +795,7 @@ impl World {
     }
 
     pub fn snapshot(&self) -> Value {
-        serde_json::to_value(self.snapshot_view())
+        serde_json::to_value(self.snapshot_view(true))
             .expect("ECS projections contain only JSON values")
     }
 

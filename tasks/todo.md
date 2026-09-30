@@ -666,16 +666,29 @@ same frame, header and close code. The tutorial describes panels from before Mil
 remain in old tests (two in `fieldwork.spec.ts`, from C4).
 
 ### D0. Engine and code health
-- [ ] **Per-tick summary instead of the whole world.** Rust projects a compact per-hex summary every tick
-      (plant counts, stages and limits per species, fauna, fruiting fungi, sample, standing water, dead wood,
-      tags present); full plant records only on request (a selected hex, the Journal, Collect/Cross panels,
-      Codex adaptation). Probe first: payload and ms per tick at year 1 and year 20, before and after.
-- [ ] Remove the `/simulation-chunk` route and view, `ChunkAnalyzer` (fold the inspector's two figures into
-      the hex card), and the dead TS update loop in `WorldChunk` (`updateSpecies`, `CauseOfDeath`, …).
-- [ ] Zero type errors under the root tsconfig: fix `fieldwork.spec.ts`; delete tests of removed features
-      (`game_balance_analysis`, parts of `simulation.e2e`) or rewrite them against today's game.
-- [ ] Saves carry a version; a save from an older version opens with a plain message and a fresh site,
-      instead of loading into a broken state.
+- [x] **Per-tick summary instead of the whole world.** The per-tick read is a summary: plants without place,
+      pollen or genetics; seeds with kind and viability only. `readChunksDetailed()` returns every plant in
+      full, for the Journal, the Codex adaptation charts and the Collect/Cross panels. A sync keeps what a summary
+      leaves out (plant place, pollen, genetics, pollination; seed place, ripening, genetics), so a round trip
+      changes nothing (Rust test). The engine is now raw (`markRaw`): Vue proxies had doubled every tick; the
+      view follows a `viewVersion` counter bumped on each refresh. Runtime responses parse natively.
+      Probe (browser, same world): year 1, 392 plants: summary 106 KB vs 244 KB detailed; update+refresh
+      3.3 ms raw vs 6.0 ms proxied. Year 18, 2,294 plants: summary 769 KB vs 1,899 KB; update+refresh 13.6 ms
+      (step 9.5) vs 18 ms proxied, where the refresh alone was ~14 ms before D0. Per-hex aggregates would cut
+      the summary further but change every reader of plants; not worth it now.
+      Also fixed: sync read `ageDays` after the plant record had been taken, so it recomputed age from ticks and
+      left `ageDays` in the record.
+- [x] Removed the `/simulation-chunk` route and view, `ChunkAnalyzer` (its trends and advice in the inspector
+      had no history to draw on), the dead TS update loop in `WorldChunk` (518 → 211 lines) and its test.
+- [x] Zero type errors under the root tsconfig: fixed the old tests; deleted `game_balance_analysis` (it tested
+      the resource-point economy removed in Milestone A; D2 brings a new harness).
+- [x] Saves carry `SAVE_VERSION` (bumped when an old save can no longer be read with defaults). A save the
+      engine cannot open no longer blocks the game: the site starts afresh with a plain message, and is saved
+      at once so the message comes only once.
+- Done: 51 Rust and 206 TS tests pass (worldchunk's two went with the dead code). Browser: map, hex card, counts
+  and events follow each tick with the raw engine; the Cross panel shows traits from the detailed read; a save
+  marked version 99 opened the meadow afresh with the message, once.
+- Noticed for D2: on a fresh meadow three goals complete within the first week ("Field Researcher" among them).
 
 ### D1. Graphic interface
 - [ ] **Layout at every size.** Laptop: the left column fits (workflow collapses to a compact strip; Time and

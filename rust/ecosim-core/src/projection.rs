@@ -27,16 +27,20 @@ pub(crate) struct Snapshot<'a> {
     weather_events: &'a [Weather],
 }
 
-/// A buried seed as the host sees it: what and where it is, not its genetics, which stay in the engine (a hex
-/// holds up to 128 seeds, and their genetics would double the projection sent every tick).
+/// A buried seed as the host sees it: its kind and viability, and in a detailed read where it lies. Its genetics
+/// stay in the engine (a hex holds up to 128 seeds, and their genetics would double the projection).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SeedView<'a> {
     species_id: &'a str,
-    x: f64,
-    y: f64,
     viability: f64,
-    maturity_ticks: u64,
+    /// Where it lies and how long until it can sprout: in a detailed read only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    y: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    maturity_ticks: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -64,26 +68,35 @@ struct Chunk<'a> {
     extra: &'a BTreeMap<String, Value>,
 }
 
+/// A plant in the projection. The summary sent every tick keeps what the map, the Codex and goals read; a
+/// detailed read adds its place in the hex, pollen and genetics (most of a plant's size).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Plant<'a> {
     id: &'a str,
     species_id: &'a str,
-    x: f64,
-    y: f64,
     age: u64,
     age_days: f64,
     biomass: f64,
     health: f64,
     phenology_stage: &'a str,
     reproductive_output: f64,
+    /// Why the plant struggles, if it does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<&'a str>,
+    #[serde(flatten)]
+    detail: Option<PlantDetail<'a>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlantDetail<'a> {
+    x: f64,
+    y: f64,
     reproductive_urge: f64,
     last_reproduction_attempt: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pollen: Option<&'a Pollen>,
-    /// Why the plant struggles, if it does.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    limit: Option<&'a str>,
     #[serde(flatten)]
     extra: PlantExtras<'a>,
 }
@@ -106,7 +119,8 @@ impl World {
         self.elapsed_minutes as f64 / 1440.0
     }
 
-    pub(crate) fn snapshot_view(&self) -> Snapshot<'_> {
+    /// The projection; `detail` adds each plant's place, pollen and genetics.
+    pub(crate) fn snapshot_view(&self, detail: bool) -> Snapshot<'_> {
         let mut by_chunk = BTreeMap::<Entity, Vec<(&str, Plant<'_>)>>::new();
         for (entity, organism) in &self.components.organisms {
             let position = &self.components.positions[entity];
@@ -117,21 +131,12 @@ impl World {
                 Plant {
                     id: &organism.id,
                     species_id: &organism.species_id,
-                    x: position.x,
-                    y: position.y,
                     age: growth.age,
                     age_days: growth.age_days,
                     biomass: growth.biomass,
                     health: growth.health,
                     phenology_stage: &reproduction.stage,
                     reproductive_output: reproduction.reserve,
-                    reproductive_urge: reproduction.reserve.min(1.0),
-                    last_reproduction_attempt: organism
-                        .extra
-                        .get("lastReproductionAttempt")
-                        .cloned()
-                        .unwrap_or(Value::from(0)),
-                    pollen: reproduction.pollen.as_ref(),
                     limit: growth.limit.as_deref().or_else(|| {
                         // Healthy but barren: an animal-pollinated bloom nothing visited.
                         let def = self.definitions.get(&organism.species_id)?;
@@ -140,7 +145,18 @@ impl World {
                             && reproduction.pollinated < 0.2)
                             .then_some("no_pollinator")
                     }),
-                    extra: PlantExtras(&organism.extra),
+                    detail: detail.then(|| PlantDetail {
+                        x: position.x,
+                        y: position.y,
+                        reproductive_urge: reproduction.reserve.min(1.0),
+                        last_reproduction_attempt: organism
+                            .extra
+                            .get("lastReproductionAttempt")
+                            .cloned()
+                            .unwrap_or(Value::from(0)),
+                        pollen: reproduction.pollen.as_ref(),
+                        extra: PlantExtras(&organism.extra),
+                    }),
                 },
             ));
         }
@@ -162,10 +178,10 @@ impl World {
                     .iter()
                     .map(|seed| SeedView {
                         species_id: &seed.species_id,
-                        x: seed.x,
-                        y: seed.y,
                         viability: seed.viability,
-                        maturity_ticks: seed.maturity_ticks,
+                        x: detail.then_some(seed.x),
+                        y: detail.then_some(seed.y),
+                        maturity_ticks: detail.then_some(seed.maturity_ticks),
                     })
                     .collect(),
                 elevation: habitat.elevation,

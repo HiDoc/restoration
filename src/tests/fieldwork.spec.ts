@@ -20,7 +20,7 @@ describe('fieldwork', () => {
   })
 
   it('follows the strongest outflow until the water stops', () => {
-    const hexes = [
+    const hexes: Array<{ id: string; x: number; y: number; outflow: Record<string, number> }> = [
       { id: 'a', x: 0, y: 0, outflow: { b: 0.004, c: 0.001 } },
       { id: 'b', x: 1, y: 0, outflow: { c: 0.003 } },
       { id: 'c', x: 2, y: 0, outflow: { b: 0.0001 } },

@@ -421,7 +421,6 @@
       :show="showChunkInspector"
       :chunk="selectedChunkForInspection"
       @close="showChunkInspector = false"
-      @apply-intervention="applyInterventionFromInspector"
     />
     <p v-if="saveNotice" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
     </template>
@@ -565,12 +564,17 @@ const gameplay = reactive({
 const showChunkInspector = ref(false);
 const selectedChunkForInspection = ref<any>(null);
 
+// The engine is not reactive; this counter tells the view it has changed (a tick, an action, a load).
+const viewVersion = ref(0);
 const chunkGrid = computed(() => {
+  void viewVersion.value;
   if (!engine.value) return [] as any[];
-  // Read-only access keeps ticks cheap; the engine refreshes these chunks in place when read.
+  // The engine refreshes its chunks in place; a fresh view of each (reading through to the chunk) tells the
+  // map tiles they changed.
   return Array.from(engine.value.readChunks().values())
     .filter(chunk => chunk.x < width.value && chunk.y < height.value)
-    .sort((a, b) => a.y - b.y || a.x - b.x);
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map(chunk => Object.create(chunk));
 });
 
 type HistoryFrame = { tick: number; capturedAt: string; grid: any[] };
@@ -599,7 +603,18 @@ async function init() {
     initializeWorld();
     // Continue the current site where it was last saved.
     const snap = db ? await db.loadLatest(profile.currentSite).catch(() => null) : null;
-    if (snap && version === initializationVersion) applySnapshot(snap);
+    if (snap && version === initializationVersion) {
+      try {
+        applySnapshot(snap);
+      } catch (error) {
+        // A save from an older version the engine can no longer read: start the site afresh.
+        console.warn('Saved ecosystem could not be opened:', error);
+        initializeWorld();
+        // Saved at once, so the fresh site is the latest save and the message comes only this once.
+        await saveSnapshot();
+        saveNotice.value = `Your saved ${profile.site.name} is from an older version of EcoSim and could not be opened, so the site starts afresh. Your Codex is kept.`;
+      }
+    }
   } catch (error) {
     initializationError.value = error instanceof Error ? error.message : String(error);
     console.error('Ecosystem initialization failed:', error);
@@ -731,6 +746,7 @@ function refreshView() {
 
 function updateStats() {
   if (!engine.value) return;
+  viewVersion.value++;
   const s = engine.value.getStatistics();
   stats.currentTick = s.currentTick;
   stats.activeChunks = s.activeChunks;
@@ -931,10 +947,12 @@ const showCollect = ref(false);
 const showCross = ref(false);
 const hexPlants = computed(() => {
   const plants: any[] = [];
-  if (showCollect.value || showCross.value) tooltipChunk.value?.species.forEach((plant: any) => plants.push(plant));
+  // The panels show individuals with their traits and pollen: read the hex in full.
+  const id = tooltipChunk.value?.id;
+  if ((showCollect.value || showCross.value) && id) engine.value?.readChunksDetailed().get(id)?.species.forEach((plant: any) => plants.push(plant));
   return plants;
 });
-const hexTags = computed(() => ((showCollect.value || showCross.value) && engine.value ? engine.value.getTags() : {}));
+const hexTags = computed(() => (void viewVersion.value, (showCollect.value || showCross.value) && engine.value ? engine.value.getTags() : {}));
 function collectFrom(instanceIds: string[]) {
   showCollect.value = false;
   applyToSelected('collect', { instanceIds });
@@ -954,13 +972,6 @@ function skipTutorial() {
 }
 
 // Handler for applying intervention from inspector
-function applyInterventionFromInspector(action: string) {
-  if (!selectedChunkForInspection.value) return;
-
-  interventionStore.selectIntervention(action as any);
-  showChunkInspector.value = false;
-}
-
 async function saveSnapshot() {
   if (!engine.value || isSaving.value) return;
   if (!db) {
@@ -1326,7 +1337,7 @@ function inspectDigestLine(chunkId: string) {
 
 // The guided workflow: each step is done once the player has done it, and the first step not yet done leads.
 const workflowSteps = computed(() => {
-  void stats.currentTick;
+  void viewVersion.value;
   const known = knowledgeStore.knowledge;
   const sim = engine.value;
   const tags = Object.values(sim?.getTags() ?? {});
@@ -1414,7 +1425,11 @@ const life = computed(() => {
 });
 
 
-const tooltipChunk = computed(() => selectedChunkForInspection.value as any | null);
+// A fresh view of the selected hex each time the world changes, so everything read from it follows.
+const tooltipChunk = computed(() => {
+  void viewVersion.value;
+  return selectedChunkForInspection.value ? (Object.create(selectedChunkForInspection.value) as any) : null;
+});
 // The hex as the player knows it: animals by name only once seen or heard.
 const hexStory = computed(() => {
   if (!tooltipChunk.value) return null;

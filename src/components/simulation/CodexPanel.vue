@@ -192,7 +192,7 @@ const adaptations = computed(() => {
   const engine = interventions.engine
   if (!props.show || !engine) return {}
   const living = new Map<string, Array<Record<string, number>>>()
-  for (const hex of engine.readChunks().values()) {
+  for (const hex of engine.readChunksDetailed().values()) {
     hex.species.forEach((plant: { speciesId: string; genetics?: { traits?: Record<string, number> } }) => {
       if (!living.has(plant.speciesId)) living.set(plant.speciesId, [])
       living.get(plant.speciesId)!.push(plant.genetics?.traits ?? {})

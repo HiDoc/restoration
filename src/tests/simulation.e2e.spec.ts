@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
 import { RNGManager } from '@/simulation/SeededRNG';
-import { PhenologyStage } from '@/simulation/WorldChunk';
 import { useKnowledgeStore } from '@/stores/knowledgeStore';
 import { STARTING_MEADOW, plantStartingMeadow } from '@/game/startingMeadow';
 import { createPinia, setActivePinia } from 'pinia';
@@ -62,15 +61,7 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should run complete update cycle across all systems', () => {
-
-      // Run one complete cycle
       engine.update();
-      const tick = engine.getCurrentTick();
-
-
-
-
-      // Verify tick advanced
       expect(engine.getCurrentTick()).toBe(1);
 
       // Verify systems updated

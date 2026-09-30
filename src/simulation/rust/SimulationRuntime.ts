@@ -109,7 +109,8 @@ export class RustSimulationRuntime {
       const resultPointer = this.exports.request(pointer, bytes.length);
       // request may grow memory, so read from its current buffer.
       const resultBytes = new Uint8Array(this.exports.memory.buffer, resultPointer, this.exports.response_len());
-      const result = decodeSimulationState<RuntimeResponse>(this.decoder.decode(resultBytes));
+      // Rust never writes the Map markers old TS saves used, so its responses parse natively.
+      const result = JSON.parse(this.decoder.decode(resultBytes)) as RuntimeResponse;
       if (!result.ok) throw new Error(result.error || 'Rust simulation request failed');
       return result;
     } finally {

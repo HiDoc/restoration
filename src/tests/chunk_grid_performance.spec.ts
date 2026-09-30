@@ -54,7 +54,7 @@ describe('chunk grid render instrumentation', () => {
         for (let i = 0; i < chunks.length; i += 1) {
           const chunk = chunks[i];
           const shift = ((iteration + i) % height) / height;
-          chunk.biomeState.vitality = (chunk.biomeState.vitality + 0.05 * shift) % 1;
+          chunk.biomeState.vitality = ((chunk.biomeState.vitality ?? 0) + 0.05 * shift) % 1;
           chunk.pollinatorDensity = ((chunk.pollinatorDensity ?? 0) + 0.03 * shift) % 1;
         }
       },

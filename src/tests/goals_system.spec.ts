@@ -16,7 +16,7 @@ function world() {
 function addSpecies(engine: SimulationEngine, speciesId: string, id = speciesId) {
   engine.getChunk(1, 1)!.addSpecies({
     id, speciesId, x: 0.5, y: 0.5, biomass: 0.8, age: 20,
-    health: 0.9, phenologyStage: PhenologyStage.VEGETATIVE, reproductiveOutput: 0,
+    health: 0.9, phenologyStage: PhenologyStage.VEGETATIVE, reproductiveOutput: 0, reproductiveUrge: 0, lastReproductionAttempt: 0,
   });
 }
 

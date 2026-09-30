@@ -163,6 +163,11 @@ pub fn dispatch_bytes(
         .get("snapshot")
         .and_then(Value::as_bool)
         .unwrap_or(true);
+    // The per-tick summary leaves out plants' places, pollen and genetics; a detailed read includes them.
+    let detail = request
+        .get("detail")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     execute(world, request)?;
     buffer.clear();
     let world = world
@@ -197,7 +202,7 @@ pub fn dispatch_bytes(
             buffer,
             &SnapshotResponse {
                 ok: true,
-                snapshot: world.snapshot_view(),
+                snapshot: world.snapshot_view(detail),
                 events: &world.events,
             },
         )

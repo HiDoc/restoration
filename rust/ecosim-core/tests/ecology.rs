@@ -1720,3 +1720,48 @@ fn dead_wood_rots_faster_with_a_saprotroph_and_feeds_the_soil() {
         "a dead tree leaves wood"
     );
 }
+
+#[test]
+fn a_summary_projection_is_small_and_syncing_it_back_changes_nothing() {
+    let (mut patch, hex) = bluebell_patch(5);
+    // The patch's plants were spawned bare; give them genetics as grown plants have.
+    for organism in patch.components.organisms.values_mut() {
+        organism
+            .extra
+            .insert("genetics".into(), json!({"traits": {}, "generation": 1}));
+    }
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    patch.step(20).unwrap();
+    let mut host = Some(patch.clone());
+    let summary = dispatch(&mut host, json!({"op": "snapshot", "detail": false})).unwrap();
+    let detailed = dispatch(&mut host, json!({"op": "snapshot"})).unwrap();
+    let size = |v: &Value| v.to_string().len();
+    assert!(
+        size(&summary) < size(&detailed),
+        "summary {} vs detailed {} bytes",
+        size(&summary),
+        size(&detailed)
+    );
+    let plant = &summary["snapshot"]["chunks"][0]["species"][0][1];
+    assert!(plant.get("genetics").is_none() && plant.get("x").is_none());
+
+    let mut synced = patch.clone();
+    synced
+        .sync(serde_json::from_value(summary["snapshot"]["chunks"].clone()).unwrap())
+        .unwrap();
+    // Limits are derived each tick, so a sync leaves them to the next one.
+    let components = |w: &World| {
+        let mut w = w.clone();
+        w.components
+            .growth
+            .values_mut()
+            .for_each(|g| g.limit = None);
+        state(&w)["components"].clone()
+    };
+    let (a, b) = (components(&synced), components(&patch));
+    assert_eq!(a, b, "places, pollen and genetics are kept");
+    patch.step(100).unwrap();
+    synced.step(100).unwrap();
+    assert_eq!(state(&patch), state(&synced));
+}

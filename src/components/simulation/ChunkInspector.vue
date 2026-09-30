@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import type { WorldChunk } from '@/simulation/WorldChunk';
-import { ChunkAnalyzer } from '@/simulation/ChunkAnalyzer';
 
-const props = defineProps<{
+defineProps<{
   chunk: WorldChunk | null;
   show: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'apply-intervention', action: string): void;
 }>();
-
-// Analyze chunk
-const analysis = computed(() => {
-  if (!props.chunk) return null;
-  return ChunkAnalyzer.analyzeChunk(props.chunk);
-});
 
 // Format biome state values
 function formatValue(value: number, isPercentage = false): string {
@@ -27,47 +18,8 @@ function formatValue(value: number, isPercentage = false): string {
   return value.toFixed(2);
 }
 
-// Get severity color
-function getSeverityColor(severity: string): string {
-  switch (severity) {
-    case 'critical': return 'text-red-400 bg-red-900/30 border-red-500/50';
-    case 'warning': return 'text-yellow-400 bg-yellow-900/30 border-yellow-500/50';
-    case 'info': return 'text-blue-400 bg-blue-900/30 border-blue-500/50';
-    default: return 'text-slate-400 bg-slate-900/30 border-slate-500/50';
-  }
-}
-
-// Get priority color
-function getPriorityColor(priority: string): string {
-  switch (priority) {
-    case 'high': return 'text-red-400';
-    case 'medium': return 'text-yellow-400';
-    case 'low': return 'text-blue-400';
-    default: return 'text-slate-400';
-  }
-}
-
-// Get trend icon
-function getTrendIcon(trend: string): string {
-  switch (trend) {
-    case 'improving':
-    case 'increasing':
-    case 'growing': return '↗';
-    case 'declining':
-    case 'decreasing':
-    case 'shrinking':
-    case 'rising': return '↘';
-    case 'stable':
-    default: return '→';
-  }
-}
-
 function close() {
   emit('close');
-}
-
-function applyIntervention(action: string) {
-  emit('apply-intervention', action);
 }
 </script>
 
@@ -112,7 +64,6 @@ function applyIntervention(action: string) {
                   <span class="text-slate-400">Moisture</span>
                   <div class="flex items-center gap-2">
                     <span class="text-slate-200">{{ formatValue(chunk.biomeState.moisture, true) }}</span>
-                    <span v-if="analysis" class="text-lg">{{ getTrendIcon(analysis.trends.moisture) }}</span>
                   </div>
                 </div>
               </div>
@@ -138,7 +89,6 @@ function applyIntervention(action: string) {
                     <span :class="chunk.biomeState.vitality > 0.6 ? 'text-emerald-400' : chunk.biomeState.vitality > 0.4 ? 'text-yellow-400' : 'text-red-400'">
                       {{ formatValue(chunk.biomeState.vitality, true) }}
                     </span>
-                    <span v-if="analysis" class="text-lg">{{ getTrendIcon(analysis.trends.vitality) }}</span>
                   </div>
                 </div>
               </div>
@@ -150,7 +100,6 @@ function applyIntervention(action: string) {
                     <span :class="chunk.biomeState.pollution < 0.3 ? 'text-emerald-400' : chunk.biomeState.pollution < 0.6 ? 'text-yellow-400' : 'text-red-400'">
                       {{ formatValue(chunk.biomeState.pollution, true) }}
                     </span>
-                    <span v-if="analysis" class="text-lg">{{ getTrendIcon(analysis.trends.pollution) }}</span>
                   </div>
                 </div>
               </div>
@@ -162,7 +111,6 @@ function applyIntervention(action: string) {
             <h4 class="text-sm font-semibold text-emerald-300 mb-2 flex items-center gap-2">
               <span>🌱</span>
               <span>Species ({{ chunk.species.size }})</span>
-              <span v-if="analysis" class="text-lg">{{ getTrendIcon(analysis.trends.speciesCount) }}</span>
             </h4>
             <div v-if="chunk.species.size > 0" class="space-y-1">
               <div
@@ -181,54 +129,6 @@ function applyIntervention(action: string) {
             <div v-else class="text-xs text-slate-500 italic">No species present</div>
           </div>
 
-          <!-- Insights -->
-          <div v-if="analysis && analysis.insights.length > 0">
-            <h4 class="text-sm font-semibold text-amber-300 mb-2 flex items-center gap-2">
-              <span>💡</span>
-              <span>Insights</span>
-            </h4>
-            <div class="space-y-2">
-              <div
-                v-for="(insight, idx) in analysis.insights"
-                :key="idx"
-                :class="['border rounded p-3 text-xs', getSeverityColor(insight.severity)]"
-              >
-                <div class="font-semibold mb-1">{{ insight.observation }}</div>
-                <div class="text-slate-300 mb-1">{{ insight.likelyCause }}</div>
-                <div class="text-slate-400 italic">→ {{ insight.suggestedAction }}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Recommendations -->
-          <div v-if="analysis && analysis.recommendations.length > 0">
-            <h4 class="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
-              <span>🔧</span>
-              <span>Recommended Actions</span>
-            </h4>
-            <div class="space-y-2">
-              <div
-                v-for="(rec, idx) in analysis.recommendations"
-                :key="idx"
-                class="bg-slate-800/60 border border-purple-500/40 rounded p-3"
-              >
-                <div class="flex items-start justify-between mb-2">
-                  <div class="text-sm font-semibold text-purple-300 capitalize">{{ rec.action }}</div>
-                  <span :class="['text-xs font-medium', getPriorityColor(rec.priority)]">
-                    {{ rec.priority }} priority
-                  </span>
-                </div>
-                <div class="text-xs text-slate-300 mb-1">{{ rec.reason }}</div>
-                <div class="text-xs text-slate-400 italic mb-2">→ {{ rec.expectedImpact }}</div>
-                <button
-                  @click="applyIntervention(rec.action)"
-                  class="w-full px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded transition-colors"
-                >
-                  Apply {{ rec.action }}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </Transition>

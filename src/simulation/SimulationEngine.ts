@@ -61,6 +61,8 @@ export class SimulationEngine {
   // copy, so it happens lazily on read, except while callers hold mutable chunks (see grantMutableAccess).
   private projection: Map<string, WorldChunk> = new Map();
   private projectionStale = false;
+  /** Whether the projection holds every plant in full, or only the per-tick summary. */
+  private projectionDetailed = true;
   private projectionEdited = false;
   private mutableAccess = false;
   private projectionSignature = '';
@@ -108,8 +110,14 @@ export class SimulationEngine {
     return this.projection;
   }
 
-  private refreshProjection(): void {
-    if (this.projectionStale) this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  /**
+   * Bring the projection up to the latest tick. The per-tick read is a summary (no plant places, pollen or
+   * genetics, most of a plant's size); `detail` asks for every plant in full.
+   */
+  private refreshProjection(detail = false): void {
+    if (!this.projectionStale && (this.projectionDetailed || !detail)) return;
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot', detail }));
+    this.projectionDetailed = detail;
   }
 
   private chunkAt(x: number, y: number): WorldChunk | null {
@@ -132,6 +140,9 @@ export class SimulationEngine {
   }
 
   constructor(config: SimulationConfig) {
+    // The engine lives outside Vue's reactivity: tracking every read and write of a tick through proxies costs
+    // as much as the tick. The view pulls from it after each tick instead (see `viewVersion` there).
+    markRaw(this);
     this.config = { ...config };
     this.validateConfig(this.config);
     this.runtime = markRaw(new RustSimulationRuntime());
@@ -646,6 +657,12 @@ export class SimulationEngine {
     return this.chunks;
   }
 
+  /** Read-only chunks with every plant in full (place, pollen, genetics), for panels that show individuals. */
+  readChunksDetailed(): ReadonlyMap<string, Readonly<WorldChunk>> {
+    this.refreshProjection(true);
+    return this.projection;
+  }
+
   /**
    * Get all chunks in an area
    */
@@ -1006,6 +1023,7 @@ export class SimulationEngine {
   private applyRuntimeResponse(response: RuntimeResponse): void {
     if (response.snapshot) {
       const snapshot = response.snapshot;
+      this.projectionDetailed = true;
       this.runtimeSnapshot = snapshot;
       snapshot.hybrids?.forEach(hybrid => SpeciesRegistry.getInstance().addHybrid(hybrid));
       this.currentTick = snapshot.tick;

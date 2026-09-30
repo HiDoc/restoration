@@ -220,23 +220,9 @@
             <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
               {{ speciesInfo(interventionStore.selectedPlantSpecies).name }}: <span class="font-bold">{{ plantFit.words }}</span>
             </p>
-            <form v-if="crossing && flowering.length > 1" class="nv-small mt-2 grid gap-1 border-t border-[#c9a227]/30 pt-2" @submit.prevent="crossPollinate">
-              <label class="grid gap-0.5">Pollinate
-                <select v-model="crossReceiver" class="nv-btn w-full">
-                  <option v-for="plant in flowering" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
-                </select>
-              </label>
-              <label class="grid gap-0.5">with pollen from
-                <select v-model="crossDonor" class="nv-btn w-full">
-                  <option v-for="plant in flowering" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
-                </select>
-              </label>
-              <p v-if="crossProblem" role="status">{{ crossProblem }}</p>
-              <button type="submit" class="nv-btn justify-self-end" :disabled="!!crossProblem">Pollinate</button>
-            </form>
             <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
               <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
-              <button v-if="flowering.length > 1 && !crossing" type="button" class="nv-btn" @click="startCross">Cross-pollinate</button>
+              <button v-if="hexStory.plants.some(p => p.activity === 'flowering')" type="button" class="nv-btn" @click="showCross = true">Cross-pollinate</button>
               <button v-if="plantFit" type="button" class="nv-btn" @click="applyToSelected('plant')">Plant here</button>
               <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="showCollect = true">Collect seeds</button>
               <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
@@ -373,7 +359,8 @@
     </template>
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
-    <CollectPanel :show="showCollect" :plants="collectable" :tags="collectTags" @close="showCollect = false" @collect="collectFrom" />
+    <CollectPanel :show="showCollect" :plants="hexPlants" :tags="hexTags" @close="showCollect = false" @collect="collectFrom" />
+    <CrossPanel :show="showCross" :plants="hexPlants" :tags="hexTags" @close="showCross = false" @cross="crossFrom" />
     <JournalPanel :show="showJournal" :tick="stats.currentTick" @close="showJournal = false" @inspect="inspectFromJournal" />
 
 
@@ -428,6 +415,7 @@ import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import JournalPanel from "@/components/simulation/JournalPanel.vue";
 import CollectPanel from "@/components/simulation/CollectPanel.vue";
+import CrossPanel from "@/components/simulation/CrossPanel.vue";
 import { deathNote } from "@/game/journal";
 import type { CodexTab } from "@/game/codex";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
@@ -436,7 +424,6 @@ import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { elevationOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
-import { crossBarrier } from "@/game/hybrids";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
@@ -895,39 +882,23 @@ function applyToSelected(type: InterventionType, data?: Record<string, unknown>)
   if (selected.value) applyIntervention(type, selected.value, data);
 }
 
-// Seed collecting from the plants the player picks in the selected hex.
+// Seed collecting and hand pollination, on plants the player picks in the selected hex.
 const showCollect = ref(false);
-const collectable = computed(() => {
+const showCross = ref(false);
+const hexPlants = computed(() => {
   const plants: any[] = [];
-  if (showCollect.value) tooltipChunk.value?.species.forEach((plant: any) => plants.push(plant));
+  if (showCollect.value || showCross.value) tooltipChunk.value?.species.forEach((plant: any) => plants.push(plant));
   return plants;
 });
-const collectTags = computed(() => (showCollect.value && engine.value ? engine.value.getTags() : {}));
+const hexTags = computed(() => ((showCollect.value || showCross.value) && engine.value ? engine.value.getTags() : {}));
 function collectFrom(instanceIds: string[]) {
   showCollect.value = false;
   applyToSelected('collect', { instanceIds });
 }
-
-// Hand pollination between two species flowering in the selected hex.
-const crossing = ref(false);
-const crossReceiver = ref('');
-const crossDonor = ref('');
-const flowering = computed(() => hexStory.value?.plants.filter(plant => plant.activity === 'flowering') ?? []);
-const crossProblem = computed(() => {
-  const registry = SpeciesRegistry.getInstance();
-  return crossBarrier(registry.getSpecies(crossReceiver.value), registry.getSpecies(crossDonor.value));
-});
-function startCross() {
-  const [first, second] = flowering.value;
-  crossReceiver.value = first.id;
-  crossDonor.value = second.id;
-  crossing.value = true;
+function crossFrom(data: Record<string, unknown>) {
+  showCross.value = false;
+  applyToSelected('cross', data);
 }
-function crossPollinate() {
-  applyToSelected('cross', { receiver: crossReceiver.value, donor: crossDonor.value });
-  crossing.value = false;
-}
-watch(selected, () => { crossing.value = false; });
 
 // Handler for tutorial
 function startTutorial() {

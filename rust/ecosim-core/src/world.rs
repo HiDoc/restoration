@@ -62,6 +62,9 @@ pub struct World {
     pub tags: BTreeMap<String, Tag>,
     #[serde(default)]
     pub next_tag: u32,
+    /// The player's crosses, oldest first, with what was expected and the seedlings that came of them.
+    #[serde(default)]
+    pub crosses: Vec<Cross>,
     /// Each species' trait spread when first recorded here.
     #[serde(default)]
     pub baselines: BTreeMap<String, Baseline>,
@@ -99,6 +102,7 @@ impl World {
             rare_season: 0,
             tags: BTreeMap::new(),
             next_tag: 0,
+            crosses: vec![],
             baselines: BTreeMap::new(),
             weather: vec![],
             events: vec![],
@@ -599,16 +603,7 @@ impl World {
                 biome.apply("pollution", -0.1);
             }
             "tag" => self.tag_command(chunk, &command.data)?,
-            "cross" => {
-                let receiver = command.data["receiver"].as_str().unwrap_or("").to_owned();
-                let donor = command.data["donor"].as_str().unwrap_or("").to_owned();
-                self.pollinate(chunk, &receiver, &donor)?;
-                self.emit(
-                    "cross_pollinated",
-                    chunk,
-                    json!({ "receiver": receiver, "donor": donor }),
-                );
-            }
+            "cross" => self.cross_command(chunk, &command.data)?,
             _ => return Err("Unknown intervention type".into()),
         }
         self.emit(

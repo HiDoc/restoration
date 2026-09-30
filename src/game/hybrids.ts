@@ -13,7 +13,6 @@ export function hybridName(id: string, parentNames: string[]): string {
 /** Why two species cannot cross, in the engine's terms, or null if they can. */
 export function crossBarrier(receiver?: SpeciesDefinition, donor?: SpeciesDefinition): string | null {
   if (!receiver || !donor) return 'Choose two plants in flower.'
-  if (receiver.id === donor.id) return 'A species cannot be crossed with itself.'
-  if (!receiver.genus || receiver.genus !== donor.genus) return 'Too distant to cross: only plants of one genus can.'
+  if (receiver.id !== donor.id && (!receiver.genus || receiver.genus !== donor.genus)) return 'Too distant to cross: only plants of one genus can.'
   return null
 }

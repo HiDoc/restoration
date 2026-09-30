@@ -13,6 +13,7 @@ import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, ty
 import { InterventionManager, type InterventionType } from './InterventionManager';
 import type { Tag } from '@/game/journal';
 import type { Baseline } from '@/game/traits';
+import type { Cross } from '@/game/notebook';
 
 // Animals come from the same catalogue as the plants.
 const FAUNA = buildFaunaDefinitions(catalogue);
@@ -599,6 +600,12 @@ export class SimulationEngine {
   getTags(): Readonly<Record<string, Tag>> {
     this.refreshProjection();
     return this.runtimeSnapshot?.tags ?? {};
+  }
+
+  /** The player's crosses, for the notebook. */
+  getCrosses(): readonly Cross[] {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.crosses ?? [];
   }
 
   /** Each species' trait spread when first recorded here. */

@@ -489,3 +489,24 @@ pub struct Baseline {
     pub tick: u64,
     pub traits: BTreeMap<String, Vec<u32>>,
 }
+
+/// A cross the player made: both parents and their traits then, the prediction for each trait (lower, between
+/// or higher than the parents), and the first seedlings it gave.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cross {
+    pub tick: u64,
+    pub mother: String,
+    pub father: String,
+    pub mother_species: String,
+    pub father_species: String,
+    pub parents: [BTreeMap<String, f64>; 2],
+    pub prediction: BTreeMap<String, String>,
+    pub seedlings: Vec<CrossSeedling>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CrossSeedling {
+    pub id: String,
+    pub traits: BTreeMap<String, f64>,
+}

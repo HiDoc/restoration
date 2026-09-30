@@ -1,11 +1,15 @@
-//! Hand pollination between species of one genus: hybrid seed, hybrid genetics and the hybrid taxon.
+//! Hand pollination: seed with a chosen father, hybrid seed between species of one genus, the hybrid taxon,
+//! and the notebook of crosses.
 use crate::{
-    genetics::{genetics_of, Genetics},
+    genetics::{genetics_of, Genetics, TRAITS},
     model::*,
     world::World,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Seedlings of one cross the notebook records.
+const NOTED_SEEDLINGS: usize = 5;
 
 fn mean(values: impl Iterator<Item = f64>) -> f64 {
     let (sum, count) = values.fold((0.0, 0.0), |(sum, count), value| (sum + value, count + 1.0));
@@ -65,21 +69,13 @@ fn blend(id: String, parents: &[&SpeciesDefinition], hybrid_of: Vec<String>) -> 
 }
 
 impl World {
-    /// Place donor pollen on the first unpollinated flowering receiver in a hex: its seed this bloom is hybrid.
-    /// Only different species of one genus cross, and both must be in flower there.
-    pub(crate) fn pollinate(
+    /// Insects crossing congeners: donor pollen on the first unpollinated flowering receiver in a hex.
+    pub(crate) fn pollinate_species(
         &mut self,
         chunk: Entity,
         receiver: &str,
         donor: &str,
     ) -> Result<(), String> {
-        let genus = |id: &str| self.definitions.get(id).map_or("", |d| d.genus.as_str());
-        if receiver == donor {
-            return Err("A species cannot be crossed with itself".into());
-        }
-        if genus(receiver).is_empty() || genus(receiver) != genus(donor) {
-            return Err("Too distant to cross: only plants of one genus can".into());
-        }
         let flowering = |species: &str, open: bool| {
             self.components
                 .organisms
@@ -96,20 +92,111 @@ impl World {
         let mother = flowering(receiver, true)
             .ok_or(format!("No unpollinated {receiver} is in flower here"))?;
         let father = flowering(donor, false).ok_or(format!("No {donor} is in flower here"))?;
-        let genetics = self.components.organisms[&father]
-            .extra
-            .get("genetics")
-            .cloned()
-            .unwrap_or(Value::Null);
-        let donor_id = self.components.organisms[&father].id.clone();
+        self.pollinate(mother, father)
+    }
+
+    /// Place one plant's pollen on another's open flower: its seed this bloom has that father. Plants of one
+    /// species cross, and so do species of one genus.
+    pub(crate) fn pollinate(&mut self, mother: Entity, father: Entity) -> Result<(), String> {
+        let genus = |id: &str| self.definitions.get(id).map_or("", |d| d.genus.as_str());
+        let (receiver, donor) = (
+            &self.components.organisms[&mother].species_id,
+            &self.components.organisms[&father].species_id,
+        );
+        if mother == father {
+            return Err("A plant cannot be crossed with itself".into());
+        }
+        if receiver != donor && (genus(receiver).is_empty() || genus(receiver) != genus(donor)) {
+            return Err("Too distant to cross: only plants of one genus can".into());
+        }
+        let stage = |plant: &Entity| self.components.reproduction[plant].stage.as_str();
+        if stage(&mother) != "flowering" || stage(&father) != "flowering" {
+            return Err("Both plants must be in flower".into());
+        }
+        if self.components.reproduction[&mother].pollen.is_some() {
+            return Err("That flower has already been pollinated by hand".into());
+        }
+        let organism = &self.components.organisms[&father];
+        let pollen = Pollen {
+            species_id: organism.species_id.clone(),
+            genetics: organism
+                .extra
+                .get("genetics")
+                .cloned()
+                .unwrap_or(Value::Null),
+            donor: organism.id.clone(),
+        };
         let bloom = self.components.reproduction.get_mut(&mother).unwrap();
         bloom.pollinated = 1.0;
-        bloom.pollen = Some(Pollen {
-            species_id: donor.to_owned(),
-            genetics,
-            donor: donor_id,
-        });
+        bloom.pollen = Some(pollen);
         Ok(())
+    }
+
+    /// The `cross` command: the player's chosen mother and father in the hex, and what they expect of the
+    /// offspring, kept in the notebook with both parents' traits.
+    pub(crate) fn cross_command(&mut self, chunk: Entity, data: &Value) -> Result<(), String> {
+        let find = |key: &str| {
+            let id = data[key].as_str().ok_or(format!("Missing {key}"))?;
+            self.components
+                .organisms
+                .iter()
+                .find(|(e, o)| o.id == id && self.components.positions[e].chunk == chunk)
+                .map(|(e, _)| *e)
+                .ok_or_else(|| "No such plant here".to_owned())
+        };
+        let (mother, father) = (find("mother")?, find("father")?);
+        let prediction: BTreeMap<String, String> = data["prediction"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(id, guess)| {
+                TRAITS.contains(&id.as_str())
+                    && matches!(guess.as_str(), Some("lower" | "between" | "higher"))
+            })
+            .map(|(id, guess)| (id.clone(), guess.as_str().unwrap().to_owned()))
+            .collect();
+        self.pollinate(mother, father)?;
+        let [m, f] = [mother, father].map(|plant| &self.components.organisms[&plant]);
+        let cross = Cross {
+            tick: self.tick,
+            mother: m.id.clone(),
+            father: f.id.clone(),
+            mother_species: m.species_id.clone(),
+            father_species: f.species_id.clone(),
+            parents: [m, f].map(|plant| {
+                let genetics = genetics_of(&plant.extra);
+                TRAITS
+                    .iter()
+                    .map(|id| (id.to_string(), genetics.value(id)))
+                    .collect()
+            }),
+            prediction,
+            seedlings: vec![],
+        };
+        let data = json!({ "receiver": cross.mother_species, "donor": cross.father_species });
+        self.crosses.push(cross);
+        self.emit("cross_pollinated", chunk, data);
+        Ok(())
+    }
+
+    /// A crossed seed germinated: the latest cross of its parents notes it, up to a few seedlings.
+    pub(crate) fn note_seedling(&mut self, id: &str, genetics: &Genetics) {
+        let (Some(mother), Some(father)) = (&genetics.mother, &genetics.father) else {
+            return;
+        };
+        if let Some(cross) = self
+            .crosses
+            .iter_mut()
+            .rev()
+            .find(|c| &c.mother == mother && &c.father == father)
+        {
+            if cross.seedlings.len() < NOTED_SEEDLINGS {
+                cross.seedlings.push(CrossSeedling {
+                    id: id.to_owned(),
+                    traits: genetics.traits.clone(),
+                });
+            }
+        }
     }
 
     /// The species and genetics of a seed a plant sets: its own, or hybrid if pollen was placed on it.
@@ -125,7 +212,11 @@ impl World {
             let genetics = self.offspring_genetics(mother_id, &mother_genetics, None);
             return (species.to_owned(), genetics);
         };
-        let hybrid = self.hybrid_species(species, &pollen.species_id);
+        let hybrid = if pollen.species_id == species {
+            species.to_owned()
+        } else {
+            self.hybrid_species(species, &pollen.species_id)
+        };
         let father = Genetics::read(&pollen.genetics).unwrap_or_default();
         let genetics =
             self.offspring_genetics(mother_id, &mother_genetics, Some((&pollen.donor, &father)));

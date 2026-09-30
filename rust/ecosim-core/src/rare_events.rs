@@ -218,7 +218,7 @@ impl World {
                 self.emit("rare_event", hex, json!({ "kind": kind }));
             }
             Effect::Hybrid(hex, receiver, donor) => {
-                self.pollinate(hex, &receiver, &donor)?;
+                self.pollinate_species(hex, &receiver, &donor)?;
                 self.emit(
                     "rare_event",
                     hex,

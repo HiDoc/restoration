@@ -29,8 +29,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { age, type Tag } from '@/game/journal'
-import { isRipe, ripeness, traitWords } from '@/game/traits'
+import { plantTitle, type Tag } from '@/game/journal'
+import { isRipe, ripeness, traitLine } from '@/game/traits'
 import { speciesInfo } from '@/game/speciesInfo'
 
 interface Plant {
@@ -54,16 +54,11 @@ const ripe = computed(() =>
   props.plants
     .filter(plant => isRipe(plant))
     .sort((a, b) => a.speciesId.localeCompare(b.speciesId) || b.reproductiveOutput - a.reproductiveOutput)
-    .map(plant => {
-      const tag = props.tags[plant.id]
-      const name = speciesInfo(plant.speciesId).name
-      const words = traitWords(plant.genetics?.traits)
-      return {
-        id: plant.id,
-        title: `${tag ? `${tag.label} ${tag.name ?? ''} ` : ''}${name}, ${age(plant.ageDays ?? plant.age)} old`.replace('  ', ' '),
-        ripeness: ripeness(plant.reproductiveOutput),
-        traits: words.length ? words.join(', ') : 'ordinary for its kind',
-      }
-    })
+    .map(plant => ({
+      id: plant.id,
+      title: plantTitle(plant, speciesInfo(plant.speciesId).name, props.tags[plant.id]),
+      ripeness: ripeness(plant.reproductiveOutput),
+      traits: traitLine(plant.genetics?.traits),
+    }))
 )
 </script>

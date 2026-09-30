@@ -6,7 +6,7 @@ export interface Tag {
   speciesId: string
   name?: string
   taggedTick: number
-  reason: 'planted' | 'hybrid' | 'chosen'
+  reason: 'planted' | 'hybrid' | 'crossed' | 'chosen'
   seedsSet: number
   descendants: number
   died?: { tick: number; cause: string; ageDays: number }
@@ -40,7 +40,7 @@ export interface JournalEntry {
 }
 
 const YEAR_DAYS = 360
-const REASONS = { planted: 'Planted by you', hybrid: 'A hybrid seedling', chosen: 'Tagged by you' } as const
+const REASONS = { planted: 'Planted by you', hybrid: 'A hybrid seedling', crossed: 'From your cross', chosen: 'Tagged by you' } as const
 
 export function age(days: number): string {
   if (days >= YEAR_DAYS) {
@@ -96,4 +96,10 @@ export function deathNote(tag: Pick<Tag, 'label' | 'name' | 'reason'>, species: 
   const whose = tag.reason === 'chosen' ? 'the' : 'your'
   const who = tag.name ? `${tag.name}, ${whose} ${species}` : `${whose} ${species}`
   return `${tag.label}, ${who}, died of ${CAUSES[cause]?.noun ?? 'harsh conditions'} at ${age(ageDays)}.`
+}
+
+/** A plant as a panel lists it: its label and name when tagged, species and age. */
+export function plantTitle(plant: { age: number; ageDays?: number }, species: string, tag?: Pick<Tag, 'label' | 'name'>): string {
+  const called = tag ? [tag.label, tag.name].filter(Boolean).join(' ') + ' ' : ''
+  return `${called}${species}, ${age(plant.ageDays ?? plant.age)} old`
 }

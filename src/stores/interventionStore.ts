@@ -67,7 +67,7 @@ export const useInterventionStore = defineStore('intervention', () => {
   /** Why an intervention the engine accepted in principle did not take in that hex. */
   function failureMessage(intervention: PlayerIntervention): string {
     if (intervention.type === 'collect') return 'Nothing ripe to collect here yet.';
-    if (intervention.type === 'cross') return 'No open flower of that plant is left to pollinate here.';
+    if (intervention.type === 'cross') return 'Those two cannot be crossed now: both must be in flower, and the mother not yet pollinated by hand.';
     if (intervention.type === 'plant') {
       return seeds.value[intervention.data?.speciesId] ? 'There is no room for another plant here.' : 'You have no seeds of that species.';
     }
@@ -80,6 +80,14 @@ export const useInterventionStore = defineStore('intervention', () => {
     return Object.keys(engine.value?.getTags() ?? {}).length > tagsBefore
       ? `Planted ${name}.`
       : `The ${name} seed did not come up. Seed taken before it is fully ripe often fails.`;
+  }
+
+  function crossedMessage(): string {
+    const crosses = engine.value?.getCrosses() ?? []
+    const cross = crosses[crosses.length - 1]
+    if (!cross) return 'Pollinated.'
+    const [mother, father] = [cross.motherSpecies, cross.fatherSpecies].map(id => speciesInfo(id).name)
+    return `${mother} carries ${mother === father ? `pollen of another ${mother}` : `${father} pollen`}. Collect its seed when it ripens; the notebook will compare its seedlings with your prediction.`
   }
 
   function taggedMessage(instanceId: string): string {
@@ -112,8 +120,7 @@ export const useInterventionStore = defineStore('intervention', () => {
       intervention.type === 'collect' ? collectedMessage(before)
       : intervention.type === 'plant' ? plantedMessage(intervention.data.speciesId, tagsBefore)
       : intervention.type === 'tag' ? taggedMessage(intervention.data.instanceId)
-      : intervention.type === 'cross'
-        ? `${speciesInfo(intervention.data.receiver).name} carries ${speciesInfo(intervention.data.donor).name} pollen. Collect its seed when it ripens.`
+      : intervention.type === 'cross' ? crossedMessage()
       : `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied.`;
     return true;
   }

@@ -65,6 +65,7 @@ export interface RuntimeSnapshot {
   /** Plants the player follows, by instance id. */
   tags?: Record<string, import('@/game/journal').Tag>;
   baselines?: Record<string, import('@/game/traits').Baseline>;
+  crosses?: import('@/game/notebook').Cross[];
 }
 
 export interface RuntimeResponse {

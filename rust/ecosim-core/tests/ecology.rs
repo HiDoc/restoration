@@ -625,13 +625,35 @@ fn bluebell_patch(seed: u32) -> (World, String) {
     (world, id)
 }
 
+/// Cross the first plant of `receiver` not yet hand-pollinated with the first other plant of `donor`.
 fn cross(world: &mut World, hex: &str, receiver: &str, donor: &str) -> Result<(), String> {
-    world.submit(
-        serde_json::from_value(
-            json!({"type":"cross","chunkId":hex,"data":{"receiver":receiver,"donor":donor}}),
-        )
-        .unwrap(),
-    )
+    cross_with(world, hex, receiver, donor, json!({}))
+}
+
+fn cross_with(
+    world: &mut World,
+    hex: &str,
+    receiver: &str,
+    donor: &str,
+    prediction: Value,
+) -> Result<(), String> {
+    let c = &world.components;
+    let plant = |species: &str, skip: Option<&str>| {
+        c.organisms
+            .iter()
+            .find(|(e, o)| {
+                o.species_id == species
+                    && c.habitats[&c.positions[e].chunk].id == hex
+                    && Some(o.id.as_str()) != skip
+                    && (skip.is_some() || c.reproduction[e].pollen.is_none())
+            })
+            .map(|(_, o)| o.id.clone())
+            .unwrap()
+    };
+    let mother = plant(receiver, None);
+    let father = plant(donor, Some(&mother));
+    let data = json!({"mother": mother, "father": father, "prediction": prediction});
+    world.submit(serde_json::from_value(json!({"type":"cross","chunkId":hex,"data":data})).unwrap())
 }
 
 fn pollinated(world: &World) -> Vec<&str> {
@@ -659,12 +681,12 @@ fn only_flowering_plants_of_one_genus_cross() {
         cross(&mut patch, &hex, "native", "clover").is_err(),
         "different genera"
     );
-    assert!(
-        cross(&mut patch, &hex, "native", "native").is_err(),
-        "same species"
-    );
     cross(&mut patch, &hex, "native", "spanish").unwrap();
     assert_eq!(pollinated(&patch), ["native"]);
+    assert!(
+        cross(&mut patch, &hex, "spanish", "spanish").is_ok(),
+        "two plants of one species cross too"
+    );
     assert!(patch.events.iter().any(|e| e.kind == "cross_pollinated"));
 }
 
@@ -1372,4 +1394,49 @@ fn drought_selects_for_drought_tolerance_against_the_baseline() {
     );
     assert!(shifted > 0.04, "six dry years moved the mean by {shifted}");
     assert!(drifted.abs() < 0.02, "watered drift {drifted}");
+}
+
+#[test]
+fn the_notebook_keeps_a_cross_its_prediction_and_its_seedlings() {
+    let (mut patch, hex) = bluebell_patch(5);
+    patch.step(10).unwrap();
+    cross_with(
+        &mut patch,
+        &hex,
+        "native",
+        "native",
+        json!({"drought_tolerance": "between", "cold_resistance": "sideways", "made_up": "lower"}),
+    )
+    .unwrap();
+    let cross = patch.crosses[0].clone();
+    assert_eq!(cross.mother_species, "native");
+    assert_eq!(
+        cross.prediction,
+        [("drought_tolerance".to_owned(), "between".to_owned())].into(),
+        "only real traits and the three answers are kept"
+    );
+    assert_eq!(
+        cross.parents[0].len(),
+        5,
+        "the parents' traits as they were"
+    );
+
+    patch.step(360).unwrap();
+    let seedlings = &patch.crosses[0].seedlings;
+    assert!(!seedlings.is_empty(), "the crossed seed came up");
+    for seedling in seedlings {
+        let plant = patch
+            .components
+            .organisms
+            .values()
+            .find(|o| o.id == seedling.id);
+        if let Some(plant) = plant {
+            assert_eq!(
+                plant.species_id, "native",
+                "a cross within a species is no hybrid"
+            );
+            assert_eq!(plant.extra["genetics"]["father"], cross.father.as_str());
+        }
+        assert_eq!(patch.tags[&seedling.id].reason, "crossed");
+    }
 }

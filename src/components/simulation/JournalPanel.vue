@@ -6,8 +6,35 @@
         <h2 id="journal-title" class="nv-heading text-2xl">Journal</h2>
         <button type="button" class="nv-link" @click="$emit('close')">Close</button>
       </header>
-      <p class="nv-small nv-muted mt-1 pl-5">Plants you follow: the ones you planted, hybrids you bred, and any you tag from a hex.</p>
-      <ul class="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
+      <nav class="mt-2 flex gap-1.5" role="tablist" aria-label="Journal sections">
+        <button v-for="tab in TABS" :key="tab.id" type="button" role="tab" class="nv-btn" :aria-pressed="active === tab.id" :aria-selected="active === tab.id" @click="active = tab.id">
+          {{ tab.label }}
+        </button>
+      </nav>
+      <ul v-if="active === 'notebook'" class="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1" aria-label="Hybrid notebook">
+        <li v-if="notebook.length === 0" class="nv-small nv-muted">No crosses yet. Open a hex with plants in flower and cross-pollinate two of them.</li>
+        <li v-for="entry in notebook" :key="entry.key" class="nv-panel p-3">
+          <h3 class="font-bold">{{ entry.title }}</h3>
+          <p class="nv-small nv-muted">{{ entry.status }}</p>
+          <table class="nv-small mt-1 w-full">
+            <thead class="nv-muted text-left">
+              <tr><th class="font-normal">Trait</th><th class="font-normal">You predicted</th><th class="font-normal">Seedlings</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in entry.rows" :key="row.name">
+                <td>{{ row.name }}</td>
+                <td>{{ row.predicted ?? '–' }}</td>
+                <td>
+                  {{ row.outcome || '–' }}
+                  <span v-if="row.right !== undefined" class="font-bold">{{ row.right ? '✓ as you predicted' : '✗ not as you predicted' }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </li>
+      </ul>
+      <p v-if="active === 'plants'" class="nv-small nv-muted mt-2">Plants you follow: the ones you planted, seedlings of your crosses, and any you tag from a hex.</p>
+      <ul v-if="active === 'plants'" class="mt-2 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
         <li v-if="entries.length === 0" class="nv-small nv-muted">Nothing tagged yet. Plant a seed, or open a hex and tag a plant.</li>
         <li v-for="entry in entries" :key="entry.instanceId" class="nv-panel p-3" :class="entry.alive ? '' : 'opacity-70'">
           <div class="flex flex-wrap items-baseline justify-between gap-x-2">
@@ -35,11 +62,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { journalEntries, type JournalEntry } from '@/game/journal'
+import { notebookEntries } from '@/game/notebook'
 import { speciesInfo } from '@/game/speciesInfo'
 import { useInterventionStore } from '@/stores/interventionStore'
 
 const props = defineProps<{ show: boolean; tick: number }>()
 defineEmits<{ close: []; inspect: [chunkId: string] }>()
+
+const TABS = [
+  { id: 'plants', label: 'Plants' },
+  { id: 'notebook', label: 'Hybrid notebook' },
+] as const
+const active = ref<(typeof TABS)[number]['id']>('plants')
 
 const interventions = useInterventionStore()
 const version = ref(0)
@@ -50,6 +84,13 @@ const entries = computed(() => {
   const engine = interventions.engine
   if (!props.show || !engine) return []
   return journalEntries(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name)
+})
+
+const notebook = computed(() => {
+  void props.tick
+  const engine = interventions.engine
+  if (!props.show || !engine) return []
+  return notebookEntries([...engine.getCrosses()], engine.getTags(), id => speciesInfo(id).name)
 })
 
 const renaming = ref<string | null>(null)

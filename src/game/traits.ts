@@ -28,6 +28,12 @@ export function traitWords(traits: Partial<Record<string, number>> = {}): string
   })
 }
 
+/** A plant's traits as one line. */
+export function traitLine(traits?: Partial<Record<string, number>>): string {
+  const words = traitWords(traits)
+  return words.length ? words.join(', ') : 'ordinary for its kind'
+}
+
 /** Seed a fruiting plant must have ripened before it can give any, as in the engine. */
 export const RIPE = 0.1
 

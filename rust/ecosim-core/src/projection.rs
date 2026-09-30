@@ -16,6 +16,8 @@ pub(crate) struct Snapshot<'a> {
     inventory: BTreeMap<&'a str, usize>,
     /// Plants the player follows, by instance id.
     tags: &'a BTreeMap<String, Tag>,
+    /// The player's crosses, for the notebook.
+    crosses: &'a [Cross],
     /// Each species' trait spread when first recorded, to compare with the living plants.
     baselines: &'a BTreeMap<String, Baseline>,
     /// Hybrid taxa bred so far; the host knows only the species it defined.
@@ -152,6 +154,7 @@ impl World {
                     counts
                 }),
             tags: &self.tags,
+            crosses: &self.crosses,
             baselines: &self.baselines,
             hybrids: self
                 .definitions

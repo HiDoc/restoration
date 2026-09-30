@@ -30,7 +30,7 @@ describe('hybrid names and barriers', () => {
     expect(crossBarrier(species('wild_bluebell'), species('spanish_bluebell'))).toBeNull()
     expect(crossBarrier(species('hawthorn'), species('midland_hawthorn'))).toBeNull()
     expect(crossBarrier(species('wild_bluebell'), species('white_clover'))).toMatch(/Too distant/)
-    expect(crossBarrier(species('wild_bluebell'), species('wild_bluebell'))).toMatch(/itself/)
+    expect(crossBarrier(species('wild_bluebell'), species('wild_bluebell'))).toBeNull()
   })
 })
 
@@ -52,14 +52,22 @@ describe('breeding a hybrid bluebell in the starting meadow', () => {
 
   it('crosses two bluebells, collects the hybrid seed and records it in the Codex under the player’s name', () => {
     const at = { chunkId: 'chunk_1_1', x: 0.5, y: 0.5 }
-    const cross = () => pouch.executeIntervention({ ...at, type: 'cross', data: { receiver: 'wild_bluebell', donor: 'spanish_bluebell' } })
+    // The first open bluebell flower here, with pollen from a flowering Spanish bluebell.
+    const cross = () => {
+      const plants: any[] = []
+      engine.readChunks().get(at.chunkId)?.species.forEach((plant: any) => plants.push(plant))
+      const open = (species: string) => plants.find(p => p.speciesId === species && p.phenologyStage === 'flowering' && !p.pollen)?.id
+      const [mother, father] = [open('wild_bluebell'), open('spanish_bluebell')]
+      return !!mother && !!father && pouch.executeIntervention({ ...at, type: 'cross', data: { mother, father, prediction: { drought_tolerance: 'between' } } })
+    }
     let crossed = false
     for (let day = 0; day < 90 && !crossed; day++) {
       engine.update()
       crossed = cross()
     }
     expect(crossed).toBe(true)
-    expect(pouch.actionMessage).toBe('Bluebell carries Spanish Bluebell pollen. Collect its seed when it ripens.')
+    expect(pouch.actionMessage).toMatch(/^Bluebell carries Spanish Bluebell pollen\./)
+    expect(engine.getCrosses()[0].prediction).toEqual({ drought_tolerance: 'between' })
 
     for (let day = 0; day < 90 && !pouch.seeds[HYBRID]; day++) {
       engine.update()

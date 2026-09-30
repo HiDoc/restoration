@@ -544,8 +544,19 @@ reveals knowledge the player then holds (estimates and words), not the engine's 
   Codex showed the hawthorn's spread per trait.
 
 ### C3. Hybrid notebook ★
-- [ ] Before crossing, the player predicts each trait of the offspring (lower, between, higher than the
+- [x] Before crossing, the player predicts each trait of the offspring (lower, between, higher than the
       parents). After the seed germinates and the plant is tagged, the notebook compares prediction and outcome.
+      Built: Cross-pollinate opens a panel of the flowering plants in the hex (with their traits in words); the
+      player picks the seed plant and the pollen plant (only compatible fathers are offered) and may predict any
+      trait. `cross {mother, father, prediction}` keeps a notebook record with both parents' traits; the first
+      5 seedlings of that pair are noted with theirs. The Journal's "Hybrid notebook" tab shows per trait the
+      prediction, how the seedlings fell ("2 between, 1 higher") and whether most matched.
+- [x] Also: plants of one species now cross (choosing seed parents within a species); their seedlings are
+      tagged "From your cross". Insects' congener crosses (B7) are unchanged.
+- Note: seedlings blend their parents with an occasional mutation, so "between" is usually right; the notebook
+  teaches that, and mutation is what breaks out of the parents' range.
+- Done: 43 Rust and 194 TS tests pass. In the browser, a Bluebell × Spanish Bluebell cross with two
+  predictions appears in the notebook, waiting for its seed.
 
 ### C4. Measuring the land
 - [ ] **Soil & water samples ★:** the Measurements toggle goes; a hex's pH class, moisture, nutrients,

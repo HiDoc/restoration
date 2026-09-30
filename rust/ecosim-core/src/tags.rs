@@ -62,7 +62,8 @@ impl World {
         }
     }
 
-    /// A seed germinated: its tagged parents gain a descendant, and a crossed seed's seedling is tagged.
+    /// A seed germinated: its tagged parents gain a descendant, and a crossed seed's seedling is tagged and noted
+    /// in the cross's notebook entry.
     pub(crate) fn count_seedling(&mut self, entity: Entity) {
         let genetics = genetics_of(&self.components.organisms[&entity].extra);
         for parent in [&genetics.mother, &genetics.father].into_iter().flatten() {
@@ -71,7 +72,14 @@ impl World {
             }
         }
         if genetics.father.is_some() {
-            self.tag(entity, "hybrid");
+            let id = self.components.organisms[&entity].id.clone();
+            self.note_seedling(&id, &genetics);
+            let species = &self.components.organisms[&entity].species_id;
+            let hybrid = self
+                .definitions
+                .get(species)
+                .is_some_and(|d| !d.hybrid_of.is_empty());
+            self.tag(entity, if hybrid { "hybrid" } else { "crossed" });
         }
     }
 

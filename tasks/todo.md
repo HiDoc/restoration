@@ -652,6 +652,90 @@ sketching, night survey (needs nocturnal species), seasonal comparison. Name a h
 
 ---
 
+## Milestone D: a polished, whole game
+
+Decided 2026-09-30: four goals, in this order: engine and code health first (the per-tick projection shapes
+all UI work), then the graphic interface polished as far as it will go, pacing and the first hour, and more
+species with a fourth site. Every step is checked at three sizes (1440×900 laptop, 768 tablet, 375 phone).
+
+Audit (2026-09-30): each tick the view parses the whole world (1.9 MB with 2,300 plants in a 21-year
+woodland; 13 ms of a 38 ms tick). At 1440×900 the left column cuts off Interventions; on a phone the map sits
+below the workflow and the dock scrolls sideways. The Sites dock icon renders as a blank shape. The map shows
+nothing the player made (samples, tags, crosses, traces) or found (fungi, dead wood). Nine modals repeat the
+same frame, header and close code. The tutorial describes panels from before Milestone B. 17 type errors
+remain in old tests (two in `fieldwork.spec.ts`, from C4).
+
+### D0. Engine and code health
+- [ ] **Per-tick summary instead of the whole world.** Rust projects a compact per-hex summary every tick
+      (plant counts, stages and limits per species, fauna, fruiting fungi, sample, standing water, dead wood,
+      tags present); full plant records only on request (a selected hex, the Journal, Collect/Cross panels,
+      Codex adaptation). Probe first: payload and ms per tick at year 1 and year 20, before and after.
+- [ ] Remove the `/simulation-chunk` route and view, `ChunkAnalyzer` (fold the inspector's two figures into
+      the hex card), and the dead TS update loop in `WorldChunk` (`updateSpecies`, `CauseOfDeath`, …).
+- [ ] Zero type errors under the root tsconfig: fix `fieldwork.spec.ts`; delete tests of removed features
+      (`game_balance_analysis`, parts of `simulation.e2e`) or rewrite them against today's game.
+- [ ] Saves carry a version; a save from an older version opens with a plain message and a fresh site,
+      instead of loading into a broken state.
+
+### D1. Graphic interface
+- [ ] **Layout at every size.** Laptop: the left column fits (workflow collapses to a compact strip; Time and
+      Interventions always visible). Tablet: map plus one side column. Phone: map first and full width, the
+      hex card as a bottom sheet, side panels behind the dock, the dock fits without scrolling.
+- [ ] **One modal.** A shared `Modal` component (frame, title, close, Esc, focus trap, return focus,
+      enter/leave transition) replaces the nine copies.
+- [ ] **Hex card redesign.** Title and habitat line; tabs Plants · Animals · Ground; each row's actions in one
+      small menu instead of inline Tag/Photo/Follow links; the hex's actions (Plant here, Collect, Cross,
+      Sample, Listen, Trace, Note, Inspect fungi) as an icon bar showing only what applies now.
+- [ ] **The map shows the player's world.** Markers for sampled hexes, tagged plants and pending crosses;
+      mushrooms where fungi fruit; dead wood; shimmer on standing water; the selected hex's neighbours on
+      hover; a gentle season tint. Each at a size that stays readable on a phone.
+- [ ] **Icons.** Line icons in the kit's style for what has none (Sites, seeds, sample, trace, listen, photo,
+      follow, fungi, calendar), as inline SVG; the blank Sites glyph fixed.
+- [ ] **Consistency pass.** One type scale, spacing scale and button set; hover, pressed, disabled and
+      focus-visible states on every control; `prefers-reduced-motion` respected; text contrast checked
+      against the parchment and dark frames.
+- [ ] **World at a glance.** The World Overview gains a small trend line per figure from the history frames
+      already captured, and the Recent Events card groups repeats ("Red Fescue sprouted in 6 hexes").
+
+### D2. Pacing
+- [ ] **Playthrough harness.** A scripted player (a `*.balance.ts` run, outside the normal suite) plays each
+      site for 10 years with a fixed policy: sows its pouch, samples, collects and resows, crosses when it can.
+      It reports per site the day each stage is reached, the Codex over time, fungus spread, the main causes
+      of death, and goal rewards received.
+- [ ] Tune from the numbers, one change at a time with its reason recorded: targets that a patient player
+      reaches in 1–3 years per site; fungi slower to establish (C7 left them fast); goal rewards that unlock
+      a new kind of seed at each stage.
+
+### D3. The first hour
+- [ ] Welcome rewritten around the six workflow steps; three short cards, no jargon.
+- [ ] The tutorial becomes hints triggered by state, not by tick: first hex opened, first ripe plant, first
+      pollinator on a flower, first autumn fruiting; each shown once, dismissable, pointing at the real control.
+- [ ] Toasts grouped when several arrive at once ("3 new in your Codex: …"); empty states that say what to do
+      next everywhere a list can be empty.
+
+### D4. More species and a fourth site
+- [ ] Catalogue to about 60 plants, 20 birds, 20 pollinators (moths among them, flying at night) and 8 fungi,
+      each with real traits, pH ranges and links; balance tests extended to the new species.
+- [ ] A fourth site with its own soil, starting plants, targets and a mystery. Candidate: chalk grassland
+      (alkaline soil at pH 7.8 puts the pH mechanic to work; cowslip and yellow rattle are already in the
+      catalogue; orchids, chalkhill blue and marbled white to add). Alternative: lowland heath (acid, heather,
+      gorse, Scots pine, nightjar).
+- [ ] Re-run the D2 harness on all four sites.
+
+### D sizing and order
+
+| Step | Layer | Size | Depends on |
+|---|---|---|---|
+| D0 engine and code health | Rust + TS | M | – |
+| D1 graphic interface | Vue + CSS | XL | D0 |
+| D2 pacing | TS harness + tuning | M | D0 |
+| D3 first hour | Vue + copy | S | D1 |
+| D4 species and site | data + Rust + Vue | L | D2 |
+
+D2 can run alongside D1 once D0 is in.
+
+---
+
 ## Order and sizing
 
 | Step | Layer | Size | Depends on |

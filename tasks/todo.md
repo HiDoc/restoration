@@ -628,8 +628,16 @@ unfamiliar bird / insect", heard ones as "(heard)"; digests name only animals th
   inspecting one named Chanterelle, Fly Agaric and Penny Bun with their oak and birch partners.
 
 ### C8. Workflow copy
-- [ ] The guided workflow becomes Explore → Discover → Plant → Observe → Hybridize → Restore. Dock tabs become
-      Overview · Codex · Seeds · Journal · Sites · Settings.
+- [x] The guided workflow becomes Explore → Discover → Plant → Observe → Hybridize → Restore: each step ticks
+      itself off from what the player has done (a sample or a listen; an interaction in the Codex; a planting; a
+      tag or a calendar note; a cross; the site restored), and the first step not yet done is highlighted.
+- [x] Dock tabs become Overview · Codex · Seeds · Journal · Sites · Settings. Goals and Events stay as cards on
+      the page; Interactions is a Codex tab; the climate and moisture overlays go (samples replaced them).
+      Seeds: the pouch by species and origin, each with "Sow" (arms Plant with it). Settings: save, load,
+      autosave, play speed, calm view (the old tab only toggled labels the map does not show).
+- Done: 208 TS tests, 50 Rust tests pass. In the browser: the six steps showed with only the current one
+  described; sowing Goat Willow from Seeds ticked Plant; Settings saved, and changed speed 0.1 s ↔ 0.05 s.
+  Milestone C is complete.
 
 **Order:** C0 first. C1 → C2 → C3 → C6 build on individuals and provenance. C4 and C5 depend only on C0 and
 can run alongside. C7 is the largest and last. Each step is probed in the simulation before its content is

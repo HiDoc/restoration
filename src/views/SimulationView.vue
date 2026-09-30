@@ -84,8 +84,8 @@
                 <span class="nv-step-num">{{ i + 1 }}</span>
                 <img :src="nv(step.icon)" alt="" class="h-7 w-7 flex-shrink-0 object-contain" />
                 <div>
-                  <p class="text-[0.95rem] font-bold leading-tight">{{ step.title }}</p>
-                  <p class="nv-small nv-muted">{{ step.text }}</p>
+                  <p class="text-[0.95rem] font-bold leading-tight">{{ step.title }}<span v-if="step.done" class="ml-1" aria-label="done">✓</span></p>
+                  <p v-if="activeStep === i" class="nv-small nv-muted">{{ step.text }}</p>
                 </div>
               </li>
             </ol>
@@ -370,6 +370,23 @@
         <div class="mt-2 flex justify-end"><button type="button" class="nv-btn" @click="lastPhoto = null">Close</button></div>
       </div>
     </div>
+    <SeedsPanel :show="showSeeds" :pouch="pouch" @close="showSeeds = false" @sow="sowFrom" />
+    <SettingsPanel
+      :show="showSettings"
+      :auto-save="options.autoSave"
+      :autosave-days="persist.interval"
+      :tick-ms="options.tickMs"
+      :saving="isSaving"
+      :loading="isLoadingSnapshot"
+      :notice="saveNotice"
+      @update:auto-save="value => (options.autoSave = value)"
+      @save="saveSnapshot"
+      @load="loadLatestSnapshot"
+      @slower="decreaseSpeed"
+      @faster="increaseSpeed"
+      @calm="showSettings = false; toggleViewMode()"
+      @close="showSettings = false"
+    />
     <CollectPanel :show="showCollect" :plants="hexPlants" :tags="hexTags" @close="showCollect = false" @collect="collectFrom" />
     <CrossPanel :show="showCross" :plants="hexPlants" :tags="hexTags" @close="showCross = false" @cross="crossFrom" />
     <JournalPanel :show="showJournal" :tick="stats.currentTick" @close="showJournal = false" @inspect="inspectFromJournal" />
@@ -426,6 +443,8 @@ import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import JournalPanel from "@/components/simulation/JournalPanel.vue";
 import CollectPanel from "@/components/simulation/CollectPanel.vue";
+import SeedsPanel from "@/components/simulation/SeedsPanel.vue";
+import SettingsPanel from "@/components/simulation/SettingsPanel.vue";
 import CrossPanel from "@/components/simulation/CrossPanel.vue";
 import PhotoCard from "@/components/simulation/PhotoCard.vue";
 import { useFollow, HOPS } from "@/composables/useFollow";
@@ -440,7 +459,7 @@ import { buildDigest, type DigestLine } from "@/game/digest";
 import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
 import { animalLabel, fruitingBodies, listen, photograph, visibleFirsts } from "@/game/watching";
-import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
+import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS, type PouchOption } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
@@ -486,7 +505,6 @@ const currentYear = ref(0);
 const yearProgress = ref(0);
 
 const persist = reactive({
-  autoSave: false,
   interval: 50,
   lastSavedTick: null as number | null,
 });
@@ -498,6 +516,7 @@ const options = reactive({
   tickMs: 100,
   vizMode: "rgb" as VizMode,
   showLabels: true,
+  autoSave: false,
 });
 
 const isRunning = ref(false);
@@ -707,7 +726,7 @@ function refreshView() {
   updateStats();
   detectWeatherEvents();
   if (historyConfig.captureEvery > 0 && reached(historyConfig.captureEvery)) captureHistory(stats.currentTick);
-  if (persist.autoSave && db && reached(Math.max(1, persist.interval))) saveSnapshot();
+  if (options.autoSave && db && reached(Math.max(1, persist.interval))) saveSnapshot();
 }
 
 function updateStats() {
@@ -1150,6 +1169,15 @@ function increaseSpeed() {
 
 // ---- Nouveau UI state ----
 const dockTab = ref('overview');
+const showSeeds = ref(false);
+const showSettings = ref(false);
+/** Sow from the Seeds panel: choose that line of the pouch and arm Plant. */
+function sowFrom(line: PouchOption) {
+  pouchChoice.value = line.key;
+  interventionStore.selectIntervention('plant');
+  showSeeds.value = false;
+  notify('icon-plants', `Choose a hex to sow ${line.label.split(' ×')[0]}.`);
+}
 const showAllEvents = ref(false);
 const showAllGoals = ref(false);
 const eventsCard = ref<HTMLElement | null>(null);
@@ -1296,13 +1324,23 @@ function inspectDigestLine(chunkId: string) {
   onSelectChunk({ x, y });
 }
 
-const workflowSteps = [
-  { title: 'Observe', text: 'Explore the world and analyze patterns.', icon: 'icon-observe' },
-  { title: 'Hypothesize', text: 'Plan interventions and set goals.', icon: 'icon-hypothesize' },
-  { title: 'Test', text: 'Apply changes and watch the results.', icon: 'icon-test' },
-];
-// Selecting a hex means the player is forming a plan; arming an intervention means they are testing it.
-const activeStep = computed(() => (interventionStore.selectedIntervention ? 2 : selected.value ? 1 : 0));
+// The guided workflow: each step is done once the player has done it, and the first step not yet done leads.
+const workflowSteps = computed(() => {
+  void stats.currentTick;
+  const known = knowledgeStore.knowledge;
+  const sim = engine.value;
+  const tags = Object.values(sim?.getTags() ?? {});
+  const sampled = [...(sim?.readChunks().values() ?? [])].some((chunk: any) => chunk.sample);
+  return [
+    { title: 'Explore', text: 'Open a hex: listen, sample the soil, trace the water.', icon: 'icon-observe', done: sampled || Object.keys(known.heard).length > 0 },
+    { title: 'Discover', text: 'Follow, photograph and inspect to learn who lives with whom.', icon: 'icon-species', done: Object.keys(known.interactions).length > 0 },
+    { title: 'Plant', text: 'Sow seed from your pouch where it will thrive.', icon: 'icon-plants', done: tags.some(tag => tag.reason === 'planted') },
+    { title: 'Observe', text: 'Tag plants and note the seasons in your Journal.', icon: 'icon-journal', done: tags.some(tag => tag.reason === 'chosen') || !!known.phenology[profile.currentSite] },
+    { title: 'Hybridize', text: 'Cross plants in flower, and predict their seedlings.', icon: 'icon-modify', done: (sim?.getCrosses().length ?? 0) > 0 },
+    { title: 'Restore', text: 'Bring the site back to a stable, living whole.', icon: 'icon-restore', done: profile.siteProgress.stage === STAGES.length - 1 },
+  ];
+});
+const activeStep = computed(() => workflowSteps.value.findIndex(step => !step.done));
 
 
 const interventionActions = [
@@ -1334,12 +1372,9 @@ function onDockSelect(key: string) {
   if (key === 'overview') options.vizMode = 'rgb';
   else if (key === 'species') openCodex('plant');
   else if (key === 'journal') showJournal.value = true;
-  else if (key === 'climate') options.vizMode = 'temperature';
-  else if (key === 'hydro') options.vizMode = 'moisture';
-  else if (key === 'interactions') openCodex('interaction');
-  else if (key === 'goals') scenarioCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  else if (key === 'events') eventsCard.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  else if (key === 'settings') options.showLabels = !options.showLabels;
+  else if (key === 'seeds') showSeeds.value = true;
+  else if (key === 'sites') showSites.value = true;
+  else if (key === 'settings') showSettings.value = true;
 }
 
 function fmt01(value: number | undefined): string {
@@ -1595,6 +1630,7 @@ function applySavedOptions(saved: Partial<typeof options> | null) {
   const tickMs = Number(saved.tickMs);
   if (Number.isFinite(tickMs)) options.tickMs = Math.max(10, Math.min(1000, tickMs));
   if (typeof saved.showLabels === 'boolean') options.showLabels = saved.showLabels;
+  if (typeof saved.autoSave === 'boolean') options.autoSave = saved.autoSave;
 }
 
 watch(() => options.tickMs, value => loop.setStepMs(value), { flush: 'sync' });

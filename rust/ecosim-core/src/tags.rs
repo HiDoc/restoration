@@ -31,6 +31,10 @@ impl World {
                 seeds_set: 0,
                 descendants: 0,
                 died: None,
+                hex: self.components.habitats[&self.components.positions[&entity].chunk]
+                    .id
+                    .clone(),
+                origin: genetics_of(&organism.extra).origin,
             },
         );
         label

@@ -1,4 +1,4 @@
-use crate::model::*;
+use crate::{genetics::origin_of, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -532,10 +532,15 @@ impl World {
                 let species = command.data["speciesId"]
                     .as_str()
                     .ok_or("Missing speciesId")?;
+                // Seed from a chosen site, when the player picks one: "" is packet seed.
+                let origin = command.data.get("origin").and_then(Value::as_str);
                 let index = self
                     .inventory
                     .iter()
-                    .position(|seed| seed.species_id == species)
+                    .position(|seed| {
+                        seed.species_id == species
+                            && origin.is_none_or(|o| origin_of(&seed.extra) == o)
+                    })
                     .ok_or("No seeds of that species")?;
                 let seed = self.inventory.remove(index);
                 // A seed that is not viable is spent without coming up.

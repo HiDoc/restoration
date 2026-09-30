@@ -584,6 +584,11 @@ export class SimulationEngine {
     return this.runtimeSnapshot?.inventory ?? {};
   }
 
+  /** Seeds in the pouch per species and the site each was set on ("" for packet seed). */
+  getPouch(): Readonly<Record<string, Record<string, number>>> {
+    return this.runtimeSnapshot?.pouch ?? {};
+  }
+
   /** The whole pouch, seed by seed with its genetics, for carrying to another site. */
   exportPouch(): unknown[] {
     return (this.runtime.request({ op: 'export' }).state as { inventory?: unknown[] }).inventory ?? [];

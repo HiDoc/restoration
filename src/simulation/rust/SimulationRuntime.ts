@@ -66,6 +66,7 @@ export interface RuntimeSnapshot {
   tags?: Record<string, import('@/game/journal').Tag>;
   baselines?: Record<string, import('@/game/traits').Baseline>;
   crosses?: import('@/game/notebook').Cross[];
+  pouch?: Record<string, Record<string, number>>;
 }
 
 export interface RuntimeResponse {

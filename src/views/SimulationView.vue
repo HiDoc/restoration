@@ -139,8 +139,8 @@
             </div>
             <template v-if="pouch.length">
               <label class="nv-small nv-muted mt-1.5 block" for="nv-plant-species">Seeds in your pouch</label>
-              <select id="nv-plant-species" v-model="interventionStore.selectedPlantSpecies" class="nv-btn mt-0.5 w-full">
-                <option v-for="seed in pouch" :key="seed.id" :value="seed.id">{{ seed.name }} × {{ seed.count }}</option>
+              <select id="nv-plant-species" v-model="pouchChoice" class="nv-btn mt-0.5 w-full">
+                <option v-for="seed in pouch" :key="seed.key" :value="seed.key">{{ seed.label }}</option>
               </select>
             </template>
             <p v-else class="nv-small nv-muted mt-1.5">No seeds yet. Collect them from ripe plants.</p>
@@ -436,7 +436,7 @@ import { buildDigest, type DigestLine } from "@/game/digest";
 import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
 import { animalLabel, listen, photograph, visibleFirsts } from "@/game/watching";
-import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
+import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
@@ -868,7 +868,8 @@ function applyIntervention(type: InterventionType, at: { x: number; y: number },
     x: 0.5,
     y: 0.5,
     type,
-    data: data ?? (type === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies } : {}),
+    // The seed shown in the pouch list is the one sown, including the site it came from.
+    data: data ?? (type === 'plant' ? { speciesId: interventionStore.selectedPlantSpecies, origin: pouch.value.find(o => o.key === pouchChoice.value)?.origin } : {}),
   });
   notify(success ? INTERVENTION_ICONS[type] ?? 'icon-leaf' : 'icon-observe', interventionStore.actionMessage);
   if (success) {
@@ -1473,8 +1474,19 @@ const overviewRows = computed<StatRow[]>(() => [
   { label: 'Pollinator species', icon: 'icon-pollinators', value: life.value.pollinatorKinds },
 ]);
 const pouch = computed(() =>
-  Object.entries(interventionStore.seeds).map(([id, count]) => ({ id, count, name: knowledgeStore.knowledge.names[id] ?? speciesInfo(id).name }))
+  pouchOptions(interventionStore.pouchByOrigin, id => knowledgeStore.knowledge.names[id] ?? speciesInfo(id).name, id => siteById(id)?.name ?? id)
 );
+// The chosen line of the pouch: a species, and the site its seed came from when the pouch holds several.
+const pouchChoice = computed({
+  get: () => pouch.value.find(o => o.speciesId === interventionStore.selectedPlantSpecies && o.origin === interventionStore.selectedPlantOrigin)?.key
+    ?? pouch.value.find(o => o.speciesId === interventionStore.selectedPlantSpecies)?.key,
+  set: key => {
+    const option = pouch.value.find(o => o.key === key);
+    if (!option) return;
+    interventionStore.selectedPlantSpecies = option.speciesId;
+    interventionStore.selectedPlantOrigin = option.origin;
+  },
+});
 // With Plant armed, the selected hex says how the chosen seed would fare before anything is spent.
 const plantFit = computed(() => {
   const species = SpeciesRegistry.getInstance().getSpecies(interventionStore.selectedPlantSpecies);

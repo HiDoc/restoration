@@ -1548,3 +1548,52 @@ fn water_is_projected_flowing_downhill() {
         "the foot of the slope"
     );
 }
+
+#[test]
+fn seed_is_planted_by_the_site_it_came_from_and_the_plant_remembers_it() {
+    let mut garden = world(3);
+    let species = garden.definitions.keys().next().unwrap().clone();
+    let seed = |origin: Option<&str>| Seed {
+        species_id: species.clone(),
+        x: 0.5,
+        y: 0.5,
+        viability: 1.0,
+        maturity_ticks: 0,
+        extra: [(
+            "genetics".to_owned(),
+            match origin {
+                Some(site) => json!({"traits": {}, "generation": 1, "origin": site}),
+                None => json!({"traits": {}, "generation": 0}),
+            },
+        )]
+        .into(),
+    };
+    garden.inventory = vec![seed(None), seed(Some("meadow")), seed(Some("wetland"))];
+    let pouch = garden.snapshot()["pouch"][&species].clone();
+    assert_eq!(pouch, json!({"": 1, "meadow": 1, "wetland": 1}));
+
+    let hex = garden
+        .components
+        .habitats
+        .values()
+        .next()
+        .unwrap()
+        .id
+        .clone();
+    let plant = |origin: &str| {
+        command(json!({"type":"plant","chunkId":hex,"data":{"speciesId":species,"origin":origin}}))
+    };
+    garden.submit(plant("wetland")).unwrap();
+    garden.submit(plant("meadow")).unwrap();
+    assert!(
+        garden.submit(plant("meadow")).is_err(),
+        "no more meadow seed"
+    );
+    let origins: Vec<_> = garden.tags.values().map(|t| t.origin.clone()).collect();
+    assert_eq!(
+        origins,
+        [Some("wetland".to_owned()), Some("meadow".to_owned())]
+    );
+    assert_eq!(garden.inventory.len(), 1, "the packet seed is left");
+    assert!(garden.tags.values().all(|t| t.hex == hex));
+}

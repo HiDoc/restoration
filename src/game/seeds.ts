@@ -46,3 +46,23 @@ export function habitatFit(species: SpeciesDefinition, hex: HexConditions): Habi
   const text = list(problems)
   return { good: false, words: `${text[0].toUpperCase()}${text.slice(1)}.` }
 }
+
+export interface PouchOption { key: string; speciesId: string; origin?: string; label: string }
+
+/**
+ * The pouch as the planting list shows it: one line per species, split by the site the seed was set on once a
+ * species holds seed from more than one, so the player can choose which to sow.
+ */
+export function pouchOptions(pouch: Record<string, Record<string, number>>, nameOf: (id: string) => string, siteName: (id: string) => string): PouchOption[] {
+  return Object.entries(pouch).flatMap(([speciesId, origins]) => {
+    const name = nameOf(speciesId)
+    const groups = Object.entries(origins)
+    if (groups.length === 1) return [{ key: speciesId, speciesId, label: `${name} × ${groups[0][1]}` }]
+    return groups.map(([origin, count]) => ({
+      key: `${speciesId}|${origin}`,
+      speciesId,
+      origin,
+      label: `${name}, ${origin ? `from ${siteName(origin)}` : 'packet seed'} × ${count}`,
+    }))
+  })
+}

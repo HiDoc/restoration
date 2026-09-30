@@ -599,8 +599,15 @@ unfamiliar bird / insect", heard ones as "(heard)"; digests name only animals th
   in: meadow" in the Codex. Heard-not-seen is covered by tests only (no birds had arrived).
 
 ### C6. Common garden experiment ★
-- [ ] Plant seed of one species from different sites (provenance, C0) side by side in one hex; the Journal
+- [x] Plant seed of one species from different sites (provenance, C0) side by side in one hex; the Journal
       compares the tagged plants over seasons, separating inherited differences from where they grew.
+      Built: the pouch lists a species once per origin when it holds seed from more than one ("White Clover,
+      from Wet Hollow × 2", "White Clover, packet seed × 1"), and `plant {origin}` sows that seed. Tags keep
+      their hex and seed origin. The Journal's "Common garden" tab groups planted and bred plants of one species
+      in one hex by origin: alive/planted, health, size, in flower, seeds set, deaths by cause, with a note that
+      differences are inherited (and a warning below three plants per origin). Plant entries say "seed from …".
+- Done: 47 Rust and 206 TS tests pass. In the browser: the pouch split White Clover by origin; seed collected
+  early on the meadow did not come up; packet and Wet Hollow clover sown in (5, 5) formed a common garden.
 
 ### C7. Fungi and fungal inspection ★
 - [ ] New kingdom: real mycorrhizal and saprotrophic fungi (Fly Agaric with birch, Penny Bun with oak and

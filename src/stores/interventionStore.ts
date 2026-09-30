@@ -16,13 +16,19 @@ export const useInterventionStore = defineStore('intervention', () => {
   const seeds = ref<Record<string, number>>({});
   const selectedIntervention: Ref<InterventionType | null> = ref(null);
   const selectedPlantSpecies = ref('');
+  /** The site the seed to plant was set on ("" for packet seed); undefined plants whichever comes first. */
+  const selectedPlantOrigin = ref<string | undefined>();
+  const pouchByOrigin = ref<Record<string, Record<string, number>>>({});
   const actionMessage = ref('');
   const observedTick = ref(0);
   let engineVersion = 0;
 
   function refreshSeeds() {
     seeds.value = { ...(engine.value?.getInventory() ?? {}) };
+    pouchByOrigin.value = { ...(engine.value?.getPouch() ?? {}) };
     if (!seeds.value[selectedPlantSpecies.value]) selectedPlantSpecies.value = Object.keys(seeds.value)[0] ?? '';
+    const origin = selectedPlantOrigin.value;
+    if (origin !== undefined && !pouchByOrigin.value[selectedPlantSpecies.value]?.[origin]) selectedPlantOrigin.value = undefined;
   }
 
   function isOnCooldown(type: InterventionType): boolean {
@@ -148,6 +154,8 @@ export const useInterventionStore = defineStore('intervention', () => {
     seeds.value = {};
     selectedIntervention.value = null;
     selectedPlantSpecies.value = '';
+    selectedPlantOrigin.value = undefined;
+    pouchByOrigin.value = {};
     actionMessage.value = '';
   }
 
@@ -155,6 +163,8 @@ export const useInterventionStore = defineStore('intervention', () => {
     manager,
     engine,
     seeds,
+    pouchByOrigin,
+    selectedPlantOrigin,
     selectedIntervention,
     selectedPlantSpecies,
     actionMessage,

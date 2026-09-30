@@ -378,6 +378,12 @@ pub struct Tag {
     pub descendants: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub died: Option<Death>,
+    /// The hex it grows in, by id; plants do not move.
+    #[serde(default)]
+    pub hex: String,
+    /// The site its seed was set on; none for packet seed and the plants a site starts with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

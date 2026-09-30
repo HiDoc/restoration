@@ -1,5 +1,5 @@
 //! Borrowed renderer projections: serialize ECS components without cloning genetic trees.
-use crate::{model::*, world::World};
+use crate::{genetics::origin_of, model::*, world::World};
 use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -14,6 +14,8 @@ pub(crate) struct Snapshot<'a> {
     chunks: Vec<Chunk<'a>>,
     /// Seeds in hand per species.
     inventory: BTreeMap<&'a str, usize>,
+    /// Seeds in hand per species and the site each was set on ("" for packet seed).
+    pouch: BTreeMap<&'a str, BTreeMap<&'a str, usize>>,
     /// Plants the player follows, by instance id.
     tags: &'a BTreeMap<String, Tag>,
     /// The player's crosses, for the notebook.
@@ -162,6 +164,17 @@ impl World {
                 .iter()
                 .fold(BTreeMap::new(), |mut counts, seed| {
                     *counts.entry(seed.species_id.as_str()).or_default() += 1;
+                    counts
+                }),
+            pouch: self
+                .inventory
+                .iter()
+                .fold(BTreeMap::new(), |mut counts, seed| {
+                    *counts
+                        .entry(seed.species_id.as_str())
+                        .or_insert_with(BTreeMap::new)
+                        .entry(origin_of(&seed.extra))
+                        .or_default() += 1;
                     counts
                 }),
             tags: &self.tags,

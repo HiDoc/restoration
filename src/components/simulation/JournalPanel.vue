@@ -33,6 +33,31 @@
           </table>
         </li>
       </ul>
+      <div v-if="active === 'garden'" class="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+        <p v-if="gardens.length === 0" class="nv-small nv-muted">
+          No common garden yet. Carry seed of one species from two sites (or packet seed and seed you collected), choose each in your pouch, and sow them in the same hex.
+        </p>
+        <section v-for="garden in gardens" :key="garden.key" class="nv-panel mb-2 p-3">
+          <h3 class="font-bold">{{ garden.species }} in {{ garden.hex }}</h3>
+          <table class="nv-small mt-1 w-full text-left">
+            <thead class="nv-muted">
+              <tr><th class="font-normal">Seed from</th><th class="font-normal">Alive</th><th class="font-normal">Health</th><th class="font-normal">Size</th><th class="font-normal">In flower</th><th class="font-normal">Seeds set</th><th class="font-normal">Died</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in garden.rows" :key="row.provenance">
+                <td>{{ row.provenance }}</td>
+                <td class="nv-nums">{{ row.alive }} / {{ row.planted }}</td>
+                <td>{{ row.health }}</td>
+                <td class="nv-nums">{{ row.size }}</td>
+                <td class="nv-nums">{{ row.flowering }}</td>
+                <td class="nv-nums">{{ row.seedsSet }}</td>
+                <td>{{ row.deaths }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="nv-small nv-muted mt-1">{{ garden.note }}</p>
+        </section>
+      </div>
       <div v-if="active === 'photos'" class="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
         <p v-if="photos.length === 0" class="nv-small nv-muted">No photos yet. Open a hex and photograph a plant or an animal there.</p>
         <div class="grid gap-2 sm:grid-cols-3">
@@ -76,7 +101,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { journalEntries, type JournalEntry } from '@/game/journal'
+import { commonGardens, journalEntries, type JournalEntry } from '@/game/journal'
+import { siteById } from '@/game/sites'
 import { notebookEntries } from '@/game/notebook'
 import { calendar } from '@/game/watching'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
@@ -91,6 +117,7 @@ defineEmits<{ close: []; inspect: [chunkId: string] }>()
 const TABS = [
   { id: 'plants', label: 'Plants' },
   { id: 'notebook', label: 'Hybrid notebook' },
+  { id: 'garden', label: 'Common garden' },
   { id: 'photos', label: 'Photos' },
   { id: 'calendar', label: 'Calendar' },
 ] as const
@@ -104,13 +131,21 @@ const entries = computed(() => {
   void version.value
   const engine = interventions.engine
   if (!props.show || !engine) return []
-  return journalEntries(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name)
+  return journalEntries(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name, siteName)
 })
 
 const knowledge = useKnowledgeStore()
 const profile = useProfileStore()
 const photos = computed(() => [...knowledge.knowledge.photos].reverse())
 const calendarRows = computed(() => calendar(knowledge.knowledge.phenology[profile.currentSite], id => speciesInfo(id).name))
+
+const siteName = (id: string) => siteById(id)?.name ?? id
+const gardens = computed(() => {
+  void props.tick
+  const engine = interventions.engine
+  if (!props.show || !engine) return []
+  return commonGardens(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name, siteName)
+})
 
 const notebook = computed(() => {
   void props.tick

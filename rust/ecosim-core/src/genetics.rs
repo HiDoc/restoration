@@ -71,6 +71,14 @@ pub(crate) fn trait_value(extra: &BTreeMap<String, Value>, id: &str) -> f64 {
         .clamp(0.0, 1.0)
 }
 
+/// The site a seed (or the plant grown from it) was set on; empty when unknown.
+pub(crate) fn origin_of(extra: &BTreeMap<String, Value>) -> &str {
+    extra
+        .get("genetics")
+        .and_then(|g| g["origin"].as_str())
+        .unwrap_or("")
+}
+
 pub(crate) fn genetics_of(extra: &BTreeMap<String, Value>) -> Genetics {
     extra
         .get("genetics")

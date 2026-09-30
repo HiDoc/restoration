@@ -9,4 +9,4 @@ import { buildCatalogue } from '../src/database/buildCatalogue'
 const catalogue = await buildCatalogue()
 const out = resolve(process.cwd(), 'src/database/catalogue.json')
 await writeFile(out, `${JSON.stringify(catalogue, null, 2)}\n`)
-console.log(`catalogue: ${catalogue.plants.length} plants, ${catalogue.birds.length} birds, ${catalogue.pollinators.length} pollinators, ${catalogue.interactions.length} interactions → ${out}`)
+console.log(`catalogue: ${catalogue.plants.length} plants, ${catalogue.birds.length} birds, ${catalogue.pollinators.length} pollinators, ${catalogue.fungi.length} fungi, ${catalogue.interactions.length} interactions → ${out}`)

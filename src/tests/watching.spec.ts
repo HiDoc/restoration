@@ -60,3 +60,22 @@ describe('watching', () => {
     expect(rows).toEqual([{ species: 'white_clover', name: 'White Clover', years: ['Year 1: first flower day 31', 'Year 0: first flower day 34 · first fruit day 120'] }])
   })
 })
+
+describe('fungi', () => {
+  it('shows what fruits in a hex with its hosts there, and inspecting it fills the Codex', async () => {
+    const { inspectFungi } = await import('@/game/knowledge')
+    const { codexEntries, codexTotals } = await import('@/game/codex')
+    const { fruitingBodies } = await import('@/game/watching')
+    const woods = { ...hex(1, 1, [['silver_birch', 'vegetative'], ['hazel', 'vegetative']]), fruiting: ['fly_agaric', 'candlesnuff'] }
+    const bodies = fruitingBodies(woods)
+    expect(bodies).toEqual([{ fungus: 'fly_agaric', hosts: ['silver_birch'] }, { fungus: 'candlesnuff', hosts: ['silver_birch', 'hazel'] }])
+    const k = emptyKnowledge()
+    const found = inspectFungi(k, bodies, 'autumn', 200, woods.id)
+    expect(found.filter(d => d.kind === 'interaction')).toHaveLength(3)
+    const agaric = codexEntries(k).find(e => e.id === 'fly_agaric')!
+    expect(agaric).toMatchObject({ known: true, name: 'Fly Agaric', scientificName: 'Amanita muscaria', group: 'fungus' })
+    expect(agaric.facts).toEqual([{ label: 'Fruits', known: ['autumn'], missing: 0 }])
+    expect(agaric.partners.find(p => p.id === 'silver_birch')).toMatchObject({ takes: 'mycorrhiza', known: true })
+    expect(codexTotals(k).fungus).toEqual({ known: 2, total: 5 })
+  })
+})

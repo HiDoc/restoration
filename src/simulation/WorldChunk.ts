@@ -113,7 +113,7 @@ export interface SeedRecord {
  * Individual world chunk
  */
 export class WorldChunk {
-  private static readonly projectionFields = ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight', 'isRaining', 'weatherType', 'outflow', 'sample'] as const;
+  private static readonly projectionFields = ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight', 'isRaining', 'weatherType', 'outflow', 'sample', 'fungi', 'fruiting'] as const;
   public readonly id: string;
   public readonly x: number;
   public readonly y: number;

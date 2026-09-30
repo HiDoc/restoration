@@ -42,6 +42,9 @@ struct Chunk<'a> {
     elevation: f64,
     /// Water running to each neighbouring hex, per day.
     outflow: BTreeMap<&'a str, f64>,
+    /// Mycelium per fungus, and the fungi fruiting here now.
+    fungi: Option<&'a BTreeMap<String, f64>>,
+    fruiting: Vec<&'a str>,
     /// The hex's latest soil and water sample.
     #[serde(skip_serializing_if = "Option::is_none")]
     sample: Option<&'a Sample>,
@@ -150,6 +153,8 @@ impl World {
                     .map(|((_, to), amount)| (self.components.habitats[to].id.as_str(), *amount))
                     .collect(),
                 sample: self.samples.get(&habitat.id),
+                fungi: self.fungi.get(entity),
+                fruiting: self.fruiting_in(*entity),
                 extra: &habitat.extra,
             })
             .collect();

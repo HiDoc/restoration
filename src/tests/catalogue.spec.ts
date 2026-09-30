@@ -12,11 +12,21 @@ describe('species catalogue', () => {
       vegetal: new Set(catalogue.plants.map(p => p.id)),
       bird: new Set(catalogue.birds.map(b => b.id)),
       pollinator: new Set(catalogue.pollinators.map(p => p.id)),
+      fungus: new Set(catalogue.fungi.map(f => f.id)),
     }
     for (const link of catalogue.interactions) {
       expect(link.species_a_type, `${link.species_a_id} → ${link.species_b_id}`).toBe('vegetal')
       expect(ids.vegetal.has(link.species_a_id), link.species_a_id).toBe(true)
       expect(ids[link.species_b_type as keyof typeof ids].has(link.species_b_id), link.species_b_id).toBe(true)
+    }
+  })
+
+  it('gives every fungus a host, matching how it lives', () => {
+    const link = { mycorrhizal: 'mycorrhiza', parasite: 'parasitism', saprotroph: 'decomposition' } as const
+    for (const fungus of catalogue.fungi) {
+      const hosts = catalogue.interactions.filter(l => l.species_b_id === fungus.id)
+      expect(hosts.length, fungus.id).toBeGreaterThan(0)
+      expect(hosts.every(l => l.interaction_type === link[fungus.lifestyle as keyof typeof link]), fungus.id).toBe(true)
     }
   })
 

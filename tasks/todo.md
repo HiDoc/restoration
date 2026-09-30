@@ -610,11 +610,22 @@ unfamiliar bird / insect", heard ones as "(heard)"; digests name only animals th
   early on the meadow did not come up; packet and Wet Hollow clover sown in (5, 5) formed a common garden.
 
 ### C7. Fungi and fungal inspection ★
-- [ ] New kingdom: real mycorrhizal and saprotrophic fungi (Fly Agaric with birch, Penny Bun with oak and
+- [x] New kingdom: real mycorrhizal and saprotrophic fungi (Fly Agaric with birch, Penny Bun with oak and
       beech, Chanterelle, Honey Fungus, Candlesnuff), their host links, and an engine effect (mycorrhizal
-      partners improve nutrient uptake and drought tolerance; fruiting bodies in autumn). The catalogue's
-      `mycorrhizal_association` flag is where this starts.
-- [ ] Inspecting fruiting bodies in autumn discovers the fungus and its plant partners.
+      partners improve nutrient uptake and drought tolerance; fruiting bodies in autumn).
+      Built: `fungal_species` table and 31 host links (mycorrhiza / parasitism / decomposition) in the SQLite
+      seed; catalogue `fungi`. Rust `fungi.rs`: mycelium per hex grows towards what its hosts support (4 hosts
+      = full), starts from spores (0.4%/day) or beside an established patch (3%/day). A full mycorrhizal
+      partner removes 30% of its host's drought stress and adds 25% to nutrient uptake; Honey Fungus takes
+      0.004 health/day from stressed hosts (limit `root_rot`); dead trees and shrubs leave dead wood, which rots
+      into soil three times faster with Candlesnuff in it. Fruiting: mycelium ≥ 0.3 in the fungus's seasons.
+      Probe: birches in a dry year kept health 0.58 with Fly Agaric vs 0.22 without.
+- [x] Inspecting fruiting bodies in autumn discovers the fungus and its plant partners. Built: the hex card
+      lists fruiting bodies ("unfamiliar mushrooms" until inspected); "Inspect the fungi" records each fungus,
+      its fruiting season, and its hosts growing in that hex as interactions. Codex gains a Fungi section;
+      fungal links join the Interactions total (143).
+- Done: 50 Rust and 208 TS tests pass. In the browser (Felled Wood, first autumn): nine hexes fruited;
+  inspecting one named Chanterelle, Fly Agaric and Penny Bun with their oak and birch partners.
 
 ### C8. Workflow copy
 - [ ] The guided workflow becomes Explore → Discover → Plant → Observe → Hybridize → Restore. Dock tabs become

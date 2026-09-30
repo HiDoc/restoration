@@ -143,13 +143,22 @@ export interface PollinatorSpecies {
   foraging_range: number
 }
 
+export interface FungalSpecies {
+  id: string
+  name: string
+  common_name: string
+  lifestyle: 'mycorrhizal' | 'parasite' | 'saprotroph'
+  fruiting_seasons: string // JSON array of seasons
+  description: string
+}
+
 export interface SpeciesInteraction {
   id: number
   species_a_id: string
   species_a_type: 'vegetal' | 'bird' | 'pollinator'
   species_b_id: string
-  species_b_type: 'vegetal' | 'bird' | 'pollinator'
-  interaction_type: 'pollination' | 'larval_host' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral'
+  species_b_type: 'vegetal' | 'bird' | 'pollinator' | 'fungus'
+  interaction_type: 'pollination' | 'larval_host' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral' | 'mycorrhiza' | 'parasitism' | 'decomposition'
   interaction_strength: number
   seasonal_modifier?: string
   notes?: string
@@ -307,6 +316,20 @@ export class SpeciesDatabase {
           return
         }
         resolve(rows as BirdSpecies[])
+      })
+    })
+  }
+
+  async getFungalSpecies(): Promise<FungalSpecies[]> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return new Promise((resolve, reject) => {
+      this.db!.all('SELECT * FROM fungal_species ORDER BY name', (err, rows) => {
+        if (err) {
+          reject(new Error(`Failed to get fungal species: ${err.message}`))
+          return
+        }
+        resolve(rows as FungalSpecies[])
       })
     })
   }

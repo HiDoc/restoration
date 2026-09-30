@@ -74,7 +74,7 @@
                   </svg>
                 </div>
               </details>
-              <p v-if="entry.partners.length" class="nv-small nv-muted mt-2">{{ entry.group === 'plant' ? 'Visited by' : 'Feeds on' }}</p>
+              <p v-if="entry.partners.length" class="nv-small nv-muted mt-2">{{ entry.group === 'plant' ? 'Partners' : entry.group === 'fungus' ? 'Lives with' : 'Feeds on' }}</p>
               <ul class="mt-0.5 flex flex-wrap gap-1">
                 <li v-for="partner in entry.partners" :key="partner.id" class="nv-chip" :title="partner.known ? `${TAKES[partner.takes]}` : 'Not yet seen'">
                   {{ partner.known ? partner.name : '?' }}
@@ -118,14 +118,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
-import { codexEntries, type CodexEntry, type CodexTab } from '@/game/codex'
+import { codexEntries, TAKES_OF, type CodexEntry, type CodexTab } from '@/game/codex'
 import { speciesInfo } from '@/game/speciesInfo'
 import { MYSTERIES } from '@/game/mysteries'
 import { siteById } from '@/game/sites'
-import { buildFaunaDefinitions } from '@/simulation/faunaDefinitions'
 import { adaptation, BINS, type TraitShift } from '@/game/traits'
 import { useInterventionStore } from '@/stores/interventionStore'
-import catalogue from '@/database/catalogue.json'
 
 const props = defineProps<{ show: boolean; startTab?: CodexTab }>()
 defineEmits<{ close: [] }>()
@@ -134,13 +132,20 @@ const TABS: Array<{ id: CodexTab; label: string }> = [
   { id: 'plant', label: 'Plants' },
   { id: 'pollinator', label: 'Pollinators' },
   { id: 'bird', label: 'Birds' },
+  { id: 'fungus', label: 'Fungi' },
   { id: 'interaction', label: 'Interactions' },
   { id: 'mystery', label: 'Mysteries' },
 ]
-const TAKES = { nectar: 'takes nectar from', fruit: 'eats the fruit of', seed: 'eats the seed of', insects: 'hunts insects on' } as const
-const LINK_COLOURS = { nectar: '#b08d2a', fruit: '#a8492f', seed: '#6f5e46', insects: '#4d7f3a' } as const
-// What each known pair consists of, from the same links the engine's animals feed by.
-const TAKES_OF = new Map(buildFaunaDefinitions(catalogue).flatMap(def => def.forage.map(link => [`${def.id}|${link.plant}`, link.takes] as const)))
+const TAKES = {
+  nectar: 'takes nectar from',
+  fruit: 'eats the fruit of',
+  seed: 'eats the seed of',
+  insects: 'hunts insects on',
+  mycorrhiza: 'partners the roots of',
+  parasitism: 'rots the roots of',
+  decomposition: 'decays the dead wood of',
+} as const
+const LINK_COLOURS = { nectar: '#b08d2a', fruit: '#a8492f', seed: '#6f5e46', insects: '#4d7f3a', mycorrhiza: '#7a5a8c', parasitism: '#8c3a3a', decomposition: '#5a5a5a' } as const
 
 const store = useKnowledgeStore()
 // Mysteries the player has come across, open ones first.

@@ -442,7 +442,7 @@ export class SpeciesDataAdapter {
    */
   async getSpeciesInteractions(speciesId: string): Promise<Array<{
     targetSpeciesId: string
-    targetType: SpeciesInteraction['species_a_type']
+    targetType: SpeciesInteraction['species_a_type'] | SpeciesInteraction['species_b_type']
     interactionType: SpeciesInteraction['interaction_type']
     strength: number
   }>> {

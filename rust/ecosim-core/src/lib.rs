@@ -3,6 +3,7 @@ mod adaptation;
 mod connectivity;
 mod crossing;
 mod fieldwork;
+mod fungi;
 pub mod genetics;
 pub mod model;
 mod projection;
@@ -38,6 +39,11 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
         if let Some(fauna) = request.get("faunaDefinitions") {
             initialized.set_fauna_definitions(
                 serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+            )?;
+        }
+        if let Some(fungi) = request.get("fungusDefinitions") {
+            initialized.set_fungus_definitions(
+                serde_json::from_value(fungi.clone()).map_err(|e| e.to_string())?,
             )?;
         }
         initialized.tick = request.get("tick").and_then(Value::as_u64).unwrap_or(0);
@@ -88,6 +94,11 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
             if let Some(fauna) = request.get("faunaDefinitions") {
                 candidate.set_fauna_definitions(
                     serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+                )?;
+            }
+            if let Some(fungi) = request.get("fungusDefinitions") {
+                candidate.set_fungus_definitions(
+                    serde_json::from_value(fungi.clone()).map_err(|e| e.to_string())?,
                 )?;
             }
             if let Some(definitions) = request.get("speciesDefinitions") {

@@ -3,6 +3,7 @@
  */
 
 import catalogue from '../database/catalogue.json';
+import { buildFungusDefinitions } from './fungusDefinitions';
 import { buildFaunaDefinitions } from './faunaDefinitions';
 import { RNGManager } from './SeededRNG';
 import { EventJournal, EventType } from '@/simulation/EventJournal';
@@ -17,6 +18,7 @@ import type { Cross } from '@/game/notebook';
 
 // Animals come from the same catalogue as the plants.
 const FAUNA = buildFaunaDefinitions(catalogue);
+const FUNGI = buildFungusDefinitions(catalogue as any);
 
 export interface SimulationConfig {
   worldWidth: number;      // Number of chunks horizontally
@@ -856,7 +858,7 @@ export class SimulationEngine {
       ? runtime.request({
         op: 'init', config, tick: state.currentTick ?? 0, simTimeDays: savedDays,
         chunks: state.chunks.map((entry: [string, unknown]) => entry[1]),
-        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
+        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI
       })
       : runtime.request({ op: 'import', state: state.rustState });
     if (!response.snapshot) throw new Error('Save is missing its simulation snapshot');
@@ -981,7 +983,7 @@ export class SimulationEngine {
       op: 'init',
       config: this.config,
       chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()),
-      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA
+      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI
     }));
   }
 
@@ -994,7 +996,7 @@ export class SimulationEngine {
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
       // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
       ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
-      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA } : {})
+      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI } : {})
     });
     this.projectionSignature = signature;
     this.projectionEdited = false;

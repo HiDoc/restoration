@@ -1597,3 +1597,113 @@ fn seed_is_planted_by_the_site_it_came_from_and_the_plant_remembers_it() {
     assert_eq!(garden.inventory.len(), 1, "the packet seed is left");
     assert!(garden.tags.values().all(|t| t.hex == hex));
 }
+
+fn fungus(id: &str, lifestyle: &str, host: &str, seasons: &[&str]) -> FungusDefinition {
+    FungusDefinition {
+        id: id.into(),
+        lifestyle: lifestyle.into(),
+        hosts: vec![host.into()],
+        fruiting_seasons: seasons.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+fn birches(seed: u32, fungi: Vec<FungusDefinition>) -> World {
+    let tree = SpeciesDefinition {
+        id: "birch".into(),
+        category: "tree".into(),
+        moisture_range: Range { min: 0.4, max: 0.9 },
+        ..SpeciesDefinition::default()
+    };
+    let mut w = world_with(seed, tree);
+    w.set_fungus_definitions(fungi).unwrap();
+    w
+}
+
+fn mean_health(w: &World) -> f64 {
+    w.components.growth.values().map(|g| g.health).sum::<f64>() / w.components.growth.len() as f64
+}
+
+#[test]
+fn a_mycorrhizal_partner_carries_its_host_through_drought_and_fruits_in_autumn() {
+    let agaric = || fungus("fly_agaric", "mycorrhizal", "birch", &["autumn"]);
+    let mut partnered = birches(9, vec![agaric()]);
+    let mut alone = birches(9, vec![]);
+    for w in [&mut partnered, &mut alone] {
+        w.step(360).unwrap();
+    }
+    assert!(partnered.fungi.values().any(|f| f["fly_agaric"] >= 0.3));
+    for _ in 0..180 {
+        for w in [&mut partnered, &mut alone] {
+            for b in w.components.biomes.values_mut() {
+                b.moisture = 0.28;
+            }
+            w.step(1).unwrap();
+        }
+    }
+    assert!(
+        mean_health(&partnered) > mean_health(&alone) + 0.15,
+        "{} with the fungus vs {} without",
+        mean_health(&partnered),
+        mean_health(&alone)
+    );
+    // Day 540 is autumn: the established mycelium fruits, and only then.
+    let fruiting = |w: &World| {
+        w.snapshot()["chunks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| c["fruiting"] == json!(["fly_agaric"]))
+            .count()
+    };
+    assert!(fruiting(&partnered) > 0);
+    partnered.step(90).unwrap();
+    assert_eq!(fruiting(&partnered), 0, "no fruiting bodies in winter");
+}
+
+#[test]
+fn honey_fungus_finishes_off_stressed_hosts() {
+    let rot = || fungus("honey_fungus", "parasite", "birch", &["autumn"]);
+    let mut infected = birches(4, vec![rot()]);
+    infected.step(60).unwrap();
+    for (entity, growth) in infected.components.growth.iter_mut() {
+        growth.health = 0.3;
+        let chunk = infected.components.positions[entity].chunk;
+        infected
+            .fungi
+            .entry(chunk)
+            .or_default()
+            .insert("honey_fungus".into(), 1.0);
+    }
+    for b in infected.components.biomes.values_mut() {
+        b.moisture = 0.35;
+    }
+    infected.step(120).unwrap();
+    assert!(death_causes(&infected).contains("root_rot"));
+}
+
+#[test]
+fn dead_wood_rots_faster_with_a_saprotroph_and_feeds_the_soil() {
+    let snuff = || fungus("candlesnuff", "saprotroph", "birch", &["winter"]);
+    let mut worked = birches(5, vec![snuff()]);
+    let mut left = birches(5, vec![]);
+    for w in [&mut worked, &mut left] {
+        for b in w.components.biomes.values_mut() {
+            b.deadwood = 0.8;
+            b.soil = 0.3;
+        }
+    }
+    worked.step(360).unwrap();
+    left.step(360).unwrap();
+    let total = |w: &World, f: fn(&Biome) -> f64| w.components.biomes.values().map(f).sum::<f64>();
+    assert!(worked.fungi.values().any(|f| f.contains_key("candlesnuff")));
+    assert!(total(&worked, |b| b.deadwood) < total(&left, |b| b.deadwood) * 0.8);
+
+    let mut felled = birches(5, vec![]);
+    let (&entity, _) = felled.components.growth.iter().next().unwrap();
+    felled.components.growth.get_mut(&entity).unwrap().health = 0.0;
+    felled.step(1).unwrap();
+    assert!(
+        felled.components.biomes.values().any(|b| b.deadwood > 0.0),
+        "a dead tree leaves wood"
+    );
+}

@@ -1,5 +1,6 @@
 import catalogue from '@/database/catalogue.json'
 import { buildFaunaDefinitions, type FaunaLink } from '@/simulation/faunaDefinitions'
+import { buildFungusDefinitions } from '@/simulation/fungusDefinitions'
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 import type { Knowledge, Phase } from './knowledge'
 import { speciesInfo } from './speciesInfo'
@@ -121,4 +122,19 @@ export function calendar(site: Knowledge['phenology'][string] = {}, nameOf: (id:
         .map(([year, noted]) => `Year ${year}: ${PHASES.filter(([phase]) => noted[phase] !== undefined).map(([phase, words]) => `${words} day ${noted[phase]}`).join(' · ')}`),
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+const FUNGAL_HOSTS = new Map(buildFungusDefinitions(catalogue as any).map(def => [def.id, def.hosts]))
+
+/** The fungi fruiting in a hex, each with the host plants growing there (a hybrid counts through its parents). */
+export function fruitingBodies(hex: WatchedHex & { fruiting?: string[] }): Array<{ fungus: string; hosts: string[] }> {
+  return (hex.fruiting ?? []).map(fungus => {
+    const hosts = new Set<string>()
+    const of = FUNGAL_HOSTS.get(fungus) ?? []
+    hex.species.forEach(plant => {
+      const kin = [plant.speciesId, ...(SpeciesRegistry.getInstance().getSpecies(plant.speciesId)?.hybridOf ?? [])]
+      if (kin.some(id => of.includes(id))) hosts.add(plant.speciesId)
+    })
+    return { fungus, hosts: [...hosts] }
+  })
 }

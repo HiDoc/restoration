@@ -126,9 +126,10 @@ CREATE TABLE IF NOT EXISTS species_interactions (
     species_a_id TEXT NOT NULL,
     species_a_type TEXT CHECK (species_a_type IN ('vegetal', 'bird', 'pollinator')),
     species_b_id TEXT NOT NULL,
-    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird', 'pollinator')),
+    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird', 'pollinator', 'fungus')),
     -- larval_host: species_b's caterpillars feed on species_a
-    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'larval_host', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral')),
+    -- mycorrhiza / parasitism / decomposition: fungus species_b lives with the roots of, on, or in the dead wood of species_a
+    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'larval_host', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral', 'mycorrhiza', 'parasitism', 'decomposition')),
     interaction_strength REAL DEFAULT 0.5, -- 0.0 to 1.0
     seasonal_modifier TEXT, -- JSON object with seasonal variations
     notes TEXT
@@ -147,6 +148,16 @@ CREATE TABLE IF NOT EXISTS pollinator_species (
     temp_max REAL,
     pollution_tolerance REAL,           -- 0.0 to 1.0
     foraging_range INTEGER              -- Typical foraging distance in hexes
+);
+
+-- Fungal Species Table. Host plants live in species_interactions (mycorrhiza / parasitism / decomposition rows).
+CREATE TABLE IF NOT EXISTS fungal_species (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,                 -- Scientific name
+    common_name TEXT,
+    lifestyle TEXT CHECK (lifestyle IN ('mycorrhizal', 'parasite', 'saprotroph')),
+    fruiting_seasons TEXT NOT NULL,     -- JSON array of seasons its fruiting bodies appear
+    description TEXT
 );
 
 -- Biome Associations Table

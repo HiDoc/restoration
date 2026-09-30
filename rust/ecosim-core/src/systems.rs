@@ -1,4 +1,4 @@
-use crate::{genetics::trait_value, model::*, world::World};
+use crate::{fungi, genetics::trait_value, model::*, world::World};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -186,6 +186,8 @@ impl World {
             *populations.entry(position.chunk).or_default() += 1;
         }
         let mut dead = vec![];
+        let partners = self.fungal_partners();
+        let none = vec![];
         for (entity, organism) in &self.components.organisms {
             let position = &self.components.positions[entity];
             let biome = &self.components.biomes[&position.chunk];
@@ -195,12 +197,17 @@ impl World {
                 .definitions
                 .get(&organism.species_id)
                 .unwrap_or(&fallback);
+            let partnered = partners.get(&organism.species_id).unwrap_or(&none);
+            let mycorrhiza = self.fungal_partner(partnered, position.chunk, "mycorrhizal");
+            let rot = self.fungal_partner(partnered, position.chunk, "parasite");
             let growth = self.components.growth.get_mut(entity).unwrap();
             growth.age += 1;
             growth.age_days += days;
             let drought = trait_value(&organism.extra, "drought_tolerance");
             let cold = trait_value(&organism.extra, "cold_resistance");
-            let dry = (def.moisture_range.min - biome.moisture).max(0.0) * (1.5 - drought);
+            let dry = (def.moisture_range.min - biome.moisture).max(0.0)
+                * (1.5 - drought)
+                * (1.0 - fungi::DROUGHT_RELIEF * mycorrhiza);
             // Standing water drowns roots that cannot take it; saturated soil stresses dryland plants.
             let wet = (biome.moisture - def.moisture_range.max).max(0.0) * 0.4
                 + biome.standing_water * (1.0 - def.flood_tolerance);
@@ -228,8 +235,15 @@ impl World {
                 * if dormant { 0.25 } else { 1.0 };
             let recovery = if biome.moisture < 0.04 { 0.0 } else { 0.006 };
             let crowding = (density - 0.8).max(0.0) * 0.025;
-            growth.health =
-                (growth.health + (recovery - stress * 0.06 - crowding) * days).clamp(0.0, 1.0);
+            // Honey Fungus in the roots finishes off a host already struggling.
+            let root_rot = if growth.health < fungi::STRESSED {
+                fungi::ROT * rot
+            } else {
+                0.0
+            };
+            growth.health = (growth.health
+                + (recovery - stress * 0.06 - crowding - root_rot) * days)
+                .clamp(0.0, 1.0);
             // A plant losing health is limited by whichever stress costs it most, in health per day.
             let scale = 0.06 * if dormant { 0.25 } else { 1.0 };
             let costs = [
@@ -241,13 +255,14 @@ impl World {
                 ("shade", light_stress * 0.4 * scale),
                 ("soil_ph", soil_ph * PH_STRESS * scale),
                 ("crowding", crowding),
+                ("root_rot", root_rot),
             ];
             let (worst, cost) = costs
                 .into_iter()
                 .fold(("", 0.0), |a, b| if b.1 > a.1 { b } else { a });
             let limit = if growth.age_days > def.lifespan_ticks as f64 {
                 Some("old_age")
-            } else if stress * 0.06 + crowding > recovery && cost > 0.0 {
+            } else if stress * 0.06 + crowding + root_rot > recovery && cost > 0.0 {
                 Some(worst)
             } else {
                 None
@@ -255,7 +270,8 @@ impl World {
             if growth.limit.as_deref() != limit {
                 growth.limit = limit.map(str::to_owned);
             }
-            let nutrient = 0.65 + trait_value(&organism.extra, "nutrient_efficiency") * 0.7;
+            let nutrient = (0.65 + trait_value(&organism.extra, "nutrient_efficiency") * 0.7)
+                * (1.0 + fungi::NUTRIENT_GAIN * mycorrhiza);
             let efficiency = 0.6 + trait_value(&organism.extra, "growth_efficiency") * 0.8;
             let suitability =
                 (1.0 - stress).max(0.0) * growth.health * (0.3 + biome.soil * 0.7) * nutrient;
@@ -294,6 +310,7 @@ impl World {
             }
         }
         for (entity, chunk, species, cause, biomass, age) in dead {
+            self.leave_deadwood(chunk, &species);
             self.components
                 .biomes
                 .get_mut(&chunk)

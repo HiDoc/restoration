@@ -150,3 +150,14 @@ export function notePhase(knowledge: Knowledge, site: string, species: string, y
   noted[phase] = day
   return true
 }
+
+/** Fruiting bodies looked at closely: each fungus is seen fruiting this season, and its hosts beside it are known. */
+export function inspectFungi(knowledge: Knowledge, bodies: Array<{ fungus: string; hosts: string[] }>, season: Season, tick: number, chunkId?: string): Discovery[] {
+  const found: Discovery[] = []
+  for (const { fungus, hosts } of bodies) {
+    const entry = meet(knowledge, fungus, tick, found, chunkId)
+    if (!entry.fruiting.includes(season)) entry.fruiting.push(season)
+    for (const host of hosts) found.push(...witness(knowledge, fungus, host, tick, chunkId))
+  }
+  return found
+}

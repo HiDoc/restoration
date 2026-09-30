@@ -211,6 +211,10 @@
                 <p class="mt-0.5">{{ hexSample.tray }}</p>
               </template>
               <p v-if="traceText" class="mt-0.5">{{ traceText }}</p>
+              <p v-if="fungiHere.length" class="mt-0.5">
+                Fruiting bodies: {{ fungiHere.join(', ') }}.
+                <button type="button" class="nv-link ml-1" @click="inspectFungiHere">Inspect the fungi</button>
+              </p>
               <p class="mt-1 flex flex-wrap gap-x-3">
                 <button type="button" class="nv-link" @click="applyToSelected('sample')">{{ hexSample ? 'Sample again' : 'Take a soil & water sample' }}</button>
                 <button type="button" class="nv-link" @click="traceFromSelected">Trace the water</button>
@@ -415,7 +419,7 @@ import {
 } from "@/simulation/SimulationEngine";
 import { FixedStepLoop } from "@/core/FixedStepLoop";
 import { initializeSimulationRuntime } from "@/simulation/rust/SimulationRuntime";
-import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
+import { SpeciesRegistry, type Season } from "@/simulation/SpeciesRegistry";
 
 // Components
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
@@ -435,7 +439,7 @@ import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
-import { animalLabel, listen, photograph, visibleFirsts } from "@/game/watching";
+import { animalLabel, fruitingBodies, listen, photograph, visibleFirsts } from "@/game/watching";
 import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
@@ -1189,7 +1193,7 @@ function announce(found: Discovery[]) {
   for (const discovery of found.slice(0, MAX_TOASTS)) {
     if (discovery.kind === 'species') {
       const info = speciesInfo(discovery.id);
-      notify('icon-observe', `New in your Codex: ${info.name}`, !info.animal ? 'plant' : info.kind === 'bird' ? 'bird' : 'pollinator');
+      notify('icon-observe', `New in your Codex: ${info.name}`, info.kind === 'fungus' ? 'fungus' : !info.animal ? 'plant' : info.kind === 'bird' ? 'bird' : 'pollinator');
     } else if (discovery.kind === 'heard') {
       notify('icon-observe', `Heard, not yet seen: ${speciesInfo(discovery.id).name}`, speciesInfo(discovery.id).kind === 'bird' ? 'bird' : 'pollinator');
     } else if (discovery.kind === 'interaction') {
@@ -1424,6 +1428,20 @@ function listenHere() {
   notify('icon-observe', heard.length
     ? `You hear ${heard.map(id => animalLabel(id, knowledgeStore.knowledge)).filter((name, i, all) => all.indexOf(name) === i).join(', ')}.`
     : 'Only the wind. Nothing calls or hums nearby.');
+  announce(found);
+}
+// Fungi fruiting in the selected hex: unnamed until the player has inspected that fungus once.
+const fungiHere = computed(() =>
+  (tooltipChunk.value?.fruiting ?? []).map((id: string) => (knowledgeStore.knowledge.species[id] ? speciesInfo(id).name : 'unfamiliar mushrooms'))
+    .filter((name: string, i: number, all: string[]) => all.indexOf(name) === i)
+);
+function inspectFungiHere() {
+  const chunk = tooltipChunk.value;
+  if (!chunk || !engine.value) return;
+  const bodies = fruitingBodies(chunk);
+  const season = (stats.seasonName ?? 'autumn').toLowerCase() as Season;
+  const found = knowledgeStore.inspectedFungi(bodies, season, engine.value.getCurrentTick(), chunk.id);
+  notify('icon-observe', bodies.map(b => `${speciesInfo(b.fungus).name}${b.hosts.length ? `, with ${b.hosts.map(id => speciesInfo(id).name).join(' and ')}` : ''}`).join('; ') + '.', 'fungus');
   announce(found);
 }
 const PHASE_WORDS = { flower: 'first flower', fruit: 'first fruit', arrival: 'first arrival' } as const;

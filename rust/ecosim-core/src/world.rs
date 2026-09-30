@@ -37,6 +37,11 @@ pub struct World {
     pub definitions: BTreeMap<String, SpeciesDefinition>,
     #[serde(default)]
     pub fauna_definitions: BTreeMap<String, FaunaDefinition>,
+    #[serde(default)]
+    pub fungus_definitions: BTreeMap<String, FungusDefinition>,
+    /// Mycelium per hex per fungus [0-1].
+    #[serde(default)]
+    pub fungi: BTreeMap<Entity, BTreeMap<String, f64>>,
     /// Fauna species seen anywhere so far, for first sightings.
     #[serde(default)]
     pub fauna_seen: BTreeSet<String>,
@@ -98,6 +103,8 @@ impl World {
             components: Components::default(),
             definitions: BTreeMap::new(),
             fauna_definitions: BTreeMap::new(),
+            fungus_definitions: BTreeMap::new(),
+            fungi: BTreeMap::new(),
             fauna_seen: BTreeSet::new(),
             interactions_seen: BTreeSet::new(),
             interactions_season: 0,
@@ -143,6 +150,23 @@ impl World {
         }
         self.fauna_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
         self.feed_on_hybrids();
+        Ok(())
+    }
+
+    pub fn set_fungus_definitions(
+        &mut self,
+        definitions: Vec<FungusDefinition>,
+    ) -> Result<(), String> {
+        if let Some(def) = definitions.iter().find(|d| {
+            d.id.is_empty()
+                || !matches!(
+                    d.lifestyle.as_str(),
+                    "mycorrhizal" | "parasite" | "saprotroph"
+                )
+        }) {
+            return Err(format!("Invalid fungus definition: {}", def.id));
+        }
+        self.fungus_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
         Ok(())
     }
 
@@ -303,6 +327,8 @@ impl World {
             let mut extra = chunk.extra;
             extra.remove("outflow");
             extra.remove("sample");
+            extra.remove("fungi");
+            extra.remove("fruiting");
             let mut biome = chunk.biome_state;
             biome.normalize();
             self.components.biomes.insert(entity, biome);
@@ -697,6 +723,7 @@ impl World {
             self.diffusion_system();
             self.ecosystem_system();
             self.fauna_system();
+            self.fungus_system();
             self.rare_event_system();
             self.baseline_system();
             self.tray_system();
@@ -737,6 +764,11 @@ impl World {
         }
         if habitats != c.biomes.keys().collect() || habitats != c.climates.keys().collect() {
             return Err("Incomplete habitat components".into());
+        }
+        if self.fungi.iter().any(|(hex, present)| {
+            !c.habitats.contains_key(hex) || present.values().any(|e| !(0.0..=1.0).contains(e))
+        }) {
+            return Err("Invalid fungal mycelium".into());
         }
         if c.positions
             .values()

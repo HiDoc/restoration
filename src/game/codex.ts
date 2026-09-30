@@ -1,15 +1,16 @@
 import catalogue from '@/database/catalogue.json'
 import { buildFaunaDefinitions, type FaunaLink } from '@/simulation/faunaDefinitions'
+import { buildFungusDefinitions, type FungalLink } from '@/simulation/fungusDefinitions'
 import { SpeciesRegistry, type Season, type SpeciesDefinition } from '@/simulation/SpeciesRegistry'
 import { pairKey, type Knowledge } from './knowledge'
 import { MYSTERIES } from './mysteries'
 
-export type CodexGroup = 'plant' | 'pollinator' | 'bird'
+export type CodexGroup = 'plant' | 'pollinator' | 'bird' | 'fungus'
 export type CodexTab = CodexGroup | 'interaction' | 'mystery'
 
 /** One fact about a species: the parts the player has seen, and how many are still `?`. */
 export interface CodexFact { label: string; known: string[]; missing: number }
-export interface CodexPartner { id: string; name: string; takes: FaunaLink['takes']; known: boolean }
+export interface CodexPartner { id: string; name: string; takes: FaunaLink['takes'] | FungalLink; known: boolean }
 
 export interface CodexEntry {
   id: string
@@ -32,9 +33,18 @@ const ANIMALS = [
   ...catalogue.pollinators.map(p => ({ id: p.id, name: p.common_name ?? p.name, scientificName: p.name, group: 'pollinator' as const })),
   ...catalogue.birds.map(b => ({ id: b.id, name: b.common_name ?? b.name, scientificName: b.name, group: 'bird' as const })),
 ]
-// Every interaction the game can show: the links animals feed by in the engine.
-const LINKS = buildFaunaDefinitions(catalogue).flatMap(def => def.forage.map(link => ({ animal: def.id, plant: link.plant, takes: link.takes })))
-const NAMES = new Map<string, string>([...PLANTS.map(p => [p.id, p.name] as const), ...ANIMALS.map(a => [a.id, a.name] as const)])
+const FUNGI = catalogue.fungi.map(f => ({ id: f.id, name: f.common_name, scientificName: f.name, group: 'fungus' as const }))
+const FUNGAL_LINK: Record<string, FungalLink> = { mycorrhizal: 'mycorrhiza', parasite: 'parasitism', saprotroph: 'decomposition' }
+const FRUITING = new Map(buildFungusDefinitions(catalogue as any).map(def => [def.id, def]))
+// Every interaction the game can show: the links animals feed by in the engine, and fungi with their hosts.
+// A fungus stands in the `animal` place of its links.
+const LINKS: Array<{ animal: string; plant: string; takes: FaunaLink['takes'] | FungalLink }> = [
+  ...buildFaunaDefinitions(catalogue).flatMap(def => def.forage.map(link => ({ animal: def.id, plant: link.plant, takes: link.takes }))),
+  ...[...FRUITING.values()].flatMap(def => def.hosts.map(plant => ({ animal: def.id, plant, takes: FUNGAL_LINK[def.lifestyle] }))),
+]
+/** What each pair (`animal|plant`, or fungus in the animal's place) consists of. */
+export const TAKES_OF = new Map(LINKS.map(link => [pairKey(link.animal, link.plant), link.takes]))
+const NAMES = new Map<string, string>([...PLANTS.map(p => [p.id, p.name] as const), ...ANIMALS.map(a => [a.id, a.name] as const), ...FUNGI.map(f => [f.id, f.name] as const)])
 
 function seasonFact(label: string, truth: Season[], seen: Season[] = []): CodexFact {
   const known = truth.filter(season => seen.includes(season))
@@ -76,7 +86,14 @@ export function codexEntries(knowledge: Knowledge): CodexEntry[] {
     const facts = animal.group === 'pollinator' ? [{ label: 'Found in', known: habitat ? [habitat] : [], missing: habitat ? 0 : 1 }] : []
     return entry({ ...animal, facts, partners }, knowledge)
   })
-  return [...plants, ...animals]
+  const fungi = FUNGI.map(fungus => {
+    const partners = LINKS.filter(link => link.animal === fungus.id).map(link => ({
+      id: link.plant, name: NAMES.get(link.plant) ?? link.plant, takes: link.takes, known: pairKey(fungus.id, link.plant) in knowledge.interactions,
+    }))
+    const facts = [seasonFact('Fruits', FRUITING.get(fungus.id)?.fruitingSeasons ?? [], knowledge.species[fungus.id]?.fruiting)]
+    return entry({ ...fungus, facts, partners }, knowledge)
+  })
+  return [...plants, ...animals, ...fungi]
 }
 
 export interface Tally { known: number; total: number }
@@ -89,6 +106,7 @@ export function codexTotals(knowledge: Knowledge): Record<CodexTab, Tally> {
     plant: tally('plant'),
     pollinator: tally('pollinator'),
     bird: tally('bird'),
+    fungus: tally('fungus'),
     interaction: { known: LINKS.filter(link => pairKey(link.animal, link.plant) in knowledge.interactions).length, total: LINKS.length },
     mystery: { known: MYSTERIES.filter(m => knowledge.mysteries[m.id]?.solved !== undefined).length, total: MYSTERIES.length },
   }

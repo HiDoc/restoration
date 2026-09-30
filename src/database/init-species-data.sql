@@ -697,3 +697,45 @@ INSERT INTO biome_associations (species_id, species_type, biome_type, abundance_
 ('grey_willow', 'vegetal', 'wetland', 1.8), ('cuckooflower', 'vegetal', 'wetland', 1.3),
 ('alder_buckthorn', 'vegetal', 'wetland', 1.1),
 ('siskin', 'bird', 'temperate_forest', 1.2), ('reed_bunting', 'bird', 'wetland', 1.6), ('reed_warbler', 'bird', 'wetland', 1.8);
+
+-- Fungi: two ectomycorrhizal partners of birch, oak, beech and pine, the chanterelle, a root parasite and a
+-- decomposer of dead hardwood.
+INSERT OR REPLACE INTO fungal_species (id, name, common_name, lifestyle, fruiting_seasons, description) VALUES
+('fly_agaric', 'Amanita muscaria', 'Fly Agaric', 'mycorrhizal', '["autumn"]', 'Red cap flecked white. Its mycelium sheathes the fine roots of birch and pine, trading water and minerals for sugar.'),
+('penny_bun', 'Boletus edulis', 'Penny Bun', 'mycorrhizal', '["autumn"]', 'A fat brown cap with pores, not gills, beneath. Partners oak, beech, pine and birch.'),
+('chanterelle', 'Cantharellus cibarius', 'Chanterelle', 'mycorrhizal', '["summer","autumn"]', 'Egg-yellow and smelling of apricot, with ridges instead of gills. Partners beech, oak, birch and pine.'),
+('honey_fungus', 'Armillaria mellea', 'Honey Fungus', 'parasite', '["autumn"]', 'Clusters of honey-coloured caps at the foot of trees. Its black bootlace strands spread through the soil and rot the roots of trees already weakened.'),
+('candlesnuff', 'Xylaria hypoxylon', 'Candlesnuff Fungus', 'saprotroph', '["spring","summer","autumn","winter"]', 'Small black-and-white antlers on dead hardwood, all year. It rots fallen wood back into soil.');
+
+INSERT INTO species_interactions (species_a_id, species_a_type, species_b_id, species_b_type, interaction_type, interaction_strength, notes) VALUES
+('silver_birch', 'vegetal', 'fly_agaric', 'fungus', 'mycorrhiza', 0.9, 'Its classic partner'),
+('downy_birch', 'vegetal', 'fly_agaric', 'fungus', 'mycorrhiza', 0.9, NULL),
+('scots_pine', 'vegetal', 'fly_agaric', 'fungus', 'mycorrhiza', 0.8, NULL),
+('english_oak', 'vegetal', 'penny_bun', 'fungus', 'mycorrhiza', 0.8, NULL),
+('sessile_oak', 'vegetal', 'penny_bun', 'fungus', 'mycorrhiza', 0.8, NULL),
+('beech', 'vegetal', 'penny_bun', 'fungus', 'mycorrhiza', 0.8, NULL),
+('scots_pine', 'vegetal', 'penny_bun', 'fungus', 'mycorrhiza', 0.7, NULL),
+('silver_birch', 'vegetal', 'penny_bun', 'fungus', 'mycorrhiza', 0.6, NULL),
+('beech', 'vegetal', 'chanterelle', 'fungus', 'mycorrhiza', 0.8, NULL),
+('english_oak', 'vegetal', 'chanterelle', 'fungus', 'mycorrhiza', 0.7, NULL),
+('sessile_oak', 'vegetal', 'chanterelle', 'fungus', 'mycorrhiza', 0.7, NULL),
+('silver_birch', 'vegetal', 'chanterelle', 'fungus', 'mycorrhiza', 0.6, NULL),
+('scots_pine', 'vegetal', 'chanterelle', 'fungus', 'mycorrhiza', 0.6, NULL),
+('english_oak', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.7, 'Root rot of stressed trees'),
+('sessile_oak', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.7, NULL),
+('silver_birch', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.7, NULL),
+('downy_birch', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.7, NULL),
+('beech', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.6, NULL),
+('hazel', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.6, NULL),
+('hawthorn', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.6, NULL),
+('grey_willow', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.6, NULL),
+('pioneer_willow', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.6, NULL),
+('alder', 'vegetal', 'honey_fungus', 'fungus', 'parasitism', 0.5, NULL),
+('beech', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.8, 'Dead wood'),
+('english_oak', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.7, NULL),
+('sessile_oak', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.7, NULL),
+('hazel', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.8, NULL),
+('silver_birch', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.7, NULL),
+('downy_birch', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.7, NULL),
+('hawthorn', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.6, NULL),
+('alder', 'vegetal', 'candlesnuff', 'fungus', 'decomposition', 0.6, NULL);

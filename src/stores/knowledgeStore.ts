@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { SimulationEngine } from '@/simulation/SimulationEngine'
 import type { Season } from '@/simulation/SpeciesRegistry'
-import { emptyKnowledge, hear, keepPhoto, learn, notePhase, see, sight, witness, type Discovery, type Knowledge, type Phase, type Photo } from '@/game/knowledge'
+import { emptyKnowledge, hear, inspectFungi, keepPhoto, learn, notePhase, see, sight, witness, type Discovery, type Knowledge, type Phase, type Photo } from '@/game/knowledge'
 import { investigate as investigateSite, type SiteView } from '@/game/mysteries'
 import { codexTotals, knowledgeSummary } from '@/game/codex'
 import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
@@ -60,6 +60,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     if (photo.plant) return witness(knowledge.value, photo.subject, photo.plant, photo.tick, chunkId)
     return sight(knowledge.value, photo.subject, photo.tick, chunkId)
   }
+  const inspectedFungi = (bodies: Array<{ fungus: string; hosts: string[] }>, season: Season, tick: number, chunkId: string) =>
+    inspectFungi(knowledge.value, bodies, season, tick, chunkId)
   const noted = (site: string, species: string, year: number, phase: Phase, day: number) => notePhase(knowledge.value, site, species, year, phase, day)
 
   function rename(id: string, name: string) {
@@ -87,5 +89,5 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     lastTick.value = state?.lastTick ?? -1
   }
 
-  return { knowledge, summary, totals, observe, investigate, listenedTo, followed, keptUpWith, photographed, noted, rename, followWorld, reset, exportState, importState }
+  return { knowledge, summary, totals, observe, investigate, listenedTo, followed, keptUpWith, photographed, inspectedFungi, noted, rename, followWorld, reset, exportState, importState }
 })

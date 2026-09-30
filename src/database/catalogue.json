@@ -3647,7 +3647,137 @@
       "foraging_range": 1
     }
   ],
+  "fungi": [
+    {
+      "id": "fly_agaric",
+      "name": "Amanita muscaria",
+      "common_name": "Fly Agaric",
+      "lifestyle": "mycorrhizal",
+      "fruiting_seasons": "[\"autumn\"]",
+      "description": "Red cap flecked white. Its mycelium sheathes the fine roots of birch and pine, trading water and minerals for sugar."
+    },
+    {
+      "id": "honey_fungus",
+      "name": "Armillaria mellea",
+      "common_name": "Honey Fungus",
+      "lifestyle": "parasite",
+      "fruiting_seasons": "[\"autumn\"]",
+      "description": "Clusters of honey-coloured caps at the foot of trees. Its black bootlace strands spread through the soil and rot the roots of trees already weakened."
+    },
+    {
+      "id": "penny_bun",
+      "name": "Boletus edulis",
+      "common_name": "Penny Bun",
+      "lifestyle": "mycorrhizal",
+      "fruiting_seasons": "[\"autumn\"]",
+      "description": "A fat brown cap with pores, not gills, beneath. Partners oak, beech, pine and birch."
+    },
+    {
+      "id": "chanterelle",
+      "name": "Cantharellus cibarius",
+      "common_name": "Chanterelle",
+      "lifestyle": "mycorrhizal",
+      "fruiting_seasons": "[\"summer\",\"autumn\"]",
+      "description": "Egg-yellow and smelling of apricot, with ridges instead of gills. Partners beech, oak, birch and pine."
+    },
+    {
+      "id": "candlesnuff",
+      "name": "Xylaria hypoxylon",
+      "common_name": "Candlesnuff Fungus",
+      "lifestyle": "saprotroph",
+      "fruiting_seasons": "[\"spring\",\"summer\",\"autumn\",\"winter\"]",
+      "description": "Small black-and-white antlers on dead hardwood, all year. It rots fallen wood back into soil."
+    }
+  ],
   "interactions": [
+    {
+      "id": 155,
+      "species_a_id": "beech",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": "Dead wood"
+    },
+    {
+      "id": 158,
+      "species_a_id": "hazel",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 156,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 157,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 159,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 160,
+      "species_a_id": "downy_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 161,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 162,
+      "species_a_id": "alder",
+      "species_a_type": "vegetal",
+      "species_b_id": "candlesnuff",
+      "species_b_type": "fungus",
+      "interaction_type": "decomposition",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
     {
       "id": 28,
       "species_a_id": "english_oak",
@@ -4012,6 +4142,149 @@
       "notes": "Caterpillars eat clovers; bird's-foot trefoil is preferred where present"
     },
     {
+      "id": 132,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "fly_agaric",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": "Its classic partner"
+    },
+    {
+      "id": 133,
+      "species_a_id": "downy_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "fly_agaric",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.9,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 134,
+      "species_a_id": "scots_pine",
+      "species_a_type": "vegetal",
+      "species_b_id": "fly_agaric",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 135,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "penny_bun",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 136,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "penny_bun",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 137,
+      "species_a_id": "beech",
+      "species_a_type": "vegetal",
+      "species_b_id": "penny_bun",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 140,
+      "species_a_id": "beech",
+      "species_a_type": "vegetal",
+      "species_b_id": "chanterelle",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.8,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 138,
+      "species_a_id": "scots_pine",
+      "species_a_type": "vegetal",
+      "species_b_id": "penny_bun",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 141,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "chanterelle",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 142,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "chanterelle",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 139,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "penny_bun",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 143,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "chanterelle",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 144,
+      "species_a_id": "scots_pine",
+      "species_a_type": "vegetal",
+      "species_b_id": "chanterelle",
+      "species_b_type": "fungus",
+      "interaction_type": "mycorrhiza",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
       "id": 26,
       "species_a_id": "english_oak",
       "species_a_type": "vegetal",
@@ -4120,6 +4393,116 @@
       "interaction_strength": 0.4,
       "seasonal_modifier": null,
       "notes": "Nests in scrub by water"
+    },
+    {
+      "id": 145,
+      "species_a_id": "english_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": "Root rot of stressed trees"
+    },
+    {
+      "id": 146,
+      "species_a_id": "sessile_oak",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 147,
+      "species_a_id": "silver_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 148,
+      "species_a_id": "downy_birch",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.7,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 149,
+      "species_a_id": "beech",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 150,
+      "species_a_id": "hazel",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 151,
+      "species_a_id": "hawthorn",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 152,
+      "species_a_id": "grey_willow",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 153,
+      "species_a_id": "pioneer_willow",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.6,
+      "seasonal_modifier": null,
+      "notes": null
+    },
+    {
+      "id": 154,
+      "species_a_id": "alder",
+      "species_a_type": "vegetal",
+      "species_b_id": "honey_fungus",
+      "species_b_type": "fungus",
+      "interaction_type": "parasitism",
+      "interaction_strength": 0.5,
+      "seasonal_modifier": null,
+      "notes": null
     },
     {
       "id": 1,

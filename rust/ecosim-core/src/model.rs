@@ -70,6 +70,8 @@ pub struct Biome {
     pub standing_water: f64,
     /// Soil pH, set by the site's ground.
     pub ph: f64,
+    /// Dead wood lying in the hex [0-1], left by trees and shrubs that died; it rots back into the soil.
+    pub deadwood: f64,
 }
 impl Default for Biome {
     fn default() -> Self {
@@ -84,6 +86,7 @@ impl Default for Biome {
             succession: 0.2,
             standing_water: 0.0,
             ph: 6.5,
+            deadwood: 0.0,
         }
     }
 }
@@ -105,6 +108,7 @@ impl Biome {
             &mut self.invasion,
             &mut self.succession,
             &mut self.standing_water,
+            &mut self.deadwood,
         ] {
             *value = value.clamp(0.0, 1.0);
         }
@@ -291,6 +295,17 @@ impl Default for SpeciesDefinition {
             flood_tolerance: 0.0,
         }
     }
+}
+
+/// A fungus: how it lives ("mycorrhizal", "parasite" or "saprotroph"), the plants it lives with or on, and
+/// when it fruits.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FungusDefinition {
+    pub id: String,
+    pub lifestyle: String,
+    pub hosts: Vec<String>,
+    pub fruiting_seasons: Vec<String>,
 }
 
 /// An animal species: what it eats, where it can breed and when it is about.

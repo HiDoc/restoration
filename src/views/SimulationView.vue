@@ -245,7 +245,7 @@
               <button type="button" class="nv-link" @click="showAllGoals = !showAllGoals">{{ showAllGoals ? 'Less' : 'View All' }}</button>
             </div>
             <ul class="mt-1 grid gap-1">
-              <li v-if="scenarioGoals.length === 0" class="nv-small nv-muted">No active goals yet.</li>
+              <li v-if="scenarioGoals.length === 0" class="nv-small nv-muted">Every goal is done. The site is yours to tend.</li>
               <li v-for="goal in scenarioGoals" :key="goal.goal.id" class="nv-row text-[0.8rem]">
                 <span class="flex min-w-0 items-center gap-1.5">
                   <span class="nv-check" :aria-checked="goal.completed" role="checkbox" aria-readonly="true"></span>
@@ -343,16 +343,8 @@
       @skip="skipTutorial"
     />
 
-    <!-- Tutorial Tooltip Overlay -->
-    <TooltipOverlay
-      :show="tutorialStore.showTooltip && tutorialStore.activeTooltip !== null"
-      :target-selector="tutorialStore.activeTooltip?.targetElement"
-      :title="tutorialStore.activeTooltip?.title || ''"
-      :content="tutorialStore.activeTooltip?.content || ''"
-      :placement="tutorialStore.activeTooltip?.placement"
-      @next="tutorialStore.completeCurrentStep()"
-      @skip="tutorialStore.skipTutorial()"
-    />
+    <!-- Hints of the first hour, each once, beside what it is about -->
+    <HintCard :hint="tutorialStore.activeTooltip" @next="tutorialStore.completeCurrentStep()" @skip="tutorialStore.skipTutorial()" />
 
     <SiteSelector :show="showSites" @close="showSites = false" @travel="travel" />
 
@@ -362,7 +354,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, reactive, ref, computed, watch, type Ref } from "vue";
+import { nextTick, onMounted, onBeforeUnmount, reactive, ref, computed, watch, type Ref } from "vue";
+import { isRipe } from "@/game/traits";
 import {
   SimulationEngine,
   type SimulationConfig,
@@ -399,15 +392,15 @@ import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "
 import { animalLabel, fruitingBodies, listen, photograph, visibleFirsts } from "@/game/watching";
 import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS, type PouchOption } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
-import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
 import { CAUSES, mostCommon } from "@/game/causes";
 import { EventType } from "@/simulation/EventJournal";
-import { describeHex } from "@/game/hexDescription";
+import { describeHex, list } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
+import { announcements } from "@/game/announce";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
-import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
+import HintCard from "@/components/simulation/HintCard.vue";
 import SiteSelector from "@/components/simulation/SiteSelector.vue";
 
 // Stores and utilities
@@ -632,24 +625,31 @@ function initializeWorld(carriedPouch?: unknown[]) {
  */
 function evaluateProgress(tick: number) {
   const alreadyCompleted = new Set(goalsStore.completedGoals.map(goal => goal.goal.id));
-  goalsStore.evaluateGoals(tick).forEach(result => {
-    if (result.completed && !alreadyCompleted.has(result.goal.id)) rewardGoal(result.goal.title);
-  });
+  const done = goalsStore.evaluateGoals(tick).filter(result => result.completed && !alreadyCompleted.has(result.goal.id)).map(result => result.goal.title);
+  if (done.length) rewardGoals(done);
   if (engine.value) reportSite(engine.value);
-  tutorialStore.triggerByTick(tick);
+  nudgeHints();
 }
 
-/** A completed goal sends seed of a species the map lacks. */
-function rewardGoal(title: string) {
-  sendSeeds(`${title} done`);
+/** Completed goals each send seed of a plant the site lacks; goals done together make one line. */
+function rewardGoals(titles: string[]) {
+  goalDone = true;
+  const sent = titles.map(giveSeeds).filter((id): id is string => !!id);
+  const seeds = sent.length ? `: ${list(sent.map(id => `${REWARD_SEEDS} ${speciesInfo(id).name}`))} seeds arrive` : '';
+  notify('icon-plants', `${list(titles)} done${seeds}.`);
 }
 
-/** Seeds of a plant the site lacks and would suit, for a goal done or a stage reached. */
+/** Seeds of a plant the site lacks and would suit, for a stage reached. */
 function sendSeeds(reason: string) {
+  const species = giveSeeds();
+  if (species) notify('icon-plants', `${reason}: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
+}
+
+/** Put seed of a plant the site lacks, favouring what its next stage needs, into the pouch. */
+function giveSeeds(): string | null {
   const species = engine.value && rewardSpecies(engine.value.readChunks().values() as any, interventionStore.seeds, stageNeed(profile.siteProgress.stage));
-  if (!species) return;
-  interventionStore.addSeeds({ [species]: REWARD_SEEDS });
-  notify('icon-plants', `${reason}: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
+  if (species) interventionStore.addSeeds({ [species]: REWARD_SEEDS });
+  return species || null;
 }
 
 // The loop may run several ticks in one frame; the view catches up once, after the frame's last tick.
@@ -833,6 +833,7 @@ function stepOnce() {
 function onSelectChunk(payload: { x: number; y: number }) {
   if (follow.pick(payload)) return;
   selected.value = payload;
+  nextTick(nudgeHints);
   const armed = interventionStore.selectedIntervention;
   // Planting waits for "Plant here" on the hex card, after the player has seen how the seed would fare.
   if (armed && armed !== 'plant') {
@@ -946,6 +947,7 @@ function crossFrom(data: Record<string, unknown>) {
 // Handler for tutorial
 function startTutorial() {
   tutorialStore.startTutorial();
+  nudgeHints();
 }
 
 function skipTutorial() {
@@ -1217,20 +1219,8 @@ function openFromToast(opens: CodexTab | 'journal') {
 }
 
 function announce(found: Discovery[]) {
-  for (const discovery of found.slice(0, MAX_TOASTS)) {
-    if (discovery.kind === 'species') {
-      const info = speciesInfo(discovery.id);
-      notify('icon-observe', `New in your Codex: ${info.name}`, info.kind === 'fungus' ? 'fungus' : !info.animal ? 'plant' : info.kind === 'bird' ? 'bird' : 'pollinator');
-    } else if (discovery.kind === 'heard') {
-      notify('icon-observe', `Heard, not yet seen: ${speciesInfo(discovery.id).name}`, speciesInfo(discovery.id).kind === 'bird' ? 'bird' : 'pollinator');
-    } else if (discovery.kind === 'interaction') {
-      notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`, 'interaction');
-    } else {
-      const mystery = MYSTERIES.find(m => m.id === discovery.id);
-      notify('icon-journal', discovery.solved ? 'A mystery is solved. The Codex explains.' : `A mystery: ${mystery?.question}`, 'mystery');
-      if (discovery.solved) profile.save();
-    }
-  }
+  for (const line of announcements(found)) notify(line.icon, line.text, line.opens);
+  if (found.some(d => d.kind === 'mystery' && d.solved)) profile.save();
 }
 
 // ---- Advancing time ----
@@ -1442,6 +1432,22 @@ const hexSample = computed(() => {
 const trace = ref<Array<{ x: number; y: number }>>([]);
 const traceText = computed(() => (trace.value.length && selected.value && trace.value[0].x === selected.value.x && trace.value[0].y === selected.value.y ? traceWords(trace.value) : ''));
 watch(selected, () => { trace.value = []; });
+
+// ---- Hints of the first hour: offered when their moment first comes in play ----
+let goalDone = false;
+function nudgeHints() {
+  const hexes = [...(engine.value?.readChunks().values() ?? [])] as any[];
+  const any = (test: (plant: any) => boolean) => hexes.some(hex => { let found = false; hex.species.forEach((plant: any) => { found ||= test(plant); }); return found; });
+  tutorialStore.consider({
+    start: true,
+    hexOpened: !!selected.value,
+    seedsInPouch: Object.keys(interventionStore.seeds).length > 0,
+    pollinator: hexes.some(hex => Object.entries(hex.fauna ?? {}).some(([id, n]) => (n as number) >= 1 && speciesInfo(id).kind !== 'bird')),
+    ripe: any(plant => isRipe(plant)),
+    fungi: hexes.some(hex => hex.fruiting?.length),
+    goalDone,
+  });
+}
 
 // ---- Watching: photos, listening, the phenology calendar and following a pollinator ----
 const watchedHexes = () => [...(engine.value?.readChunks().values() ?? [])] as any[];

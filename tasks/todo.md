@@ -758,11 +758,24 @@ remain in old tests (two in `fieldwork.spec.ts`, from C4).
   player explores eagerly (7 rewards in the first six weeks for the scripted player); D3 groups the toasts.
 
 ### D3. The first hour
-- [ ] Welcome rewritten around the six workflow steps; three short cards, no jargon.
-- [ ] The tutorial becomes hints triggered by state, not by tick: first hex opened, first ripe plant, first
+- [x] Welcome rewritten around the six workflow steps; three short cards, no jargon.
+- [x] The tutorial becomes hints triggered by state, not by tick: first hex opened, first ripe plant, first
       pollinator on a flower, first autumn fruiting; each shown once, dismissable, pointing at the real control.
-- [ ] Toasts grouped when several arrive at once ("3 new in your Codex: …"); empty states that say what to do
-      next everywhere a list can be empty.
+- [x] Toasts grouped when several arrive at once ("3 new in your Codex: …").
+- [ ] Empty states that say what to do next everywhere a list can be empty: only the Goals card done; the
+      other lists are not yet audited.
+- [x] (Added on request) Map tiles and map sprites redrawn as Art Nouveau stained glass.
+
+Done. `tutorialStore` is now a hints store: seven hints (`HINTS`), each waiting for a signal from play (`consider`)
+and shown once; "No more hints" turns them off for good. `HintCard` replaces `TooltipOverlay`. On request, hints
+sit centred on screen at every size rather than beside a control, so the targeting code went. The welcome is a
+`Modal` with three cards and a choice: "Begin, with hints" or "Just play, no hints". `announce.ts` groups a
+week's discoveries into one line per kind; goal rewards arrive as one toast per batch. `hexTiles.ts` draws the
+eight habitat tiles as SVG (flat colour, whiplash grasses, spiral-crowned trees, lead outline, gilt rim with
+curled corners), with a frameless scene for photographs, and the bee and bird sprites. The marsh gets its own
+tile in place of the wash over grassland. The painted `hex-*.webp` tiles and their crop lines in
+`extract-ui-kit.sh` are gone. Checked in the browser at laptop and phone sizes. 186 TS tests pass; vue-tsc is
+clean under both configs. No Rust changes.
 
 ### D4. More species and a fourth site
 - [ ] Catalogue to about 60 plants, 20 birds, 20 pollinators (moths among them, flying at night) and 8 fungi,

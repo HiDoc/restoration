@@ -21,13 +21,6 @@ flood() {
 }
 
 # Crop a pointy-top hex tile and mask everything outside the hexagon.
-hex() {
-  magick "$KIT" -crop "$2" +repage -filter Lanczos -resize 200% \
-    \( +clone -alpha extract -fill black -colorize 100 -fill white \
-       -draw 'polygon %[fx:w/2],1 %[fx:w-2],%[fx:h/4] %[fx:w-2],%[fx:3*h/4] %[fx:w/2],%[fx:h-2] 1,%[fx:3*h/4] 1,%[fx:h/4]' \) \
-    -alpha off -compose CopyOpacity -composite -quality 88 "$OUT/$1.webp"
-}
-
 # World Overview card with its contents painted over, leaving an empty ornate frame for border-image.
 frame() {
   magick "$KIT" -crop 252x263+1176+321 +repage -fill 'rgb(238,228,204)' \
@@ -55,12 +48,6 @@ flood compass 202x170+456+602
 flood dock-left 267x88+18+884 6
 flood dock-right 312x88+1120+884 6
 flood divider 307x30+405+1016
-
-hex hex-forest 78x92+918+163
-hex hex-water 78x92+1002+163
-hex hex-grassland 78x92+1172+163
-hex hex-savanna 78x92+1256+163
-hex hex-degraded 78x92+1340+163
 
 # Colour icons from the game icon set (row 20) and panels.
 for spec in vitality:764 moisture:821 pollution:879 temperature:939 diversity:999 plants:1050 \

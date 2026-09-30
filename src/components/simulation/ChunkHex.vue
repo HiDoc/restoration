@@ -171,7 +171,7 @@ const hexBackground = computed(() => {
   const texture = look.value.tile;
   const baseColor = baseFill(props.chunk, props.vizMode);
   return {
-    backgroundImage: texture ? [look.value.wash && `linear-gradient(${look.value.wash}, ${look.value.wash})`, `url(${texture})`].filter(Boolean).join(', ') : undefined,
+    backgroundImage: texture ? `url("${texture}")` : undefined,
     backgroundColor: texture ? undefined : baseColor,
     backgroundSize: 'cover',
     backgroundRepeat: 'no-repeat',

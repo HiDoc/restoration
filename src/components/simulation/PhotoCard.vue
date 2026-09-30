@@ -29,7 +29,7 @@ const info = computed(() => speciesInfo(props.photo.subject))
 const name = computed(() => info.value.name)
 const look = computed(() => HABITAT_LOOK[props.photo.habitat as Habitat] ?? HABITAT_LOOK.meadow)
 const backdrop = computed(() => ({
-  backgroundImage: [look.value.wash && `linear-gradient(${look.value.wash}, ${look.value.wash})`, `url(${look.value.tile})`].filter(Boolean).join(', '),
+  backgroundImage: `url("${look.value.scene}")`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
 }))

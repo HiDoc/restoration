@@ -266,7 +266,7 @@ function clearHovered() {
     display: block;
   }
 
-  /* What the player made or found in a hex: a row of small parchment badges near the top of the tile. */
+  /* What the player made or found in a hex: a row of small gilt medallions near the top of the tile. */
   .hex-marks { display: none; }
   .hex-map .hex-marks {
     display: flex;
@@ -283,10 +283,10 @@ function clearHovered() {
     aspect-ratio: 1;
     padding: 3%;
     border-radius: 999px;
-    background: var(--nv-parchment-100);
-    color: var(--nv-ink-900);
-    border: 1px solid var(--nv-brass-700);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    background: #231d14;
+    color: #e2c26a;
+    border: 1px solid #e2c26a;
+    box-shadow: 0 0 0 1px #231d14, 0 1px 2px rgba(0, 0, 0, 0.45);
   }
   .hex-map .hex-mark svg { width: 100%; height: 100%; }
 
@@ -301,7 +301,7 @@ function clearHovered() {
     to { background-position: -130% 0; }
   }
 
-  /* A gentle tint for the season over the painted tiles. */
+  /* A gentle tint for the season over the tiles. */
   .hex-map[data-season='summer'] .hex-cell { filter: saturate(1.08) brightness(1.02); }
   .hex-map[data-season='autumn'] .hex-cell { filter: sepia(0.18) saturate(1.1) hue-rotate(-8deg); }
   .hex-map[data-season='winter'] .hex-cell { filter: saturate(0.7) brightness(0.96) hue-rotate(8deg); }

@@ -457,7 +457,7 @@ fn runners_spread_a_plant_that_sets_no_seed() {
 }
 
 #[test]
-fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
+fn collecting_takes_seed_from_the_chosen_plants_and_planting_spends_it() {
     let mut meadow = world_with(
         3,
         SpeciesDefinition {
@@ -470,16 +470,29 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
         },
     );
     let species = meadow.definitions.keys().next().unwrap().clone();
-    let command = |kind: &str, chunk: &str| -> Command {
-        serde_json::from_value(json!({"type":kind,"chunkId":chunk,"data":{"speciesId":species}}))
+    let plant = |chunk: &str| -> Command {
+        serde_json::from_value(json!({"type":"plant","chunkId":chunk,"data":{"speciesId":species}}))
             .unwrap()
     };
+    let collect = |chunk: &str, ids: &[String]| -> Command {
+        serde_json::from_value(json!({"type":"collect","chunkId":chunk,"data":{"instanceIds":ids}}))
+            .unwrap()
+    };
+    let everything = |w: &World| -> Vec<String> {
+        w.components
+            .organisms
+            .values()
+            .map(|o| o.id.clone())
+            .collect()
+    };
     assert!(
-        meadow.submit(command("plant", "chunk_0_0")).is_err(),
+        meadow.submit(plant("chunk_0_0")).is_err(),
         "no seed in hand"
     );
     assert!(
-        meadow.submit(command("collect", "chunk_0_0")).is_err(),
+        meadow
+            .submit(collect("chunk_0_0", &everything(&meadow)))
+            .is_err(),
         "nothing ripe in spring"
     );
     assert!(meadow
@@ -487,7 +500,7 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
         .is_err());
 
     meadow.step(240).unwrap();
-    let ripe_plants = |w: &World, chunk: &str| {
+    let ripe_plants = |w: &World, chunk: &str| -> Vec<(String, f64)> {
         let c = &w.components;
         c.positions
             .iter()
@@ -496,26 +509,42 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
                     && c.reproduction[plant].stage == "fruiting"
                     && c.reproduction[plant].reserve >= 0.1
             })
-            .count()
+            .map(|(plant, _)| (c.organisms[plant].id.clone(), c.reproduction[plant].reserve))
+            .collect()
     };
     let ripe = meadow
         .components
         .habitats
         .values()
         .map(|h| h.id.clone())
-        .find(|id| ripe_plants(&meadow, id) > 3)
+        .find(|id| ripe_plants(&meadow, id).len() > 3)
         .expect("a hex with several ripe plants by mid-autumn");
-    let before = ripe_plants(&meadow, &ripe);
-    meadow.submit(command("collect", &ripe)).unwrap();
-    assert_eq!(
-        meadow.inventory.len(),
-        3,
-        "a few seeds per species per visit"
-    );
-    assert_eq!(
-        ripe_plants(&meadow, &ripe),
-        before - 3,
-        "each picked plant gave up its seed"
+    let mut before = ripe_plants(&meadow, &ripe);
+    before.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let (least, most) = (before[0].clone(), before[before.len() - 1].clone());
+    meadow
+        .submit(collect(&ripe, &[least.0.clone(), most.0.clone()]))
+        .unwrap();
+    assert_eq!(meadow.inventory.len(), 2, "one seed from each chosen plant");
+    let left: Vec<String> = ripe_plants(&meadow, &ripe)
+        .into_iter()
+        .map(|p| p.0)
+        .collect();
+    assert_eq!(left.len(), before.len() - 2);
+    assert!(!left.contains(&least.0) && !left.contains(&most.0));
+    let viability_from = |mother: &str| {
+        meadow
+            .inventory
+            .iter()
+            .find(|s| s.extra["genetics"]["mother"] == mother)
+            .unwrap()
+            .viability
+    };
+    assert!(
+        viability_from(&least.0) < viability_from(&most.0),
+        "seed taken early is less viable (reserves {} and {})",
+        least.1,
+        most.1
     );
 
     let genetics = meadow.inventory[0].extra["genetics"].clone();
@@ -523,6 +552,15 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
         genetics.is_object(),
         "collected seed keeps its parent's genetics"
     );
+    let seed = |viability: f64| Seed {
+        species_id: species.clone(),
+        x: 0.5,
+        y: 0.5,
+        viability,
+        maturity_ticks: 0,
+        extra: [("genetics".to_owned(), genetics.clone())].into(),
+    };
+    meadow.inventory = vec![seed(1.0), seed(0.0)];
     let room = meadow
         .components
         .habitats
@@ -537,10 +575,17 @@ fn collecting_takes_a_few_ripe_seeds_and_planting_spends_them() {
         })
         .map(|(_, h)| h.id.clone())
         .unwrap();
-    meadow.submit(command("plant", &room)).unwrap();
-    assert_eq!(meadow.inventory.len(), 2);
+    let plants = meadow.components.organisms.len();
+    meadow.submit(plant(&room)).unwrap();
+    assert_eq!(meadow.inventory.len(), 1);
+    assert_eq!(meadow.components.organisms.len(), plants + 1);
     let (_, planted) = meadow.components.organisms.last_key_value().unwrap();
     assert_eq!(planted.extra["genetics"], genetics);
+
+    meadow.submit(plant(&room)).unwrap();
+    assert!(meadow.inventory.is_empty(), "a dead seed is still spent");
+    assert_eq!(meadow.components.organisms.len(), plants + 1);
+    assert!(meadow.events.iter().any(|e| e.kind == "seed_failed"));
 }
 
 /// Two bluebells of one genus and a clover of another, all flowering in spring and fruiting in summer, with
@@ -1277,4 +1322,54 @@ fn the_player_can_tag_and_name_any_plant() {
     assert_eq!(meadow.tags[&instance].name.as_deref(), Some("Old Gnarly"));
     assert_eq!(meadow.tags.len(), 1, "naming does not tag again");
     assert!(tag(&mut meadow, json!({"instanceId": "nobody"})).is_err());
+}
+
+fn mean_drought_tolerance(world: &World) -> f64 {
+    let values: Vec<f64> = world
+        .components
+        .organisms
+        .values()
+        .map(|o| {
+            o.extra["genetics"]["traits"]["drought_tolerance"]
+                .as_f64()
+                .unwrap()
+        })
+        .collect();
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+#[test]
+fn drought_selects_for_drought_tolerance_against_the_baseline() {
+    let thirsty = || SpeciesDefinition {
+        moisture_range: Range {
+            min: 0.45,
+            max: 0.9,
+        },
+        ..SpeciesDefinition::default()
+    };
+    let mut dry = world_with(7, thirsty());
+    let mut watered = world_with(7, thirsty());
+    dry.step(1).unwrap();
+    watered.step(1).unwrap();
+    let species = dry.definitions.keys().next().unwrap().clone();
+    let baseline = &dry.baselines[&species];
+    assert_eq!(baseline.tick, 1, "recorded when the site is first seen");
+    let counted: u32 = baseline.traits["drought_tolerance"].iter().sum();
+    assert_eq!(counted as usize, dry.components.organisms.len());
+    let start = mean_drought_tolerance(&dry);
+
+    for _ in 0..6 * 360 {
+        for biome in dry.components.biomes.values_mut() {
+            biome.moisture = 0.3;
+        }
+        dry.step(1).unwrap();
+    }
+    watered.step(6 * 360).unwrap();
+    assert_eq!(dry.baselines[&species].tick, 1, "the baseline is kept");
+    let (shifted, drifted) = (
+        mean_drought_tolerance(&dry) - start,
+        mean_drought_tolerance(&watered) - start,
+    );
+    assert!(shifted > 0.04, "six dry years moved the mean by {shifted}");
+    assert!(drifted.abs() < 0.02, "watered drift {drifted}");
 }

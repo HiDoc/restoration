@@ -12,6 +12,7 @@ import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
 import { InterventionManager, type InterventionType } from './InterventionManager';
 import type { Tag } from '@/game/journal';
+import type { Baseline } from '@/game/traits';
 
 // Animals come from the same catalogue as the plants.
 const FAUNA = buildFaunaDefinitions(catalogue);
@@ -598,6 +599,12 @@ export class SimulationEngine {
   getTags(): Readonly<Record<string, Tag>> {
     this.refreshProjection();
     return this.runtimeSnapshot?.tags ?? {};
+  }
+
+  /** Each species' trait spread when first recorded here. */
+  getBaselines(): Readonly<Record<string, Baseline>> {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.baselines ?? {};
   }
 
   /** Fresh seeds for the pouch: a starter packet or a reward. */

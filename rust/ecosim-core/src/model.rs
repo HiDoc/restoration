@@ -481,3 +481,11 @@ impl Rng {
         f64::from(x) / 4294967296.0
     }
 }
+
+/// A species' trait spread when first recorded: counts of plants per bin over [0, 1], by trait.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Baseline {
+    pub tick: u64,
+    pub traits: BTreeMap<String, Vec<u32>>,
+}

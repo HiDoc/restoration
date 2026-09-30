@@ -4,17 +4,20 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const SAVE_VERSION: u32 = 1;
-/// Seeds the player takes per species from one ripe hex at a time.
-const COLLECT_PER_SPECIES: usize = 3;
 /// Seed a fruiting plant has ripened since it last dropped or gave seed; about ten days' worth for a grass.
-const RIPE_RESERVE: f64 = 0.1;
+pub const RIPE_RESERVE: f64 = 0.1;
+
+/// Seed taken early is often not viable: from about 0.4 at the first ripe seed to 0.95 when fully ripe.
+pub fn seed_viability(reserve: f64) -> f64 {
+    0.35 + 0.6 * reserve.min(1.0)
+}
 
 fn pouch_seed(species_id: String, extra: BTreeMap<String, Value>) -> Seed {
     Seed {
         species_id,
         x: 0.5,
         y: 0.5,
-        viability: 0.85,
+        viability: 0.95,
         maturity_ticks: 0,
         extra,
     }
@@ -59,6 +62,9 @@ pub struct World {
     pub tags: BTreeMap<String, Tag>,
     #[serde(default)]
     pub next_tag: u32,
+    /// Each species' trait spread when first recorded here.
+    #[serde(default)]
+    pub baselines: BTreeMap<String, Baseline>,
     #[serde(default)]
     pub weather: Vec<Weather>,
     #[serde(skip)]
@@ -93,6 +99,7 @@ impl World {
             rare_season: 0,
             tags: BTreeMap::new(),
             next_tag: 0,
+            baselines: BTreeMap::new(),
             weather: vec![],
             events: vec![],
         };
@@ -515,29 +522,37 @@ impl World {
                     .position(|seed| seed.species_id == species)
                     .ok_or("No seeds of that species")?;
                 let seed = self.inventory.remove(index);
-                let id = self.spawn(chunk, species, command.x, command.y, 0.2);
-                let extra = self.seed_record(seed.extra);
-                self.components.organisms.get_mut(&id).unwrap().extra = extra;
-                self.tag(id, "planted");
+                // A seed that is not viable is spent without coming up.
+                if self.rng.sample() < seed.viability {
+                    let id = self.spawn(chunk, species, command.x, command.y, 0.2);
+                    let extra = self.seed_record(seed.extra);
+                    self.components.organisms.get_mut(&id).unwrap().extra = extra;
+                    self.tag(id, "planted");
+                } else {
+                    self.emit("seed_failed", chunk, json!({ "speciesId": species }));
+                }
             }
             "collect" => {
-                // Seed is taken from the ripe plants themselves; each gives the seed it has been ripening.
-                let mut taken = BTreeMap::<String, usize>::new();
-                let mut picked = vec![];
-                for (entity, organism) in &self.components.organisms {
-                    let reproduction = &self.components.reproduction[entity];
-                    if self.components.positions[entity].chunk != chunk
-                        || reproduction.stage != "fruiting"
-                        || reproduction.reserve < RIPE_RESERVE
-                    {
-                        continue;
-                    }
-                    let count = taken.entry(organism.species_id.clone()).or_default();
-                    if *count < COLLECT_PER_SPECIES {
-                        *count += 1;
-                        picked.push(*entity);
-                    }
-                }
+                // Seed is taken from the plants the player chose, each giving the seed it has been ripening.
+                let ids: BTreeSet<&str> = command.data["instanceIds"]
+                    .as_array()
+                    .ok_or("Missing instanceIds")?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect();
+                let picked: Vec<Entity> = self
+                    .components
+                    .organisms
+                    .iter()
+                    .filter(|(entity, organism)| {
+                        let reproduction = &self.components.reproduction[entity];
+                        ids.contains(organism.id.as_str())
+                            && self.components.positions[entity].chunk == chunk
+                            && reproduction.stage == "fruiting"
+                            && reproduction.reserve >= RIPE_RESERVE
+                    })
+                    .map(|(entity, _)| *entity)
+                    .collect();
                 if picked.is_empty() {
                     return Err("Nothing ripe to collect here".into());
                 }
@@ -545,6 +560,7 @@ impl World {
                 let mut counts = BTreeMap::<String, usize>::new();
                 for entity in picked {
                     let bloom = self.components.reproduction.get_mut(&entity).unwrap();
+                    let viability = seed_viability(bloom.reserve);
                     bloom.reserve = 0.0;
                     let pollen = bloom.pollen.clone();
                     let organism = &self.components.organisms[&entity];
@@ -557,8 +573,10 @@ impl World {
                         self.seed_of(&mother, &mother_id, &parent, pollen.as_ref());
                     self.count_seed(&mother_id);
                     *counts.entry(species.clone()).or_default() += 1;
-                    self.inventory
-                        .push(pouch_seed(species, [("genetics".into(), genetics)].into()));
+                    self.inventory.push(Seed {
+                        viability,
+                        ..pouch_seed(species, [("genetics".into(), genetics)].into())
+                    });
                 }
                 self.emit("seeds_collected", chunk, json!({ "counts": counts }));
             }
@@ -667,6 +685,7 @@ impl World {
             self.ecosystem_system();
             self.fauna_system();
             self.rare_event_system();
+            self.baseline_system();
         }
         Ok(())
     }

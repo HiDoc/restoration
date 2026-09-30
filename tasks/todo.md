@@ -527,13 +527,21 @@ reveals knowledge the player then holds (estimates and words), not the engine's 
       Red Fescue from the hex card keeps the Plant tool armed; renaming works; statuses update as time passes.
 
 ### C2. Seed collecting ★ and choosing seed parents ★
-- [ ] Collect opens a panel of the ripe plants in the hex, each with its visible traits in words ("hardy in
-      drought", "vigorous"), estimated from what the player has seen of it, not the exact values.
-- [x] The player picks which plants give seed. Timing matters: seed taken early in fruiting is less viable
-      (viability follows how ripe the reserve is) instead of any reflex challenge.
-- [ ] **Adaptation in the Codex:** per species, the spread of each trait among living plants now and a
-      generation ago, as a small histogram; a probe first confirms drought tolerance shifts visibly over
-      5–6 generations under drought.
+- [x] Collect opens a panel of the ripe plants in the hex, each with its traits in words ("hardy in drought",
+      "vigorous"), never the values. Built: a trait shows only when it is at least 0.1 from the ordinary 0.5;
+      the rest read "ordinary for its kind". (Not built: words that depend on what the player has watched.)
+- [x] The player picks which plants give seed (`collect {instanceIds}`, one seed per plant). A seed's
+      viability is 0.35 + 0.6 × how ripe its plant was (0.41 barely ripe … 0.95 fully ripe; packet seed
+      0.95); planting rolls it, and a dead seed is spent with "did not come up".
+- [x] **Adaptation in the Codex:** each plant card at the current site has "How they have changed here":
+      per trait, the spread now against the spread first recorded (a per-species baseline the engine takes at
+      the first season start with 5+ plants), with the direction of any shift in words. (Changed from "a
+      generation ago": generations run from months to decades, so "since first recorded" is what compares.)
+      Probe: held at moisture 0.30, mean drought tolerance rose 0.51 → 0.59 in 8 years (0.25: 0.54 → 0.62),
+      control flat at 0.505; kept as a Rust test.
+- Done: 42 Rust and 191 TS tests pass. In the browser, the panel listed two ripe clovers ("hardy in drought",
+  "slow-growing"); collecting the first gave one seed, which, taken while ripening, did not come up; the
+  Codex showed the hawthorn's spread per trait.
 
 ### C3. Hybrid notebook ★
 - [ ] Before crossing, the player predicts each trait of the offspring (lower, between, higher than the

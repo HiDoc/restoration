@@ -7,10 +7,18 @@ import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { plantStartingMeadow } from '@/game/startingMeadow'
 import { crossBarrier, hybridName } from '@/game/hybrids'
 import { codexEntries } from '@/game/codex'
+import { isRipe } from '@/game/traits'
 
 const HYBRID = 'hybrid_spanish_bluebell__wild_bluebell'
 const species = (id: string) => SpeciesRegistry.getInstance().getSpecies(id)
 
+
+/** Ids of the plants in a hex with seed at least this ripe. */
+function ripeIn(engine: SimulationEngine, chunkId: string, least?: number): string[] {
+  const ids: string[] = []
+  engine.readChunks().get(chunkId)?.species.forEach((plant: any) => { if (isRipe(plant, least)) ids.push(plant.id) })
+  return ids
+}
 describe('hybrid names and barriers', () => {
   it('names a hybrid the same way every time, after the kind of plant it is', () => {
     const name = hybridName(HYBRID, ['Spanish Bluebell', 'Bluebell'])
@@ -55,7 +63,8 @@ describe('breeding a hybrid bluebell in the starting meadow', () => {
 
     for (let day = 0; day < 90 && !pouch.seeds[HYBRID]; day++) {
       engine.update()
-      pouch.executeIntervention({ ...at, type: 'collect', data: {} })
+      // Fully ripe, so the seed is sure to come up when sown.
+      pouch.executeIntervention({ ...at, type: 'collect', data: { instanceIds: ripeIn(engine, at.chunkId, 0.9) } })
     }
     expect(pouch.seeds[HYBRID]).toBeGreaterThan(0)
     // Bred seed travels to another site's world, which learns the hybrid from the registry.

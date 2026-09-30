@@ -64,6 +64,7 @@ export interface RuntimeSnapshot {
   inventory?: Record<string, number>;
   /** Plants the player follows, by instance id. */
   tags?: Record<string, import('@/game/journal').Tag>;
+  baselines?: Record<string, import('@/game/traits').Baseline>;
 }
 
 export interface RuntimeResponse {

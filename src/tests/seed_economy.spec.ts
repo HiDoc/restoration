@@ -6,6 +6,7 @@ import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 import { useInterventionStore } from '@/stores/interventionStore'
 import { plantStartingMeadow } from '@/game/startingMeadow'
 import { habitatFit, rewardSpecies, STARTER_SEEDS } from '@/game/seeds'
+import { isRipe } from '@/game/traits'
 
 function world() {
   const engine = new SimulationEngine({
@@ -18,6 +19,13 @@ function world() {
 
 const at = (x: number, y: number) => ({ chunkId: `chunk_${x}_${y}`, x: 0.5, y: 0.5 })
 
+
+/** Ids of the plants in a hex with seed at least this ripe. */
+function ripeIn(engine: SimulationEngine, chunkId: string, least?: number): string[] {
+  const ids: string[] = []
+  engine.readChunks().get(chunkId)?.species.forEach((plant: any) => { if (isRipe(plant, least)) ids.push(plant.id) })
+  return ids
+}
 describe('seed economy', () => {
   let store: ReturnType<typeof useInterventionStore>
   let engine: SimulationEngine
@@ -50,7 +58,7 @@ describe('seed economy', () => {
 
   it('collects a few seeds from ripe plants, which can then be sown', () => {
     plantStartingMeadow(engine)
-    const collect = (x: number, y: number) => store.executeIntervention({ ...at(x, y), type: 'collect', data: {} })
+    const collect = (x: number, y: number) => store.executeIntervention({ ...at(x, y), type: 'collect', data: { instanceIds: ripeIn(engine, `chunk_${x}_${y}`) } })
     expect(collect(1, 1)).toBe(false)
     expect(store.actionMessage).toBe('Nothing ripe to collect here yet.')
 

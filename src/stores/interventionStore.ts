@@ -74,6 +74,14 @@ export const useInterventionStore = defineStore('intervention', () => {
     return 'This intervention could not be applied there. Choose another hex.';
   }
 
+  /** Every plant that comes up is tagged, so no new tag means the seed was not viable. */
+  function plantedMessage(speciesId: string, tagsBefore: number): string {
+    const name = speciesInfo(speciesId).name;
+    return Object.keys(engine.value?.getTags() ?? {}).length > tagsBefore
+      ? `Planted ${name}.`
+      : `The ${name} seed did not come up. Seed taken before it is fully ripe often fails.`;
+  }
+
   function taggedMessage(instanceId: string): string {
     const tag = engine.value?.getTags()[instanceId];
     return tag ? `Tagged ${tag.label}, a ${speciesInfo(tag.speciesId).name}. Follow it in the Journal.` : 'Tagged.';
@@ -87,6 +95,7 @@ export const useInterventionStore = defineStore('intervention', () => {
       return false;
     }
     const before = seeds.value;
+    const tagsBefore = Object.keys(engine.value.getTags()).length;
     const success = engine.value.executeIntervention(intervention);
     refreshSeeds();
     if (!success) {
@@ -101,7 +110,7 @@ export const useInterventionStore = defineStore('intervention', () => {
     }
     actionMessage.value =
       intervention.type === 'collect' ? collectedMessage(before)
-      : intervention.type === 'plant' ? `Planted ${speciesInfo(intervention.data.speciesId).name}.`
+      : intervention.type === 'plant' ? plantedMessage(intervention.data.speciesId, tagsBefore)
       : intervention.type === 'tag' ? taggedMessage(intervention.data.instanceId)
       : intervention.type === 'cross'
         ? `${speciesInfo(intervention.data.receiver).name} carries ${speciesInfo(intervention.data.donor).name} pollen. Collect its seed when it ripens.`

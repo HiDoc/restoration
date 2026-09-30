@@ -238,7 +238,7 @@
               <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
               <button v-if="flowering.length > 1 && !crossing" type="button" class="nv-btn" @click="startCross">Cross-pollinate</button>
               <button v-if="plantFit" type="button" class="nv-btn" @click="applyToSelected('plant')">Plant here</button>
-              <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="applyToSelected('collect')">Collect seeds</button>
+              <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="showCollect = true">Collect seeds</button>
               <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
             </div>
           </div>
@@ -373,6 +373,7 @@
     </template>
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
+    <CollectPanel :show="showCollect" :plants="collectable" :tags="collectTags" @close="showCollect = false" @collect="collectFrom" />
     <JournalPanel :show="showJournal" :tick="stats.currentTick" @close="showJournal = false" @inspect="inspectFromJournal" />
 
 
@@ -426,6 +427,7 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import JournalPanel from "@/components/simulation/JournalPanel.vue";
+import CollectPanel from "@/components/simulation/CollectPanel.vue";
 import { deathNote } from "@/game/journal";
 import type { CodexTab } from "@/game/codex";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
@@ -858,7 +860,7 @@ function onSelectChunk(payload: { x: number; y: number }) {
 
 const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', tag: 'icon-journal', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
 
-function applyIntervention(type: InterventionType, at: { x: number; y: number }, data?: Record<string, string>) {
+function applyIntervention(type: InterventionType, at: { x: number; y: number }, data?: Record<string, unknown>) {
   if (!engine.value) return;
   const success = interventionStore.executeIntervention({
     chunkId: `chunk_${at.x}_${at.y}`,
@@ -889,8 +891,21 @@ function tagOldest(speciesId: string) {
   if (instanceId) applyToSelected('tag', { instanceId });
 }
 
-function applyToSelected(type: InterventionType, data?: Record<string, string>) {
+function applyToSelected(type: InterventionType, data?: Record<string, unknown>) {
   if (selected.value) applyIntervention(type, selected.value, data);
+}
+
+// Seed collecting from the plants the player picks in the selected hex.
+const showCollect = ref(false);
+const collectable = computed(() => {
+  const plants: any[] = [];
+  if (showCollect.value) tooltipChunk.value?.species.forEach((plant: any) => plants.push(plant));
+  return plants;
+});
+const collectTags = computed(() => (showCollect.value && engine.value ? engine.value.getTags() : {}));
+function collectFrom(instanceIds: string[]) {
+  showCollect.value = false;
+  applyToSelected('collect', { instanceIds });
 }
 
 // Hand pollination between two species flowering in the selected hex.

@@ -56,6 +56,24 @@
                   <dd>{{ [...fact.known, ...Array(fact.missing).fill('?')].join(', ') }}</dd>
                 </div>
               </dl>
+              <details v-if="adaptations[entry.id]" class="nv-small mt-2">
+                <summary class="cursor-pointer">How they have changed here</summary>
+                <p class="nv-muted mt-1">
+                  Plants per trait value, low to high:
+                  <span class="whitespace-nowrap"><svg width="10" height="10" class="inline" aria-hidden="true"><rect x="1" y="1" width="8" height="8" rx="1" :fill="NOW" /></svg> now</span>,
+                  <span class="whitespace-nowrap"><svg width="10" height="10" class="inline" aria-hidden="true"><rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="none" :stroke="THEN" stroke-width="1.5" /></svg> when first recorded</span>.
+                </p>
+                <div v-for="row in adaptations[entry.id]" :key="row.trait" class="mt-1.5">
+                  <span>{{ row.name }}<template v-if="row.words">: {{ row.words }}</template></span>
+                  <svg :viewBox="`0 0 ${BINS * BAR} 24`" class="h-6 w-full" preserveAspectRatio="none" role="img" :aria-label="`${row.name}: ${row.words ?? 'unchanged'}`">
+                    <g v-for="(count, bin) in row.now" :key="bin">
+                      <title>{{ bin * 10 }}–{{ bin * 10 + 10 }}%: {{ count }} now, {{ row.then[bin] }} then</title>
+                      <rect :x="bin * BAR + 1" :y="24 - height(row.now, count)" :width="BAR - 2" :height="height(row.now, count)" rx="1" :fill="NOW" />
+                      <rect :x="bin * BAR + 1.5" :y="24 - height(row.then, row.then[bin])" :width="BAR - 3" :height="height(row.then, row.then[bin])" rx="1" fill="none" :stroke="THEN" stroke-width="1.5" />
+                    </g>
+                  </svg>
+                </div>
+              </details>
               <p v-if="entry.partners.length" class="nv-small nv-muted mt-2">{{ entry.group === 'plant' ? 'Visited by' : 'Feeds on' }}</p>
               <ul class="mt-0.5 flex flex-wrap gap-1">
                 <li v-for="partner in entry.partners" :key="partner.id" class="nv-chip" :title="partner.known ? `${TAKES[partner.takes]}` : 'Not yet seen'">
@@ -101,6 +119,8 @@ import { speciesInfo } from '@/game/speciesInfo'
 import { MYSTERIES } from '@/game/mysteries'
 import { siteById } from '@/game/sites'
 import { buildFaunaDefinitions } from '@/simulation/faunaDefinitions'
+import { adaptation, BINS, type TraitShift } from '@/game/traits'
+import { useInterventionStore } from '@/stores/interventionStore'
 import catalogue from '@/database/catalogue.json'
 
 const props = defineProps<{ show: boolean; startTab?: CodexTab }>()
@@ -153,6 +173,32 @@ const ROW = 26
 const graphHeight = computed(() => Math.max(plantsInGraph.value.length, animalsInGraph.value.length) * ROW + 12)
 const rowY = (ids: string[], id: string) => 18 + ids.indexOf(id) * ROW
 const nameOf = (id: string) => speciesInfo(id).name
+
+// Adaptation at the current site: each plant species' traits now against the spread first recorded here.
+const NOW = '#4d7f3a'
+const THEN = '#b08d2a'
+const BAR = 12
+const interventions = useInterventionStore()
+const adaptations = computed(() => {
+  const engine = interventions.engine
+  if (!props.show || !engine) return {}
+  const living = new Map<string, Array<Record<string, number>>>()
+  for (const hex of engine.readChunks().values()) {
+    hex.species.forEach((plant: { speciesId: string; genetics?: { traits?: Record<string, number> } }) => {
+      if (!living.has(plant.speciesId)) living.set(plant.speciesId, [])
+      living.get(plant.speciesId)!.push(plant.genetics?.traits ?? {})
+    })
+  }
+  const rows: Record<string, TraitShift[]> = {}
+  for (const [id, baseline] of Object.entries(engine.getBaselines())) {
+    if (living.has(id)) rows[id] = adaptation(baseline, living.get(id)!)
+  }
+  return rows
+})
+/** Bar height in a 24-unit row, each spread scaled to its own tallest bin so shape, not count, compares. */
+function height(counts: number[], count: number) {
+  return (count / Math.max(1, ...counts)) * 22
+}
 </script>
 
 <style scoped>

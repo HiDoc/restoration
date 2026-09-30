@@ -79,25 +79,11 @@ import { SpeciesRegistry } from '@/simulation/SpeciesRegistry';
 import type { VizMode } from './types';
 import type { ChunkGridEntry } from './chunkGridLayout';
 import { getHexOverlayColor } from '@/composables/useSeasonalAtmosphere';
-import { nv } from './nouveauAssets';
-import { describeHex, type Habitat } from '@/game/hexDescription';
-
-// Kit tile and legacy biome name (used by the calm view's seasonal tint) for each habitat.
-const HABITAT_LOOK: Record<Habitat, { tile: string; biome: string; wash?: string }> = {
-  open_water: { tile: nv('hex-water'), biome: 'wetland' },
-  // Marsh: grassland under a wash of water.
-  wetland: { tile: nv('hex-grassland'), biome: 'wetland', wash: 'rgba(52, 110, 128, 0.38)' },
-  woodland: { tile: nv('hex-forest'), biome: 'forest' },
-  scrub: { tile: nv('hex-grassland'), biome: 'grassland' }, // the grassland tile shows scattered trees
-  meadow: { tile: nv('hex-grassland'), biome: 'grassland' },
-  dry_grassland: { tile: nv('hex-savanna'), biome: 'savanna' },
-  blighted: { tile: nv('hex-degraded'), biome: 'wasteland' },
-  bare: { tile: nv('hex-degraded'), biome: 'wasteland' },
-};
+import { HABITAT_LOOK, SPRITE_ICON } from './habitatLook';
+import { describeHex } from '@/game/hexDescription';
 
 // Animals drawn per hex: a few sprites hint at abundance without cluttering the map.
 const MAX_SPRITES = 6;
-const SPRITE_ICON: Record<string, string> = { bird: nv('icon-birds'), bee: nv('icon-pollinators'), hoverfly: nv('icon-pollinators') };
 
 /** Stable 32-bit hash, so a hex's sprites keep their places between renders. */
 function hash(text: string): number {

@@ -17,6 +17,8 @@ export interface CodexEntry {
   scientificName: string
   group: CodexGroup
   known: boolean
+  /** Heard but not yet seen. */
+  heard: boolean
   facts: CodexFact[]
   partners: CodexPartner[]
   /** For a bred hybrid, its parents ("Bluebell × Spanish Bluebell"). */
@@ -39,10 +41,11 @@ function seasonFact(label: string, truth: Season[], seen: Season[] = []): CodexF
   return { label, known, missing: truth.length - known.length }
 }
 
-function entry(base: Omit<CodexEntry, 'progress' | 'known'>, knowledge: Knowledge): CodexEntry {
+function entry(base: Omit<CodexEntry, 'progress' | 'known' | 'heard'>, knowledge: Knowledge): CodexEntry {
   const slots = base.facts.reduce((n, f) => n + f.known.length + f.missing, 0) + base.partners.length
   const seen = base.facts.reduce((n, f) => n + f.known.length, 0) + base.partners.filter(p => p.known).length
-  return { ...base, known: base.id in knowledge.species, progress: slots === 0 ? 1 : seen / slots }
+  const known = base.id in knowledge.species
+  return { ...base, known, heard: !known && knowledge.heard?.[base.id] !== undefined, progress: slots === 0 ? 1 : seen / slots }
 }
 
 /** Every species in the Codex, with what the player knows set against what is true. */
@@ -68,7 +71,10 @@ export function codexEntries(knowledge: Knowledge): CodexEntry[] {
     const partners = LINKS.filter(link => link.animal === animal.id).map(link => ({
       id: link.plant, name: NAMES.get(link.plant) ?? link.plant, takes: link.takes, known: pairKey(animal.id, link.plant) in knowledge.interactions,
     }))
-    return entry({ ...animal, facts: [], partners }, knowledge)
+    // Where a pollinator keeps to is learned by following one.
+    const habitat = knowledge.species[animal.id]?.habitat
+    const facts = animal.group === 'pollinator' ? [{ label: 'Found in', known: habitat ? [habitat] : [], missing: habitat ? 0 : 1 }] : []
+    return entry({ ...animal, facts, partners }, knowledge)
   })
   return [...plants, ...animals]
 }

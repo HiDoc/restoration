@@ -20,8 +20,8 @@ export interface DigestInput {
   populationAfter: ReadonlyMap<string, number>
   /** Display name of a plant or animal. */
   nameOf: (speciesId: string) => string
-  /** Pairs (`animal|plant`) the player already knew before this span; only new ones are reported. */
-  knownInteractions?: ReadonlySet<string>
+  /** An animal as the player knows it ("an unfamiliar bird" until seen or heard); defaults to its name. */
+  animalName?: (id: string) => string
 }
 
 const WEATHER: Record<string, string> = {
@@ -49,7 +49,7 @@ function bySpecies(events: readonly SimulationEvent[], type: EventType, key = 's
 }
 
 /** What changed while time was advanced, most notable first, in plain words. */
-export function buildDigest({ events, seasonBefore, seasonAfter, populationBefore, populationAfter, nameOf, knownInteractions }: DigestInput): DigestLine[] {
+export function buildDigest({ events, seasonBefore, seasonAfter, populationBefore, populationAfter, nameOf, animalName = nameOf }: DigestInput): DigestLine[] {
   const lines: DigestLine[] = []
   const deaths = bySpecies(events, EventType.SPECIES_DIE)
   const births = bySpecies(events, EventType.SPECIES_SPAWN)
@@ -63,23 +63,10 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
     lines.push({ icon: 'rare', text: describeRareEvent(event.data, nameOf), chunkId: event.chunkId })
   }
 
-  for (const [id, found] of bySpecies(events, EventType.FIRST_SIGHTING, 'faunaId')) {
-    lines.push({ icon: 'sighting', text: `First sighting: ${nameOf(id)}!`, chunkId: found[0].chunkId })
-  }
-
   for (const [id, before] of populationBefore) {
     if (before > 0 && !populationAfter.get(id)) {
       lines.push({ icon: 'lost', text: `${nameOf(id)} has disappeared.`, chunkId: last(deaths.get(id))?.chunkId })
     }
-  }
-
-  const pairs = new Map<string, SimulationEvent>()
-  for (const event of events) {
-    const key = `${event.data?.faunaId}|${event.data?.plantId}`
-    if (event.type === EventType.INTERACTION_OBSERVED && !pairs.has(key) && !knownInteractions?.has(key)) pairs.set(key, event)
-  }
-  for (const event of pairs.values()) {
-    lines.push({ icon: 'interaction', text: `Seen together: ${nameOf(event.data.faunaId)} ↔ ${nameOf(event.data.plantId)}.`, chunkId: event.chunkId })
   }
 
   const PATCHES = ['', '', 'two', 'three', 'four']
@@ -95,9 +82,15 @@ export function buildDigest({ events, seasonBefore, seasonAfter, populationBefor
     }
   }
 
+  // Animals the player does not know yet arrive as "an unfamiliar bird", one line for all of a kind.
+  const arrivals = new Map<string, SimulationEvent[]>()
   for (const [id, found] of bySpecies(events, EventType.FAUNA_ARRIVED, 'faunaId')) {
+    const label = capitalize(animalName(id))
+    arrivals.set(label, [...(arrivals.get(label) ?? []), ...found])
+  }
+  for (const [label, found] of arrivals) {
     const places = new Set(found.map(event => event.chunkId))
-    lines.push({ icon: 'arrival', text: `${nameOf(id)} arrived in ${hexes(places.size)}.`, chunkId: found[0].chunkId })
+    lines.push({ icon: 'arrival', text: `${label} arrived in ${hexes(places.size)}.`, chunkId: found[0].chunkId })
   }
 
   // Only changes large enough to notice: at least three plants and a fifth of the population.

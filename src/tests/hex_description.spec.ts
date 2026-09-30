@@ -20,7 +20,7 @@ const hex = (plants: Array<[string, string, number]>, extra: Partial<HexState> =
 describe('describeHex', () => {
   it('names a flowering meadow after its flower and lists visitors', () => {
     const d = describeHex(hex([['grass', 'vegetative', 6], ['bluebell', 'flowering', 3]], { fauna: { bee: 4, blackbird: 0.6 } }), info)
-    expect(d).toMatchObject({ habitat: 'meadow', title: 'Bluebell meadow', phrase: 'Bluebell in flower. Seen here: Buff-tailed Bumblebee.' })
+    expect(d).toMatchObject({ habitat: 'meadow', title: 'Bluebell meadow', phrase: 'Bluebell in flower. About here: Buff-tailed Bumblebee.' })
     expect(d.plants.map(p => [p.name, p.count, p.activity])).toEqual([['Red Fescue', 6, 'growing'], ['Bluebell', 3, 'flowering']])
     expect(d.animals).toEqual([{ id: 'bee', name: 'Buff-tailed Bumblebee', count: 4, group: 'bee' }])
   })

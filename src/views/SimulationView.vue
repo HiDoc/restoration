@@ -159,12 +159,18 @@
               :engine="engine"
               :selected="selected"
               :trace="trace"
+              :flight="followFlight"
               :season-name="(stats as any).seasonName ?? 'Spring'"
               tessellated
               @select="onSelectChunk"
             />
           </div>
 
+          <div v-if="follow.active.value" class="nv-panel-dark absolute left-3 top-3 max-w-xs p-3 sm:left-5 sm:top-5" role="status">
+            <p class="font-bold">Following the {{ speciesInfo(follow.animal.value!).name }}</p>
+            <p class="nv-small">{{ follow.landing.value ? 'Where did it land? Pick the hex.' : 'Watch where it flies…' }} ({{ follow.hops.value }} of {{ HOPS }})</p>
+            <button type="button" class="nv-link nv-small mt-1" @click="follow.cancel()">Stop following</button>
+          </div>
           <div v-if="tooltipChunk && hexStory" class="nv-panel-dark absolute right-3 top-3 w-64 p-3 sm:right-5 sm:top-5" role="status">
             <div class="flex items-start justify-between gap-2">
               <p class="font-bold">{{ hexStory.title }}</p>
@@ -178,6 +184,7 @@
                 <span class="nv-small opacity-80">
                   <span v-if="plant.limit" class="font-bold text-[#f0b48a]">{{ plant.limit }}</span><template v-else>{{ ACTIVITY_WORDS[plant.activity] }}</template> · {{ plant.count }}
                   <button v-if="untaggedOf(plant.id)" type="button" class="nv-link ml-1" :title="`Tag the oldest ${plant.name} here and follow it in the Journal`" @click="tagOldest(plant.id)">Tag</button>
+                  <button type="button" class="nv-link ml-1" :title="`Photograph ${plant.name}`" @click="takePhoto(plant.id)">Photo</button>
                 </span>
               </li>
             </ul>
@@ -185,7 +192,11 @@
             <ul class="grid gap-0.5 text-sm">
               <li v-for="animal in hexStory.animals.slice(0, 4)" :key="animal.id" class="nv-tooltip-row">
                 <span class="flex items-center gap-2"><img :src="nv(animal.group === 'bird' ? 'icon-birds' : 'icon-pollinators')" alt="" class="h-4 w-4 object-contain" />{{ animal.name }}</span>
-                <span class="nv-small nv-nums opacity-80">{{ animal.count }}</span>
+                <span class="nv-small nv-nums opacity-80">
+                  {{ animal.count }}
+                  <button type="button" class="nv-link ml-1" :title="`Photograph ${animal.name}`" @click="takePhoto(animal.id)">Photo</button>
+                  <button v-if="animal.group !== 'bird' && knowledgeStore.knowledge.species[animal.id]" type="button" class="nv-link ml-1" :title="`Follow ${animal.name} from flower to flower`" @click="startFollow(animal.id)">Follow</button>
+                </span>
               </li>
             </ul>
             <div class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
@@ -203,6 +214,8 @@
               <p class="mt-1 flex flex-wrap gap-x-3">
                 <button type="button" class="nv-link" @click="applyToSelected('sample')">{{ hexSample ? 'Sample again' : 'Take a soil & water sample' }}</button>
                 <button type="button" class="nv-link" @click="traceFromSelected">Trace the water</button>
+                <button type="button" class="nv-link" @click="listenHere">Listen</button>
+                <button type="button" class="nv-link" @click="noteHere">Note in calendar</button>
               </p>
             </div>
             <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
@@ -347,6 +360,12 @@
     </template>
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
+    <div v-if="lastPhoto" class="sci-modal-overlay" @click.self="lastPhoto = null">
+      <div class="sci-modal nv-ornate w-full max-w-sm" role="dialog" aria-label="Your photo">
+        <PhotoCard :photo="lastPhoto" />
+        <div class="mt-2 flex justify-end"><button type="button" class="nv-btn" @click="lastPhoto = null">Close</button></div>
+      </div>
+    </div>
     <CollectPanel :show="showCollect" :plants="hexPlants" :tags="hexTags" @close="showCollect = false" @collect="collectFrom" />
     <CrossPanel :show="showCross" :plants="hexPlants" :tags="hexTags" @close="showCross = false" @cross="crossFrom" />
     <JournalPanel :show="showJournal" :tick="stats.currentTick" @close="showJournal = false" @inspect="inspectFromJournal" />
@@ -404,6 +423,10 @@ import CodexPanel from "@/components/simulation/CodexPanel.vue";
 import JournalPanel from "@/components/simulation/JournalPanel.vue";
 import CollectPanel from "@/components/simulation/CollectPanel.vue";
 import CrossPanel from "@/components/simulation/CrossPanel.vue";
+import PhotoCard from "@/components/simulation/PhotoCard.vue";
+import { useFollow, HOPS } from "@/composables/useFollow";
+import { HABITAT_WORDS, SPRITE_ICON } from "@/components/simulation/habitatLook";
+import type { Photo } from "@/game/knowledge";
 import { deathNote } from "@/game/journal";
 import type { CodexTab } from "@/game/codex";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
@@ -412,11 +435,12 @@ import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
 import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
 import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
+import { animalLabel, listen, photograph, visibleFirsts } from "@/game/watching";
 import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
-import { CAUSES } from "@/game/causes";
+import { CAUSES, mostCommon } from "@/game/causes";
 import { EventType } from "@/simulation/EventJournal";
 import { describeHex, type PlantActivity } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
@@ -819,6 +843,7 @@ function stepOnce() {
 }
 
 function onSelectChunk(payload: { x: number; y: number }) {
+  if (follow.pick(payload)) return;
   selected.value = payload;
   const armed = interventionStore.selectedIntervention;
   // Planting waits for "Plant here" on the hex card, after the player has seen how the seed would fare.
@@ -1164,6 +1189,8 @@ function announce(found: Discovery[]) {
     if (discovery.kind === 'species') {
       const info = speciesInfo(discovery.id);
       notify('icon-observe', `New in your Codex: ${info.name}`, !info.animal ? 'plant' : info.kind === 'bird' ? 'bird' : 'pollinator');
+    } else if (discovery.kind === 'heard') {
+      notify('icon-observe', `Heard, not yet seen: ${speciesInfo(discovery.id).name}`, speciesInfo(discovery.id).kind === 'bird' ? 'bird' : 'pollinator');
     } else if (discovery.kind === 'interaction') {
       notify('icon-diversity', `New interaction: ${speciesInfo(discovery.animal).name} ↔ ${speciesInfo(discovery.plant).name}`, 'interaction');
     } else {
@@ -1213,7 +1240,7 @@ function advanceTime(span: 'week' | 'season') {
   const ticksPerDay = 1440 / (sim.getConfig().timePerTickMinutes ?? 1440);
   const startTick = sim.getCurrentTick();
   const targetTick = startTick + days * ticksPerDay;
-  const before = { season: stats.seasonName, population: populationBySpecies(), interactions: new Set(Object.keys(knowledgeStore.knowledge.interactions)) };
+  const before = { season: stats.seasonName, population: populationBySpecies() };
   advancing.value = span;
 
   const frame = () => {
@@ -1235,7 +1262,7 @@ function advanceTime(span: 'week' | 'season') {
         populationBefore: before.population,
         populationAfter: populationBySpecies(),
         nameOf: id => speciesInfo(id).name,
-        knownInteractions: before.interactions,
+        animalName: id => animalLabel(id, knowledgeStore.knowledge),
       }),
     };
   };
@@ -1342,7 +1369,14 @@ const life = computed(() => {
 
 
 const tooltipChunk = computed(() => selectedChunkForInspection.value as any | null);
-const hexStory = computed(() => (tooltipChunk.value ? describeHex(tooltipChunk.value) : null));
+// The hex as the player knows it: animals by name only once seen or heard.
+const hexStory = computed(() => {
+  if (!tooltipChunk.value) return null;
+  return describeHex(tooltipChunk.value, id => {
+    const info = speciesInfo(id);
+    return info.animal ? { ...info, name: animalLabel(id, knowledgeStore.knowledge) } : info;
+  });
+});
 const ACTIVITY_WORDS: Record<PlantActivity, string> = { flowering: 'in flower', fruiting: 'fruiting', dormant: 'resting', growing: 'growing' };
 const ACTIVITY_ICONS: Record<PlantActivity, string> = { flowering: 'icon-plants', fruiting: 'icon-diversity', dormant: 'icon-leaf', growing: 'icon-vitality' };
 
@@ -1363,6 +1397,67 @@ const hexSample = computed(() => {
 const trace = ref<Array<{ x: number; y: number }>>([]);
 const traceText = computed(() => (trace.value.length && selected.value && trace.value[0].x === selected.value.x && trace.value[0].y === selected.value.y ? traceWords(trace.value) : ''));
 watch(selected, () => { trace.value = []; });
+
+// ---- Watching: photos, listening, the phenology calendar and following a pollinator ----
+const watchedHexes = () => [...(engine.value?.readChunks().values() ?? [])] as any[];
+const lastPhoto = ref<Photo | null>(null);
+function takePhoto(subject: string) {
+  const chunk = tooltipChunk.value;
+  if (!chunk || !engine.value) return;
+  const shot = photograph(chunk, subject, Math.random);
+  const photo: Photo = {
+    subject,
+    ...shot,
+    habitat: describeHex(chunk).habitat,
+    site: profile.currentSite,
+    tick: engine.value.getCurrentTick(),
+    when: `day ${simDays.value % 360} of year ${currentYear.value}`,
+  };
+  announce(knowledgeStore.photographed(photo, chunk.id));
+  lastPhoto.value = photo;
+}
+function listenHere() {
+  if (!selected.value || !engine.value) return;
+  const heard = listen(watchedHexes(), selected.value);
+  const found = knowledgeStore.listenedTo(heard, engine.value.getCurrentTick());
+  notify('icon-observe', heard.length
+    ? `You hear ${heard.map(id => animalLabel(id, knowledgeStore.knowledge)).filter((name, i, all) => all.indexOf(name) === i).join(', ')}.`
+    : 'Only the wind. Nothing calls or hums nearby.');
+  announce(found);
+}
+const PHASE_WORDS = { flower: 'first flower', fruit: 'first fruit', arrival: 'first arrival' } as const;
+function noteHere() {
+  const chunk = tooltipChunk.value;
+  if (!chunk) return;
+  const day = simDays.value % 360;
+  const noted = visibleFirsts(chunk, knowledgeStore.knowledge)
+    .filter(first => knowledgeStore.noted(profile.currentSite, first.species, currentYear.value, first.phase, day))
+    .map(first => `${PHASE_WORDS[first.phase]} of ${speciesInfo(first.species).name}`);
+  notify('icon-journal', noted.length ? `Noted in the calendar: ${noted.join(', ')}.` : 'Nothing here is new to your calendar this year.', 'journal');
+}
+const follow = useFollow({
+  hexes: watchedHexes,
+  kept: (animal, plant, hex) => announce(knowledgeStore.followed(animal, plant, engine.value?.getCurrentTick() ?? 0, hex.id)),
+  ended: (animal, full, visited, why) => {
+    const name = speciesInfo(animal).name;
+    if (full) {
+      // Where it kept to: the habitat most of its landings were in.
+      const habitats = visited.map(hex => describeHex(hex as any).habitat);
+      const habitat = HABITAT_WORDS[mostCommon(habitats)!];
+      knowledgeStore.keptUpWith(animal, habitat);
+      notify('icon-pollinators', `You kept up with the ${name} to the end. It keeps to ${habitat}; the Codex notes it.`, 'pollinator');
+    } else if (why) {
+      notify('icon-observe', `${why} ${visited.length ? `You saw the ${name} feed ${visited.length} ${visited.length === 1 ? 'time' : 'times'}.` : ''}`.trim());
+    }
+  },
+});
+// The followed insect in flight, drawn with its group's sprite (butterflies as a plain marker).
+const followFlight = computed(() => follow.flight.value && { ...follow.flight.value, icon: SPRITE_ICON[speciesInfo(follow.animal.value!).kind] });
+function startFollow(animal: string) {
+  if (!selected.value) return;
+  pause();
+  follow.start(animal, selected.value);
+}
 function traceFromSelected() {
   const sim = engine.value;
   if (!sim || !selected.value) return;

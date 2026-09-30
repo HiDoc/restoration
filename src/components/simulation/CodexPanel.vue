@@ -81,6 +81,10 @@
                 </li>
               </ul>
             </template>
+            <template v-else-if="entry.heard">
+              <h3 class="font-bold opacity-70">{{ entry.name }}</h3>
+              <p class="nv-small nv-muted">Heard, not yet seen. A photo would count as a sighting.</p>
+            </template>
             <template v-else>
               <h3 class="font-bold opacity-50">?</h3>
               <p class="nv-small nv-muted">Not yet seen.</p>
@@ -162,7 +166,7 @@ function rename(id: string) {
 const totals = computed(() => store.totals)
 const entries = computed(() => codexEntries(store.knowledge))
 // Seen species first, then the unknowns as `?` cards.
-const shown = computed(() => entries.value.filter(e => e.group === active.value).sort((a, b) => Number(b.known) - Number(a.known)))
+const shown = computed(() => entries.value.filter(e => e.group === active.value).sort((a, b) => Number(b.known) - Number(a.known) || Number(b.heard) - Number(a.heard)))
 
 const links = computed(() =>
   Object.values(store.knowledge.interactions).map(i => ({ ...i, takes: TAKES_OF.get(`${i.animal}|${i.plant}`) ?? 'nectar' }))

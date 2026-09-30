@@ -575,15 +575,28 @@ reveals knowledge the player then holds (estimates and words), not the engine's 
   up after two weeks with a toast; a trace from (1, 2) ran to (1, 1) on the map.
 
 ### C5. Watching
-- [ ] **Follow a pollinator ★:** keep a bee or butterfly in view as it moves between flowers across hexes;
-      keeping up reveals one of its interactions and its preferred habitat in the Codex.
-- [ ] **Field photography ★:** frame an animal or plant in a hex; a photo of natural behaviour (feeding,
-      nectaring) records the observation and can reveal an interaction. The photo is composed from the game's
-      own sprites and tiles; proper species illustrations need artwork the project does not have.
-- [ ] **Sound listening ★:** pause and listen to a hex: birds and insects present are added to the Codex as
-      "heard, not seen" until a sighting.
-- [ ] **Phenology journal ★:** first flower, first fruit and first arrival each year per species, marked as
-      the player notices them, building a calendar for this world.
+Decision (2026-09-30): watching reveals. Interactions are no longer learned passively ("Seen together" goes);
+birds are no longer sighted on arrival (pollinators still are, on flowers). Unknown animals show as "an
+unfamiliar bird / insect", heard ones as "(heard)"; digests name only animals the player knows.
+- [x] **Follow a pollinator ★:** "Follow" beside a seen pollinator in the hex card pauses time; the insect
+      flies (animated on the map) to a neighbouring hex where its food is on offer, then vanishes from view;
+      clicking that hex within 6 s keeps up. Each landing kept up with records the feeding seen there as an
+      interaction; keeping up for 4 hops also records its habitat ("Found in: dry grassland") in the Codex.
+      Losing it ends the follow.
+- [x] **Field photography ★:** "Photo" beside an animal or plant frames it against the hex's tile. An animal
+      with its food on offer in the hex is usually caught feeding ("nectaring on White Clover"): that records the
+      interaction; any photo of an animal is a sighting (the way birds are now seen). Photos go to a Journal
+      "Photos" tab (newest 24 kept).
+- [x] **Sound listening ★:** "Listen" on the hex card hears the birds and insects in the hex and its
+      neighbours; unseen ones enter the Codex as "Heard, not yet seen" until a sighting.
+- [x] **Phenology journal ★:** "Note in calendar" records, for this site and year, the first flower, first
+      fruit and first arrival the player notices in the hex (the day they noted it); a Journal "Calendar" tab
+      lists them per species and year.
+- [x] Tests: knowledge (no passive interactions or bird sightings; heard; photo; notes), follow hops, digest.
+- Done: 204 TS tests pass (Rust unchanged, 46). In the browser: listening near (3, 3) heard nothing (no animals
+  yet in week 2); "Note in calendar" noted five first flowers; a photo of the Buff-tailed Bumblebee ("resting
+  on a leaf") landed in the Photos tab; following it kept up for 4 hops, recorded three interactions and "Found
+  in: meadow" in the Codex. Heard-not-seen is covered by tests only (no birds had arrived).
 
 ### C6. Common garden experiment ★
 - [ ] Plant seed of one species from different sites (provenance, C0) side by side in one hex; the Journal

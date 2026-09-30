@@ -18,6 +18,14 @@
           <animateMotion :path="tracePath.d" :dur="`${tracePath.steps}s`" repeatCount="indefinite" />
         </circle>
       </svg>
+      <!-- A followed insect in flight: seen crossing to its next hex, then out of view -->
+      <svg v-if="flightPath" :key="flight!.key" class="flight pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+        <g>
+          <image v-if="flight!.icon" :href="flight!.icon" x="-14" y="-14" width="28" height="28" />
+          <circle v-else r="7" fill="#e08a3c" stroke="#3a2a10" stroke-width="1.5" />
+          <animateMotion :path="flightPath" dur="1.2s" fill="freeze" />
+        </g>
+      </svg>
     </section>
   </div>
   <section
@@ -75,6 +83,8 @@ const props = defineProps<{
   tessellated?: boolean;
   /** Hexes a traced marker passes through, in order. */
   trace?: Array<{ x: number; y: number }>;
+  /** A followed animal's flight from one hex to the next; a new key restarts it. */
+  flight?: { from: { x: number; y: number }; to: { x: number; y: number }; key: number; icon?: string } | null;
 }>();
 
 defineEmits<{ (e: 'select', payload: { x: number; y: number }): void }>();
@@ -161,16 +171,24 @@ function tilePosition(chunk: ChunkGridEntry) {
   };
 }
 
+function centre(hex: { x: number; y: number }) {
+  const w = tileWidth.value;
+  const row = hex.y - bounds.value.minY;
+  return { x: (hex.x - bounds.value.minX + (row % 2) * 0.5 + 0.5) * w, y: (row * 0.75 + 0.5) * w * TILE_RATIO };
+}
+
 // The trace as a line through tile centres, one second per hex for the moving marker.
 const tracePath = computed(() => {
   if (!props.trace || props.trace.length < 2) return null;
-  const w = tileWidth.value;
-  const centre = (hex: { x: number; y: number }) => {
-    const row = hex.y - bounds.value.minY;
-    return { x: (hex.x - bounds.value.minX + (row % 2) * 0.5 + 0.5) * w, y: (row * 0.75 + 0.5) * w * TILE_RATIO };
-  };
   const points = props.trace.map(centre);
   return { d: points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' '), start: points[0], steps: points.length - 1 };
+});
+
+const flightPath = computed(() => {
+  if (!props.flight) return null;
+  const [a, b] = [centre(props.flight.from), centre(props.flight.to)];
+  // A slight arc, as insects rarely fly straight.
+  return `M${a.x},${a.y} Q${(a.x + b.x) / 2 + (b.y - a.y) * 0.3},${(a.y + b.y) / 2 - (b.x - a.x) * 0.3} ${b.x},${b.y}`;
 });
 
 const hovered = ref<{ x: number; y: number } | null>(null);
@@ -208,6 +226,14 @@ function clearHovered() {
 
   .hex-map {
     position: relative;
+  }
+
+  /* The followed insect lands, then drops out of view. */
+  .hex-map .flight {
+    animation: flight-out 0.4s ease-in 1.2s forwards;
+  }
+  @keyframes flight-out {
+    to { opacity: 0; }
   }
 
   /* Tiles carry their own drawn hex border; clip everything else to the hex. */

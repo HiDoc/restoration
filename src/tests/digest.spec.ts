@@ -61,36 +61,26 @@ describe('buildDigest', () => {
     ])
   })
 
-  it('reports first sightings, arrivals and each pair seen together once', () => {
+  it('names arrivals as the player knows them, and reports no interactions of its own', () => {
     const lines = digest({
       events: [
         event('first_sighting', { faunaId: 'common_blue' }, 'chunk_2_2'),
         event('fauna_arrived', { faunaId: 'common_blue' }, 'chunk_2_2'),
         event('fauna_arrived', { faunaId: 'common_blue' }, 'chunk_2_3'),
+        event('fauna_arrived', { faunaId: 'blackbird' }, 'chunk_3_3'),
+        event('fauna_arrived', { faunaId: 'greenfinch' }, 'chunk_3_4'),
         event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }, 'chunk_3_3'),
-        event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }, 'chunk_3_4'),
       ],
+      animalName: id => (id === 'common_blue' ? 'Common Blue' : 'an unfamiliar bird'),
     })
     expect(lines).toEqual([
-      { icon: 'sighting', text: 'First sighting: Common Blue!', chunkId: 'chunk_2_2' },
-      { icon: 'interaction', text: 'Seen together: Blackbird ↔ Hawthorn.', chunkId: 'chunk_3_3' },
       { icon: 'arrival', text: 'Common Blue arrived in 2 hexes.', chunkId: 'chunk_2_2' },
+      { icon: 'arrival', text: 'An unfamiliar bird arrived in 2 hexes.', chunkId: 'chunk_3_3' },
     ])
   })
 
-  it('only reports pairs the player did not already know', () => {
-    const lines = digest({
-      events: [
-        event('interaction_observed', { faunaId: 'blackbird', plantId: 'hawthorn' }),
-        event('interaction_observed', { faunaId: 'common_blue', plantId: 'white_clover' }),
-      ],
-      knownInteractions: new Set(['blackbird|hawthorn']),
-    })
-    expect(lines.map(line => line.text)).toEqual(['Seen together: Common Blue ↔ White Clover.'])
-  })
-
   it('keeps the most notable lines and summarises the rest', () => {
-    const events = Array.from({ length: 12 }, (_, i) => event('first_sighting', { faunaId: `animal_${i}` }))
+    const events = Array.from({ length: 12 }, (_, i) => event('fauna_arrived', { faunaId: `animal_${i}` }))
     const lines = digest({ events, seasonAfter: 'summer' })
     expect(lines).toHaveLength(8)
     expect(lines[0].icon).toBe('season')

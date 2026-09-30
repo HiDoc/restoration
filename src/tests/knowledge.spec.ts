@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyKnowledge, learn, see, pairKey } from '@/game/knowledge'
+import { emptyKnowledge, hear, keepPhoto, learn, notePhase, see, sight, pairKey, witness, ALBUM } from '@/game/knowledge'
 import { codexEntries, codexTotals, knowledgeSummary } from '@/game/codex'
 import type { SimulationEvent } from '@/simulation/EventJournal'
 import type { Season } from '@/simulation/SpeciesRegistry'
@@ -18,7 +18,7 @@ describe('knowledge', () => {
     expect(k.species.white_clover.firstSeen).toBe(0)
   })
 
-  it('learns seasons, spreading and interactions from witnessed events', () => {
+  it('learns seasons and spreading from events, but neither interactions nor birds', () => {
     const k = emptyKnowledge()
     const found = learn(k, [
       event('flowering_started', { speciesId: 'white_clover' }, 20),
@@ -26,13 +26,35 @@ describe('knowledge', () => {
       event('species_spawn', { speciesId: 'white_clover', source: 'clonal' }),
       event('species_spawn', { speciesId: 'hawthorn', source: 'germination' }),
       event('first_sighting', { faunaId: 'buff_tailed_bumblebee' }),
-      event('interaction_observed', { faunaId: 'buff_tailed_bumblebee', plantId: 'white_clover' }),
+      event('first_sighting', { faunaId: 'greenfinch' }),
       event('interaction_observed', { faunaId: 'buff_tailed_bumblebee', plantId: 'white_clover' }),
     ], seasonOf)
     expect(k.species.white_clover).toMatchObject({ flowering: ['spring'], fruiting: ['summer'], spreads: true })
     expect(k.species.hawthorn).toBeUndefined() // a seedling alone is not a sighting of the species' habits
-    expect(found.map(d => d.kind)).toEqual(['species', 'species', 'interaction'])
-    expect(k.interactions[pairKey('buff_tailed_bumblebee', 'white_clover')]).toMatchObject({ firstSeen: 10, chunkId: 'chunk_2_2' })
+    expect(found.map(d => d.kind)).toEqual(['species', 'species'])
+    expect(k.species.greenfinch).toBeUndefined() // birds keep out of sight
+    expect(k.interactions).toEqual({})
+  })
+
+  it('learns by watching: witnessed feeding, sounds, photos and calendar notes', () => {
+    const k = emptyKnowledge()
+    expect(hear(k, ['greenfinch', 'buff_tailed_bumblebee'], 3)).toEqual([{ kind: 'heard', id: 'greenfinch' }, { kind: 'heard', id: 'buff_tailed_bumblebee' }])
+    expect(hear(k, ['greenfinch'], 4)).toEqual([])
+    expect(sight(k, 'greenfinch', 5).map(d => d.kind)).toEqual(['species'])
+    expect(entry(k, 'greenfinch')).toMatchObject({ known: true, heard: false })
+    expect(entry(k, 'buff_tailed_bumblebee')).toMatchObject({ known: false, heard: true })
+    expect(witness(k, 'greenfinch', 'common_grass', 6, 'chunk_1_1').map(d => d.kind)).toEqual(['species', 'interaction'])
+    expect(witness(k, 'greenfinch', 'common_grass', 7)).toEqual([])
+    expect(k.interactions[pairKey('greenfinch', 'common_grass')]).toMatchObject({ firstSeen: 6, chunkId: 'chunk_1_1' })
+
+    for (let i = 0; i < ALBUM + 2; i++) keepPhoto(k, { subject: 'greenfinch', caption: 'perched', habitat: 'meadow', site: 'meadow', tick: i, when: '' })
+    expect(k.photos).toHaveLength(ALBUM)
+    expect(k.photos[0].tick).toBe(2)
+
+    expect(notePhase(k, 'meadow', 'white_clover', 0, 'flower', 34)).toBe(true)
+    expect(notePhase(k, 'meadow', 'white_clover', 0, 'flower', 40)).toBe(false)
+    expect(notePhase(k, 'meadow', 'white_clover', 1, 'flower', 31)).toBe(true)
+    expect(k.phenology.meadow.white_clover).toEqual({ 0: { flower: 34 }, 1: { flower: 31 } })
   })
 })
 
@@ -56,7 +78,7 @@ describe('codex', () => {
 
   it('counts each section and summarises for goals', () => {
     const k = emptyKnowledge()
-    learn(k, [event('interaction_observed', { faunaId: 'greenfinch', plantId: 'common_grass' })], seasonOf)
+    witness(k, 'greenfinch', 'common_grass', 10)
     const totals = codexTotals(k)
     expect(totals.plant).toEqual({ known: 1, total: catalogue.plants.length })
     expect(totals.bird).toEqual({ known: 1, total: catalogue.birds.length })
@@ -69,7 +91,9 @@ describe('codex', () => {
   it('marks an entry complete once every fact and partner has been seen', () => {
     const k = emptyKnowledge()
     const hoverfly = entry(k, 'marmalade_hoverfly')
-    learn(k, hoverfly.partners.map(p => event('interaction_observed', { faunaId: 'marmalade_hoverfly', plantId: p.id })), seasonOf)
+    hoverfly.partners.forEach(p => witness(k, 'marmalade_hoverfly', p.id, 10))
+    expect(entry(k, 'marmalade_hoverfly').progress).toBeLessThan(1) // where it keeps to is still unknown
+    k.species.marmalade_hoverfly.habitat = 'meadow'
     expect(entry(k, 'marmalade_hoverfly').progress).toBe(1)
     expect(knowledgeSummary(k).completeEntries).toBeGreaterThanOrEqual(1)
   })

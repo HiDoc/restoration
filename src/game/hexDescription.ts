@@ -107,7 +107,7 @@ export function describeHex(hex: HexState, info: (id: string) => SpeciesInfo = s
     : seeding.length ? `${list(seeding.slice(0, 2).map(p => p.name))} going to seed.`
     : plants.every(p => p.activity === 'dormant') ? 'Resting through the cold.'
     : 'Green and growing.'
-  const visitors = animals.length ? ` Seen here: ${list(animals.slice(0, 3).map(a => a.name))}.` : ''
+  const visitors = animals.length ? ` About here: ${list([...new Set(animals.map(a => a.name))].slice(0, 3))}.` : ''
 
   return { habitat, title, phrase: state + visitors, plants, animals }
 }

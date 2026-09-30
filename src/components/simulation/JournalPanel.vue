@@ -33,6 +33,21 @@
           </table>
         </li>
       </ul>
+      <div v-if="active === 'photos'" class="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+        <p v-if="photos.length === 0" class="nv-small nv-muted">No photos yet. Open a hex and photograph a plant or an animal there.</p>
+        <div class="grid gap-2 sm:grid-cols-3">
+          <PhotoCard v-for="photo in photos" :key="`${photo.tick}-${photo.subject}`" :photo="photo" />
+        </div>
+      </div>
+      <div v-if="active === 'calendar'" class="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+        <p class="nv-small nv-muted">The firsts you noted at {{ profile.site.name }}, year by year. Open a hex and choose "Note in calendar" when something flowers, fruits or arrives.</p>
+        <dl class="nv-small mt-2 grid gap-1.5">
+          <div v-for="row in calendarRows" :key="row.species" class="nv-panel p-2">
+            <dt class="font-bold">{{ row.name }}</dt>
+            <dd v-for="year in row.years" :key="year">{{ year }}</dd>
+          </div>
+        </dl>
+      </div>
       <p v-if="active === 'plants'" class="nv-small nv-muted mt-2">Plants you follow: the ones you planted, seedlings of your crosses, and any you tag from a hex.</p>
       <ul v-if="active === 'plants'" class="mt-2 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1">
         <li v-if="entries.length === 0" class="nv-small nv-muted">Nothing tagged yet. Plant a seed, or open a hex and tag a plant.</li>
@@ -63,6 +78,10 @@
 import { computed, ref } from 'vue'
 import { journalEntries, type JournalEntry } from '@/game/journal'
 import { notebookEntries } from '@/game/notebook'
+import { calendar } from '@/game/watching'
+import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { useProfileStore } from '@/stores/profileStore'
+import PhotoCard from './PhotoCard.vue'
 import { speciesInfo } from '@/game/speciesInfo'
 import { useInterventionStore } from '@/stores/interventionStore'
 
@@ -72,6 +91,8 @@ defineEmits<{ close: []; inspect: [chunkId: string] }>()
 const TABS = [
   { id: 'plants', label: 'Plants' },
   { id: 'notebook', label: 'Hybrid notebook' },
+  { id: 'photos', label: 'Photos' },
+  { id: 'calendar', label: 'Calendar' },
 ] as const
 const active = ref<(typeof TABS)[number]['id']>('plants')
 
@@ -85,6 +106,11 @@ const entries = computed(() => {
   if (!props.show || !engine) return []
   return journalEntries(engine.getTags(), engine.readChunks().values(), id => speciesInfo(id).name)
 })
+
+const knowledge = useKnowledgeStore()
+const profile = useProfileStore()
+const photos = computed(() => [...knowledge.knowledge.photos].reverse())
+const calendarRows = computed(() => calendar(knowledge.knowledge.phenology[profile.currentSite], id => speciesInfo(id).name))
 
 const notebook = computed(() => {
   void props.tick

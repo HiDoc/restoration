@@ -14,6 +14,8 @@ pub(crate) struct Snapshot<'a> {
     chunks: Vec<Chunk<'a>>,
     /// Seeds in hand per species.
     inventory: BTreeMap<&'a str, usize>,
+    /// Plants the player follows, by instance id.
+    tags: &'a BTreeMap<String, Tag>,
     /// Hybrid taxa bred so far; the host knows only the species it defined.
     hybrids: Vec<&'a SpeciesDefinition>,
     weather_events: &'a [Weather],
@@ -147,6 +149,7 @@ impl World {
                     *counts.entry(seed.species_id.as_str()).or_default() += 1;
                     counts
                 }),
+            tags: &self.tags,
             hybrids: self
                 .definitions
                 .values()

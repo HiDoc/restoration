@@ -1199,3 +1199,82 @@ fn a_seed_remembers_its_parents_and_where_it_was_set() {
         assert!(genetics["generation"].as_u64().unwrap() >= 1);
     }
 }
+
+fn command(json: Value) -> Command {
+    serde_json::from_value(json).unwrap()
+}
+
+#[test]
+fn a_planted_plant_is_followed_through_its_seed_offspring_and_death() {
+    let mut garden = world_with(
+        6,
+        SpeciesDefinition {
+            lifespan_ticks: 300,
+            ..SpeciesDefinition::default()
+        },
+    );
+    garden.config.site = "meadow".into();
+    let species = garden.definitions.keys().next().unwrap().clone();
+    garden.add_seeds([(species.clone(), 1)].into()).unwrap();
+    garden
+        .submit(command(json!({"type":"plant","chunkId":"chunk_1_1","x":0.5,"y":0.5,"data":{"speciesId":species}})))
+        .unwrap();
+    let (id, tag) = garden.tags.iter().next().unwrap();
+    assert_eq!(
+        (tag.label.as_str(), tag.reason.as_str()),
+        ("#M1", "planted")
+    );
+    let id = id.clone();
+    garden.step(420).unwrap();
+    let tag = &garden.tags[&id];
+    assert!(tag.seeds_set > 0, "it set seed");
+    assert!(tag.descendants > 0, "and some of it germinated");
+    let death = tag.died.as_ref().expect("past its lifespan");
+    assert_eq!(death.cause, "old_age");
+    let deaths = garden
+        .events
+        .iter()
+        .filter(|e| e.kind == "tagged_died")
+        .count();
+    assert_eq!(deaths, 1, "its death is reported once");
+}
+
+#[test]
+fn a_crossed_seedling_is_tagged_as_a_hybrid() {
+    let (mut patch, hex) = bluebell_patch(5);
+    patch.step(10).unwrap();
+    cross(&mut patch, &hex, "native", "spanish").unwrap();
+    patch.step(110).unwrap();
+    assert!(patch
+        .tags
+        .values()
+        .any(|t| t.reason == "hybrid" && t.species_id == "hybrid_native__spanish"));
+}
+
+#[test]
+fn the_player_can_tag_and_name_any_plant() {
+    let mut meadow = world(3);
+    let (entity, instance) = meadow
+        .components
+        .organisms
+        .iter()
+        .next()
+        .map(|(e, o)| (*e, o.id.clone()))
+        .unwrap();
+    let hex = meadow.components.habitats[&meadow.components.positions[&entity].chunk]
+        .id
+        .clone();
+    let tag = |w: &mut World, data: Value| {
+        w.submit(command(json!({"type":"tag","chunkId":hex,"data":data})))
+    };
+    tag(&mut meadow, json!({"instanceId": instance})).unwrap();
+    assert_eq!(meadow.tags[&instance].reason, "chosen");
+    tag(
+        &mut meadow,
+        json!({"instanceId": instance, "name": "  Old Gnarly  "}),
+    )
+    .unwrap();
+    assert_eq!(meadow.tags[&instance].name.as_deref(), Some("Old Gnarly"));
+    assert_eq!(meadow.tags.len(), 1, "naming does not tag again");
+    assert!(tag(&mut meadow, json!({"instanceId": "nobody"})).is_err());
+}

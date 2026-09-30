@@ -54,6 +54,11 @@ pub struct World {
     pub rare_effects: Vec<RareEffect>,
     #[serde(default)]
     pub rare_season: u64,
+    /// Plants the player follows, by instance id, and the number behind the last label given.
+    #[serde(default)]
+    pub tags: BTreeMap<String, Tag>,
+    #[serde(default)]
+    pub next_tag: u32,
     #[serde(default)]
     pub weather: Vec<Weather>,
     #[serde(skip)]
@@ -86,6 +91,8 @@ impl World {
             patch_labels: BTreeMap::new(),
             rare_effects: vec![],
             rare_season: 0,
+            tags: BTreeMap::new(),
+            next_tag: 0,
             weather: vec![],
             events: vec![],
         };
@@ -453,8 +460,10 @@ impl World {
         {
             return Err("Unknown chunk".into());
         }
-        if !["plant", "collect", "cross", "irrigate", "cleanse", "ritual"]
-            .contains(&command.kind.as_str())
+        if ![
+            "plant", "collect", "cross", "tag", "irrigate", "cleanse", "ritual",
+        ]
+        .contains(&command.kind.as_str())
         {
             return Err("Unknown intervention type".into());
         }
@@ -509,6 +518,7 @@ impl World {
                 let id = self.spawn(chunk, species, command.x, command.y, 0.2);
                 let extra = self.seed_record(seed.extra);
                 self.components.organisms.get_mut(&id).unwrap().extra = extra;
+                self.tag(id, "planted");
             }
             "collect" => {
                 // Seed is taken from the ripe plants themselves; each gives the seed it has been ripening.
@@ -545,6 +555,7 @@ impl World {
                     );
                     let (species, genetics) =
                         self.seed_of(&mother, &mother_id, &parent, pollen.as_ref());
+                    self.count_seed(&mother_id);
                     *counts.entry(species.clone()).or_default() += 1;
                     self.inventory
                         .push(pouch_seed(species, [("genetics".into(), genetics)].into()));
@@ -569,6 +580,7 @@ impl World {
                 biome.apply("moisture", 0.1);
                 biome.apply("pollution", -0.1);
             }
+            "tag" => self.tag_command(chunk, &command.data)?,
             "cross" => {
                 let receiver = command.data["receiver"].as_str().unwrap_or("").to_owned();
                 let donor = command.data["donor"].as_str().unwrap_or("").to_owned();

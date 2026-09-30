@@ -197,6 +197,7 @@
                 <span class="flex items-center gap-2"><img :src="nv(ACTIVITY_ICONS[plant.activity])" alt="" class="h-4 w-4 object-contain" />{{ plant.name }}</span>
                 <span class="nv-small opacity-80">
                   <span v-if="plant.limit" class="font-bold text-[#f0b48a]">{{ plant.limit }}</span><template v-else>{{ ACTIVITY_WORDS[plant.activity] }}</template> · {{ plant.count }}
+                  <button v-if="untaggedOf(plant.id)" type="button" class="nv-link ml-1" :title="`Tag the oldest ${plant.name} here and follow it in the Journal`" @click="tagOldest(plant.id)">Tag</button>
                 </span>
               </li>
             </ul>
@@ -319,7 +320,7 @@
       <!-- Discoveries: brief, non-blocking notes as the player learns something new -->
       <ol class="nouveau-toasts pointer-events-none fixed bottom-24 left-1/2 z-[60] grid -translate-x-1/2 gap-1.5" aria-live="polite">
         <li v-for="toast in toasts" :key="toast.id" class="nv-panel nv-small text-[#2b2118] shadow-lg">
-          <button v-if="toast.tab" type="button" class="pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-left" title="Open the Codex" @click="openCodex(toast.tab)">
+          <button v-if="toast.opens" type="button" class="pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-left" :title="toast.opens === 'journal' ? 'Open the Journal' : 'Open the Codex'" @click="openFromToast(toast.opens)">
             <img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}
           </button>
           <span v-else class="flex items-center gap-2 px-3 py-1.5"><img :src="nv(toast.icon)" alt="" class="h-5 w-5" />{{ toast.text }}</span>
@@ -372,6 +373,7 @@
     </template>
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
+    <JournalPanel :show="showJournal" :tick="stats.currentTick" @close="showJournal = false" @inspect="inspectFromJournal" />
 
 
 
@@ -423,6 +425,8 @@ import { SpeciesRegistry } from "@/simulation/SpeciesRegistry";
 // Components
 import ChunkGrid from "@/components/simulation/ChunkGrid.vue";
 import CodexPanel from "@/components/simulation/CodexPanel.vue";
+import JournalPanel from "@/components/simulation/JournalPanel.vue";
+import { deathNote } from "@/game/journal";
 import type { CodexTab } from "@/game/codex";
 import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
@@ -852,7 +856,7 @@ function onSelectChunk(payload: { x: number; y: number }) {
   }
 }
 
-const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
+const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', tag: 'icon-journal', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
 
 function applyIntervention(type: InterventionType, at: { x: number; y: number }, data?: Record<string, string>) {
   if (!engine.value) return;
@@ -868,6 +872,21 @@ function applyIntervention(type: InterventionType, at: { x: number; y: number },
     updateStats();
     readJournal(engine.value);
   }
+}
+
+/** The oldest plant of a species in the selected hex that is not yet tagged, if any. */
+function untaggedOf(speciesId: string): string | undefined {
+  const tags = engine.value?.getTags() ?? {};
+  let oldest: { id: string; age: number } | undefined;
+  tooltipChunk.value?.species.forEach((plant: { id: string; speciesId: string; age: number }) => {
+    if (plant.speciesId === speciesId && !tags[plant.id] && (!oldest || plant.age > oldest.age)) oldest = plant;
+  });
+  return oldest?.id;
+}
+
+function tagOldest(speciesId: string) {
+  const instanceId = untaggedOf(speciesId);
+  if (instanceId) applyToSelected('tag', { instanceId });
 }
 
 function applyToSelected(type: InterventionType, data?: Record<string, string>) {
@@ -1048,6 +1067,9 @@ function readJournal(sim: SimulationEngine) {
     } else if (event.type === EventType.SPECIES_DIE) {
       const cause = CAUSES[event.data?.cause]?.noun;
       pushEvent(`${name} died${where(event.chunkId)}${cause ? ` of ${cause}` : ''}`, event.tick);
+    } else if (event.type === EventType.TAGGED_DIED) {
+      const tag = sim.getTags()[event.data.instanceId];
+      if (tag) notify('icon-journal', deathNote(tag, speciesInfo(tag.speciesId).name, event.data.cause, event.data.ageDays), 'journal');
     } else if (event.type === EventType.RARE_EVENT) {
       notify('icon-vitality', describeRareEvent(event.data, id => speciesInfo(id).name));
     }
@@ -1128,22 +1150,32 @@ const cleanliness = computed(() => Math.max(0, Math.min(1, 1 - (stats.avgPolluti
 
 // ---- Codex and discoveries ----
 const showCodex = ref(false);
+const showJournal = ref(false);
+function inspectFromJournal(chunkId: string) {
+  showJournal.value = false;
+  inspectDigestLine(chunkId);
+}
 const codexTab = ref<CodexTab>('plant');
 function openCodex(tab: CodexTab) {
   codexTab.value = tab;
   showCodex.value = true;
 }
-const toasts = ref<Array<{ id: number; icon: string; text: string; tab?: CodexTab }>>([]);
+const toasts = ref<Array<{ id: number; icon: string; text: string; opens?: CodexTab | 'journal' }>>([]);
 let toastId = 0;
 // A few at a time: a burst of discoveries (e.g. after a Season) shouldn't bury the map.
 const MAX_TOASTS = 3;
 const TOAST_MS = 4500;
 
-/** Show a short note; with a Codex tab, clicking it opens the Codex there. */
-function notify(icon: string, text: string, tab?: CodexTab) {
-  const toast = { id: ++toastId, icon, text, tab };
+/** Show a short note; clicking it can open the Journal or the Codex at a tab. */
+function notify(icon: string, text: string, opens?: CodexTab | 'journal') {
+  const toast = { id: ++toastId, icon, text, opens };
   toasts.value = [...toasts.value, toast].slice(-MAX_TOASTS);
   setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== toast.id); }, TOAST_MS);
+}
+
+function openFromToast(opens: CodexTab | 'journal') {
+  if (opens === 'journal') showJournal.value = true;
+  else openCodex(opens);
 }
 
 function announce(found: Discovery[]) {
@@ -1301,6 +1333,7 @@ function onDockSelect(key: string) {
   dockTab.value = key;
   if (key === 'overview') options.vizMode = 'rgb';
   else if (key === 'species') openCodex('plant');
+  else if (key === 'journal') showJournal.value = true;
   else if (key === 'climate') options.vizMode = 'temperature';
   else if (key === 'hydro') options.vizMode = 'moisture';
   else if (key === 'interactions') openCodex('interaction');

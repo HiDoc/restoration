@@ -6,6 +6,7 @@ pub mod model;
 mod projection;
 mod rare_events;
 mod systems;
+mod tags;
 pub mod world;
 
 use model::*;

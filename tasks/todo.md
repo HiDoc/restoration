@@ -510,17 +510,26 @@ reveals knowledge the player then holds (estimates and words), not the engine's 
       runs without them. Full suite: 184 passed, 0 failed.
 
 ### C1. Individuals: mark & revisit ★
-- [ ] Rust: a plant can be *tagged*: it keeps a short id (#A17), and the engine records its seeds set,
-      descendants that germinated, and cause of death. Player-planted and hybrid plants are tagged
-      automatically; any plant can be tagged from the hex card.
-- [ ] A **Journal** (dock tab) lists tagged individuals: age, stage, health in words, parents, descendants,
-      and a line when one dies ("#A17, your first Sessile Oak, died of drought at 12").
-- [ ] Name a tagged individual (hybrid naming already exists).
+- [x] Rust `tags`: a record per tagged plant, kept after it dies: label (#M17, the site's initial and a
+      number), species, why it was tagged (planted / hybrid / chosen), optional name, seeds set, descendants
+      that germinated, and its death (day, cause, age). Planting tags the plant; a cross-pollinated seed that
+      germinates is tagged as a hybrid; command `tag {instanceId, name?}` tags any plant or names a tagged one.
+      Event `tagged_died`.
+- [x] **Journal** (dock tab and modal): each tagged plant with its label and name, species, where it grows,
+      age, stage and health in words, parents (by label when tagged), seeds set, descendants; the dead below
+      with their cause. Rename in place.
+- [x] Hex card: "Tag" beside each plant kind tags its oldest untagged plant there.
+- [x] Toast on a tagged plant's death ("#M17, your Sessile Oak, died of drought at 12 years"), opening the
+      Journal.
+- [x] Tests: Rust (planting tags; seeds and descendants counted; death recorded once; a crossed seedling is
+      tagged; names), TS (journal wording).
+- Done: 41 Rust and 187 TS tests pass. In the browser, a planted Goat Willow shows as "Planted by you"; tagging a
+      Red Fescue from the hex card keeps the Plant tool armed; renaming works; statuses update as time passes.
 
 ### C2. Seed collecting ★ and choosing seed parents ★
 - [ ] Collect opens a panel of the ripe plants in the hex, each with its visible traits in words ("hardy in
       drought", "vigorous"), estimated from what the player has seen of it, not the exact values.
-- [ ] The player picks which plants give seed. Timing matters: seed taken early in fruiting is less viable
+- [x] The player picks which plants give seed. Timing matters: seed taken early in fruiting is less viable
       (viability follows how ripe the reserve is) instead of any reflex challenge.
 - [ ] **Adaptation in the Codex:** per species, the spread of each trait among living plants now and a
       generation ago, as a small histogram; a probe first confirms drought tolerance shifts visibly over

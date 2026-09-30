@@ -297,6 +297,7 @@ impl World {
                 chunk,
                 json!({"speciesId":species,"cause":cause,"biomass":biomass,"age":age}),
             );
+            self.record_death(entity, chunk, &cause);
             self.despawn(entity);
         }
     }
@@ -434,6 +435,7 @@ impl World {
                 continue;
             }
             let (species, genetics) = self.seed_of(&mother, &mother_id, &extra, pollen.as_ref());
+            self.count_seed(&mother_id);
             let seed_extra = BTreeMap::from([("genetics".to_owned(), genetics)]);
             self.components
                 .habitats
@@ -519,6 +521,7 @@ impl World {
             let id = self.spawn(chunk, &seed.species_id, seed.x, seed.y, 0.08);
             let extra = self.seed_record(seed.extra);
             self.components.organisms.get_mut(&id).unwrap().extra = extra;
+            self.count_seedling(id);
             self.emit("species_spawn",chunk,json!({"speciesId":seed.species_id,"instanceId":self.components.organisms[&id].id,"source":"germination"}));
         }
     }

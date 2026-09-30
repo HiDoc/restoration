@@ -74,6 +74,11 @@ export const useInterventionStore = defineStore('intervention', () => {
     return 'This intervention could not be applied there. Choose another hex.';
   }
 
+  function taggedMessage(instanceId: string): string {
+    const tag = engine.value?.getTags()[instanceId];
+    return tag ? `Tagged ${tag.label}, a ${speciesInfo(tag.speciesId).name}. Follow it in the Journal.` : 'Tagged.';
+  }
+
   function executeIntervention(intervention: PlayerIntervention): boolean {
     if (!manager.value || !engine.value) return false;
     const validation = manager.value.validateIntervention(intervention.type, observedTick.value);
@@ -89,10 +94,15 @@ export const useInterventionStore = defineStore('intervention', () => {
       return false;
     }
     manager.value.recordUsage(intervention.type, observedTick.value, intervention.chunkId);
-    if (intervention.type !== 'plant' || !seeds.value[intervention.data?.speciesId]) selectedIntervention.value = null;
+    // An armed tool is put away once used, except Plant while seeds of that kind remain; card actions (collect,
+    // cross, tag) leave whatever is armed alone.
+    if (intervention.type === selectedIntervention.value && (intervention.type !== 'plant' || !seeds.value[intervention.data?.speciesId])) {
+      selectedIntervention.value = null;
+    }
     actionMessage.value =
       intervention.type === 'collect' ? collectedMessage(before)
       : intervention.type === 'plant' ? `Planted ${speciesInfo(intervention.data.speciesId).name}.`
+      : intervention.type === 'tag' ? taggedMessage(intervention.data.instanceId)
       : intervention.type === 'cross'
         ? `${speciesInfo(intervention.data.receiver).name} carries ${speciesInfo(intervention.data.donor).name} pollen. Collect its seed when it ripens.`
       : `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied.`;

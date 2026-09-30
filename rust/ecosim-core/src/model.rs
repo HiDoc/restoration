@@ -346,6 +346,33 @@ pub struct Reproduction {
     pub pollen: Option<Pollen>,
 }
 
+/// A plant the player follows. Kept after it dies, as its record.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tag {
+    pub label: String,
+    pub species_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub tagged_tick: u64,
+    /// Why it is followed: "planted", "hybrid" or "chosen".
+    pub reason: String,
+    #[serde(default)]
+    pub seeds_set: u32,
+    #[serde(default)]
+    pub descendants: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub died: Option<Death>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Death {
+    pub tick: u64,
+    pub cause: String,
+    pub age_days: f64,
+}
+
 /// A rare event's lasting effect, such as a superbloom or a mast year, running until a tick.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

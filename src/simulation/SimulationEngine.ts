@@ -11,6 +11,7 @@ import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
 import { InterventionManager, type InterventionType } from './InterventionManager';
+import type { Tag } from '@/game/journal';
 
 // Animals come from the same catalogue as the plants.
 const FAUNA = buildFaunaDefinitions(catalogue);
@@ -591,6 +592,12 @@ export class SimulationEngine {
     this.syncRuntime(true);
     this.runtime.request({ op: 'sync', inventory: seeds });
     this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  }
+
+  /** Plants the player follows, by instance id, as of the latest tick. */
+  getTags(): Readonly<Record<string, Tag>> {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.tags ?? {};
   }
 
   /** Fresh seeds for the pouch: a starter packet or a reward. */

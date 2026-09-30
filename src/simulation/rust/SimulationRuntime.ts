@@ -62,6 +62,8 @@ export interface RuntimeSnapshot {
   hybrids?: Array<Record<string, unknown> & { id: string; hybridOf: string[] }>;
   /** Seeds in the player's pouch per species. */
   inventory?: Record<string, number>;
+  /** Plants the player follows, by instance id. */
+  tags?: Record<string, import('@/game/journal').Tag>;
 }
 
 export interface RuntimeResponse {

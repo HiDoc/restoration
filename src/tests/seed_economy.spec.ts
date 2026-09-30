@@ -6,6 +6,8 @@ import { SpeciesRegistry } from '@/simulation/SpeciesRegistry'
 import { useInterventionStore } from '@/stores/interventionStore'
 import { plantStartingMeadow } from '@/game/startingMeadow'
 import { habitatFit, rewardSpecies, STARTER_SEEDS } from '@/game/seeds'
+import type { SpeciesDefinition } from '@/simulation/SpeciesRegistry'
+import { stageNeed, STAGES } from '@/game/sites'
 import { isRipe } from '@/game/traits'
 
 function world() {
@@ -106,12 +108,31 @@ describe('habitat fit', () => {
 })
 
 describe('goal rewards', () => {
-  const place = (...ids: string[]) => ({ species: ids.map(speciesId => ({ speciesId })) })
+  const ground = { biomeState: { moisture: 0.25, canopy: 0, pollution: 0, soil: 0.6 }, climateState: { light: 0.9 } }
+  const place = (...ids: string[]) => ({ ...ground, species: ids.map(speciesId => ({ speciesId })) })
+  const plants = catalogue.plants as unknown as SpeciesDefinition[]
 
-  it('send the first catalogue plant neither on the map nor in the pouch', () => {
-    const [first, second, third] = catalogue.plants.map(plant => plant.id)
-    expect(rewardSpecies([place(first), place()], {})).toBe(second)
-    expect(rewardSpecies([place(first)], { [second]: 3 })).toBe(third)
-    expect(rewardSpecies([place(...catalogue.plants.map(plant => plant.id))], {})).toBeNull()
+  it('send a plant neither on the map nor in the pouch, one that would like the ground here', () => {
+    const suits = (id: string | null) => habitatFit(plants.find(plant => plant.id === id)!, ground).good
+    const first = rewardSpecies([place(), place()], {})
+    expect(suits(first)).toBe(true)
+    // Not one already growing, nor one in the pouch.
+    const next = rewardSpecies([place(first!)], {})
+    expect(next).not.toBe(first)
+    expect(rewardSpecies([place()], { [first!]: 3 })).not.toBe(first)
+    // A plant that likes nowhere here is sent only when nothing else is missing.
+    const unsuited = plants.filter(plant => !habitatFit(plant, ground).good).map(plant => plant.id)
+    expect(unsuited.length).toBeGreaterThan(0)
+    expect(rewardSpecies([place(...plants.map(plant => plant.id).filter(id => id !== unsuited[0]))], {})).toBe(unsuited[0])
+    expect(rewardSpecies([place(...plants.map(plant => plant.id))], {})).toBeNull()
+  })
+
+  it('favour what the next stage needs: flowers for pollinators, food for birds', () => {
+    const def = (id: string | null) => plants.find(plant => plant.id === id)!
+    expect(def(rewardSpecies([place()], {}, 'pollinators')).pollination).toBe('insect')
+    const birdPlants = new Set(catalogue.interactions.filter(link => link.species_b_type === 'bird').map(link => link.species_a_id))
+    expect(birdPlants.has(rewardSpecies([place()], {}, 'birds')!)).toBe(true)
+    expect(stageNeed(STAGES.findIndex(stage => stage.title === 'Pioneers'))).toBe('pollinators')
+    expect(stageNeed(STAGES.length - 1)).toBeUndefined()
   })
 })

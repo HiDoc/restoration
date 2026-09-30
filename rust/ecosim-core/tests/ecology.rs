@@ -1641,6 +1641,14 @@ fn a_mycorrhizal_partner_carries_its_host_through_drought_and_fruits_in_autumn()
     let agaric = || fungus("fly_agaric", "mycorrhizal", "birch", &["autumn"]);
     let mut partnered = birches(9, vec![agaric()]);
     let mut alone = birches(9, vec![]);
+    // Spores have reached every hex; the partnership grows from there.
+    for &hex in partnered.components.habitats.keys() {
+        partnered
+            .fungi
+            .entry(hex)
+            .or_default()
+            .insert("fly_agaric".into(), 0.05);
+    }
     for w in [&mut partnered, &mut alone] {
         w.step(360).unwrap();
     }
@@ -1704,6 +1712,14 @@ fn dead_wood_rots_faster_with_a_saprotroph_and_feeds_the_soil() {
             b.deadwood = 0.8;
             b.soil = 0.3;
         }
+    }
+    // Spores have reached every hex; the mycelium grows into the wood from there.
+    for &hex in worked.components.habitats.keys() {
+        worked
+            .fungi
+            .entry(hex)
+            .or_default()
+            .insert("candlesnuff".into(), 0.05);
     }
     worked.step(360).unwrap();
     left.step(360).unwrap();

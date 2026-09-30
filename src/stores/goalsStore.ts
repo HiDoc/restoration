@@ -71,11 +71,12 @@ export const useGoalsStore = defineStore('goals', () => {
    */
   const goalsByCategory = computed(() => {
     const grouped: Record<GoalCategory, GoalProgress[]> = {
-      biodiversity: [],
-      ecosystem_health: [],
-      research: [],
-      succession: [],
-      pollution: []
+      explore: [],
+      discover: [],
+      plant: [],
+      observe: [],
+      hybridize: [],
+      restore: []
     };
 
     for (const goalProgress of activeGoals.value) {
@@ -119,15 +120,25 @@ export const useGoalsStore = defineStore('goals', () => {
     const results = system.value.evaluateGoals(currentTick);
     lastEvaluationTick.value = currentTick;
 
-    // Check for new completions
+    // Check for new completions; each gives way to what follows it.
     for (const result of results) {
       const wasCompleted = previousStates.get(result.goal.id);
       if (result.completed && !wasCompleted) {
         onGoalCompleted(result.goal);
+        replace(result.goal.id);
       }
     }
 
     return results;
+  }
+
+  /** Swap a completed goal for its successor; the list shrinks once every chain is under way. */
+  function replace(completedId: string) {
+    if (!system.value) return;
+    const taken = new Set([...activeGoalIds.value, ...system.value.getCompletedGoalIds()]);
+    const next = GoalsSystem.successor(completedId, taken);
+    activeGoalIds.value = activeGoalIds.value.flatMap(id => (id !== completedId ? [id] : next ? [next.id] : []));
+    system.value.setActiveGoals(activeGoalIds.value);
   }
 
   /**
@@ -228,6 +239,11 @@ export const useGoalsStore = defineStore('goals', () => {
     showGoalCompletionModal.value = false;
     if (state.systemState && system.value) {
       system.value.importState(state.systemState);
+    }
+    // A save from before the goal chains holds ids that no longer exist: begin the chains afresh.
+    if (system.value && !activeGoalIds.value.some(id => ALL_GOALS.some(goal => goal.id === id))) {
+      activeGoalIds.value = GoalsSystem.getStarterGoals().map(goal => goal.id);
+      system.value.setActiveGoals(activeGoalIds.value);
     }
   }
 

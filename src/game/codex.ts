@@ -118,6 +118,8 @@ export function knowledgeSummary(knowledge: Knowledge) {
     knownSpecies: Object.keys(knowledge.species).length,
     completeEntries: codexEntries(knowledge).filter(e => e.known && e.progress === 1).length,
     interactions: Object.keys(knowledge.interactions).length,
+    /** Firsts noted in the calendar, over every site and year. */
+    noted: Object.values(knowledge.phenology ?? {}).flatMap(site => Object.values(site)).flatMap(years => Object.values(years)).reduce((n, firsts) => n + Object.keys(firsts).length, 0),
   }
 }
 export type KnowledgeSummary = ReturnType<typeof knowledgeSummary>

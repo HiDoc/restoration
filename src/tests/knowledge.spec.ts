@@ -85,7 +85,7 @@ describe('codex', () => {
     expect(totals.pollinator).toEqual({ known: 0, total: catalogue.pollinators.length })
     expect(totals.interaction.known).toBe(1)
     // The Greenfinch's only catalogue link is Red Fescue seed, so seeing it completes the Greenfinch's entry.
-    expect(knowledgeSummary(k)).toEqual({ knownSpecies: 2, completeEntries: 1, interactions: 1 })
+    expect(knowledgeSummary(k)).toEqual({ knownSpecies: 2, completeEntries: 1, interactions: 1, noted: 0 })
   })
 
   it('marks an entry complete once every fact and partner has been seen', () => {

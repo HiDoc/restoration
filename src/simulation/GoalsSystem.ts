@@ -5,10 +5,11 @@
 
 import type { SimulationEngine } from './SimulationEngine';
 import type { KnowledgeSummary } from '@/game/codex';
+import { speciesInfo } from '@/game/speciesInfo';
 
-const NO_KNOWLEDGE = (): KnowledgeSummary => ({ knownSpecies: 0, completeEntries: 0, interactions: 0 });
+const NO_KNOWLEDGE = (): KnowledgeSummary => ({ knownSpecies: 0, completeEntries: 0, interactions: 0, noted: 0 });
 
-export type GoalCategory = 'biodiversity' | 'ecosystem_health' | 'research' | 'succession' | 'pollution';
+export type GoalCategory = 'explore' | 'discover' | 'plant' | 'observe' | 'hybridize' | 'restore';
 export type GoalDifficulty = 'easy' | 'normal' | 'hard';
 
 export interface Goal {
@@ -29,213 +30,69 @@ export interface GoalProgress {
   completedAtTick?: number;
 }
 
-/**
- * Biodiversity goals - species count and diversity
- */
-const BIODIVERSITY_GOALS: Goal[] = [
-  {
-    id: 'diversity_5',
-    title: 'Growing Diversity',
-    description: 'Grow 2 different species in your ecosystem',
-    category: 'biodiversity',
-    targetValue: 2,
-    difficulty: 'easy',
-    evaluator: (engine) => engine.getStatistics().uniqueSpecies
-  },
-  {
-    id: 'diversity_10',
-    title: 'Thriving Ecosystem',
-    description: 'Reach 3 different species coexisting',
-    category: 'biodiversity',
-    targetValue: 3,
-    difficulty: 'easy',
-    evaluator: (engine) => engine.getStatistics().uniqueSpecies
-  },
-  {
-    id: 'diversity_15',
-    title: 'Biodiversity Haven',
-    description: 'Support 4 different species simultaneously',
-    category: 'biodiversity',
-    targetValue: 4,
-    difficulty: 'normal',
-    evaluator: (engine) => engine.getStatistics().uniqueSpecies
-  },
-  {
-    id: 'diversity_20',
-    title: 'Ecological Abundance',
-    description: 'Maintain 5 different species in harmony',
-    category: 'biodiversity',
-    targetValue: 5,
-    difficulty: 'hard',
-    evaluator: (engine) => engine.getStatistics().uniqueSpecies
-  }
-];
+/** A goal, briefly: the chain it belongs to, what it asks, and how far the world is towards it. */
+const goal = (
+  category: GoalCategory,
+  id: string,
+  title: string,
+  description: string,
+  targetValue: number,
+  evaluator: Goal['evaluator'],
+): Goal => ({ id, title, description, category, targetValue, difficulty: 'normal', evaluator });
 
-/**
- * Ecosystem health goals - vitality and stability
- */
-const ECOSYSTEM_HEALTH_GOALS: Goal[] = [
-  {
-    id: 'health_60',
-    title: 'Healthy Start',
-    description: 'Achieve 60% average ecosystem vitality',
-    category: 'ecosystem_health',
-    targetValue: 0.60,
-    difficulty: 'easy',
-    evaluator: (engine) => engine.getStatistics().avgVitality
-  },
-  {
-    id: 'health_70',
-    title: 'Flourishing Ecosystem',
-    description: 'Reach 70% average vitality',
-    category: 'ecosystem_health',
-    targetValue: 0.70,
-    difficulty: 'easy',
-    evaluator: (engine) => engine.getStatistics().avgVitality
-  },
-  {
-    id: 'health_80',
-    title: 'Peak Vitality',
-    description: 'Achieve 80% average ecosystem health',
-    category: 'ecosystem_health',
-    targetValue: 0.80,
-    difficulty: 'normal',
-    evaluator: (engine) => engine.getStatistics().avgVitality
-  },
-  {
-    id: 'health_90',
-    title: 'Optimal Ecosystem',
-    description: 'Maintain 90% average vitality',
-    category: 'ecosystem_health',
-    targetValue: 0.90,
-    difficulty: 'hard',
-    evaluator: (engine) => engine.getStatistics().avgVitality
-  }
-];
-
-/**
- * Research goals - species discovery and trait unlocking
- */
-const RESEARCH_GOALS: Goal[] = [
-  {
-    id: 'discover_10',
-    title: 'Field Researcher',
-    description: 'Get to know 2 species',
-    category: 'research',
-    targetValue: 2,
-    difficulty: 'easy',
-    evaluator: (_engine, knowledge) => knowledge.knownSpecies
-  },
-  {
-    id: 'discover_25',
-    title: 'Naturalist',
-    description: 'Get to know 3 species',
-    category: 'research',
-    targetValue: 3,
-    difficulty: 'normal',
-    evaluator: (_engine, knowledge) => knowledge.knownSpecies
-  },
-  {
-    id: 'discover_50',
-    title: 'Master Ecologist',
-    description: 'Get to know 5 species',
-    category: 'research',
-    targetValue: 5,
-    difficulty: 'hard',
-    evaluator: (_engine, knowledge) => knowledge.knownSpecies
-  },
-  {
-    id: 'research_complete_3',
-    title: 'Deep Understanding',
-    description: 'Complete 3 Codex entries (every fact and partner seen)',
-    category: 'research',
-    targetValue: 3,
-    difficulty: 'normal',
-    evaluator: (_engine, knowledge) => knowledge.completeEntries
-  },
-  {
-    id: 'interactions_5',
-    title: 'Web Watcher',
-    description: 'Witness 5 plant–animal interactions',
-    category: 'research',
-    targetValue: 5,
-    difficulty: 'normal',
-    evaluator: (_engine, knowledge) => knowledge.interactions
-  }
-];
-
-/**
- * Pollution control goals
- */
-const POLLUTION_GOALS: Goal[] = [
-  {
-    id: 'pollution_below_20',
-    title: 'Clean Environment',
-    description: 'Reduce average pollution below 20%',
-    category: 'pollution',
-    targetValue: 0.20,
-    difficulty: 'normal',
-    evaluator: (engine) => {
-      // Return inverted value since we want pollution BELOW threshold
-      const pollution = engine.getStatistics().avgPollution;
-      return pollution <= 0.20 ? 1.0 : pollution;
-    }
-  },
-  {
-    id: 'pollution_below_10',
-    title: 'Pristine Ecosystem',
-    description: 'Maintain pollution below 10%',
-    category: 'pollution',
-    targetValue: 0.10,
-    difficulty: 'hard',
-    evaluator: (engine) => {
-      const pollution = engine.getStatistics().avgPollution;
-      return pollution <= 0.10 ? 1.0 : pollution;
+const tags = (engine: SimulationEngine) => Object.values(engine.getTags());
+const sampled = (engine: SimulationEngine) => [...engine.readChunks().values()].filter(chunk => (chunk as any).sample).length;
+const animalKinds = (engine: SimulationEngine, bird: boolean) => {
+  const kinds = new Set<string>();
+  for (const chunk of engine.readChunks().values()) {
+    for (const [id, count] of Object.entries(((chunk as any).fauna ?? {}) as Record<string, number>)) {
+      if (count >= 1 && (speciesInfo(id).kind === 'bird') === bird) kinds.add(id);
     }
   }
-];
+  return kinds.size;
+};
 
 /**
- * Succession goals - ecosystem development
+ * The goals, as chains that follow the workflow (Explore → Discover → Plant → Observe → Hybridize → Restore). Four
+ * are active at a time; a completed goal gives way to the next in its chain, and a finished chain to the next
+ * chain not yet begun. Each asks for something the player does, not something the map starts with.
  */
-const SUCCESSION_GOALS: Goal[] = [
-  {
-    id: 'forest_established',
-    title: 'Forest Pioneer',
-    description: 'Establish a forest ecosystem with canopy layer',
-    category: 'succession',
-    targetValue: 1.0,
-    difficulty: 'normal',
-    evaluator: (engine) => {
-      // Check if any chunks have significant canopy
-      const chunks = Array.from(engine.readChunks().values());
-      const forestChunks = chunks.filter(chunk =>
-        chunk.biomeState.canopy > 0.5
-      );
-      return forestChunks.length >= 3 ? 1.0 : forestChunks.length / 3;
-    }
-  },
-  {
-    id: 'stability_5_years',
-    title: 'Long-term Stability',
-    description: 'Maintain ecosystem for 5 years (1800 ticks)',
-    category: 'succession',
-    targetValue: 1800,
-    difficulty: 'normal',
-    evaluator: (engine) => engine.getCurrentTick()
-  }
+export const GOAL_CHAINS: Goal[][] = [
+  [
+    goal('explore', 'sample_1', 'First Sample', 'Take a soil and water sample', 1, sampled),
+    goal('explore', 'sample_5', 'Soil Surveyor', 'Sample 5 hexes', 5, sampled),
+  ],
+  [
+    goal('discover', 'interactions_3', 'Field Researcher', 'Witness 3 plant–animal interactions (follow, photograph, inspect)', 3, (_, k) => k.interactions),
+    goal('discover', 'interactions_10', 'Web Watcher', 'Witness 10 interactions', 10, (_, k) => k.interactions),
+    goal('discover', 'interactions_25', 'Naturalist', 'Witness 25 interactions', 25, (_, k) => k.interactions),
+  ],
+  [
+    goal('plant', 'planted_3', 'Green Fingers', 'Plant 3 seeds that come up', 3, engine => tags(engine).filter(tag => tag.reason === 'planted').length),
+    goal('plant', 'kinds_12', 'Growing Diversity', 'Grow 12 kinds of plant', 12, engine => engine.getStatistics().uniqueSpecies),
+    goal('plant', 'kinds_18', 'Biodiversity Haven', 'Grow 18 kinds of plant', 18, engine => engine.getStatistics().uniqueSpecies),
+  ],
+  [
+    goal('observe', 'tagged_3', 'Following Lives', 'Follow 3 plants in your Journal', 3, engine => tags(engine).length),
+    goal('observe', 'noted_5', 'Phenologist', 'Note 5 firsts in your calendar', 5, (_, k) => k.noted),
+    goal('observe', 'complete_3', 'Deep Understanding', 'Complete 3 Codex entries (every fact and partner seen)', 3, (_, k) => k.completeEntries),
+  ],
+  [
+    goal('hybridize', 'cross_1', 'Pollen Carrier', 'Make a cross between two plants in flower', 1, engine => engine.getCrosses().length),
+    goal('hybridize', 'seedling_1', 'New Blood', 'Raise a seedling from one of your crosses', 1, engine => tags(engine).filter(tag => tag.reason === 'hybrid' || tag.reason === 'crossed').length),
+  ],
+  [
+    goal('restore', 'pollinators_3', 'Buzzing', 'Have 3 kinds of pollinator visiting at once', 3, engine => animalKinds(engine, false)),
+    goal('restore', 'birds_3', 'Birdsong', 'Have 3 kinds of bird living here at once', 3, engine => animalKinds(engine, true)),
+    goal('restore', 'health_70', 'Flourishing', 'Raise average vitality to 70%', 0.7, engine => engine.getStatistics().avgVitality),
+  ],
 ];
 
-/**
- * All available goals
- */
-export const ALL_GOALS: Goal[] = [
-  ...BIODIVERSITY_GOALS,
-  ...ECOSYSTEM_HEALTH_GOALS,
-  ...RESEARCH_GOALS,
-  ...POLLUTION_GOALS,
-  ...SUCCESSION_GOALS
-];
+/** All goals, in chain order. */
+export const ALL_GOALS: Goal[] = GOAL_CHAINS.flat();
+
+/** Goals active at once. */
+const ACTIVE = 4;
 
 /**
  * GoalsSystem class - manages goal evaluation and progression
@@ -301,7 +158,7 @@ export class GoalsSystem {
 
       const { goal } = goalProgress;
       const currentValue = goal.evaluator(this.engine, this.knowledge());
-      const progress = this.calculateProgress(currentValue, goal.targetValue, goal.category);
+      const progress = this.calculateProgress(currentValue, goal.targetValue);
 
       // Check completion
       const completed = progress >= 1.0;
@@ -329,15 +186,8 @@ export class GoalsSystem {
   /**
    * Calculate progress (0-1) based on current value and target
    */
-  private calculateProgress(currentValue: number, targetValue: number, category: GoalCategory): number {
-    // Special handling for pollution goals (inverted)
-    if (category === 'pollution') {
-      return currentValue >= 1.0 ? 1.0 : 0;
-    }
-
-    // Normal progress calculation
-    if (targetValue === 0) return currentValue > 0 ? 1.0 : 0;
-    return Math.min(1.0, currentValue / targetValue);
+  private calculateProgress(currentValue: number, targetValue: number): number {
+    return targetValue === 0 ? (currentValue > 0 ? 1 : 0) : Math.min(1, currentValue / targetValue);
   }
 
   /**
@@ -357,13 +207,20 @@ export class GoalsSystem {
   /**
    * Get starter goal set (balanced mix)
    */
+  /** The first goal of each of the first chains. */
   static getStarterGoals(): Goal[] {
-    return [
-      'diversity_5',
-      'health_60',
-      'discover_10',
-      'pollution_below_20'
-    ].map(id => ALL_GOALS.find(g => g.id === id)!).filter(Boolean);
+    return GOAL_CHAINS.slice(0, ACTIVE).map(chain => chain[0]);
+  }
+
+  /**
+   * What follows a completed goal: the next in its chain, or else the first goal of the next chain no active or
+   * completed goal belongs to. Undefined once every chain is under way.
+   */
+  static successor(completedId: string, taken: ReadonlySet<string>): Goal | undefined {
+    const chain = GOAL_CHAINS.find(c => c.some(g => g.id === completedId));
+    const next = chain?.[chain.findIndex(g => g.id === completedId) + 1];
+    if (next) return next;
+    return GOAL_CHAINS.find(c => !c.some(g => taken.has(g.id)))?.[0];
   }
 
   /**

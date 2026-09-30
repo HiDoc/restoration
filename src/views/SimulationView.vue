@@ -394,7 +394,7 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
-import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
+import { elevationOf, phOf, siteById, stageNeed, STAGES, surveySite } from "@/game/sites";
 import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
 import { animalLabel, fruitingBodies, listen, photograph, visibleFirsts } from "@/game/watching";
 import { habitatFit, pouchOptions, rewardSpecies, REWARD_SEEDS, type PouchOption } from "@/game/seeds";
@@ -641,10 +641,15 @@ function evaluateProgress(tick: number) {
 
 /** A completed goal sends seed of a species the map lacks. */
 function rewardGoal(title: string) {
-  const species = engine.value && rewardSpecies(engine.value.readChunks().values(), interventionStore.seeds);
+  sendSeeds(`${title} done`);
+}
+
+/** Seeds of a plant the site lacks and would suit, for a goal done or a stage reached. */
+function sendSeeds(reason: string) {
+  const species = engine.value && rewardSpecies(engine.value.readChunks().values() as any, interventionStore.seeds, stageNeed(profile.siteProgress.stage));
   if (!species) return;
   interventionStore.addSeeds({ [species]: REWARD_SEEDS });
-  notify('icon-plants', `${title} done: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
+  notify('icon-plants', `${reason}: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
 }
 
 // The loop may run several ticks in one frame; the view catches up once, after the frame's last tick.
@@ -1111,6 +1116,7 @@ function reportSite(sim: SimulationEngine) {
   const text = news.restored ? `${profile.site.name} is restored.` : `${profile.site.name} has reached a new stage: ${news.reached}.`;
   notify('icon-diversity', text);
   pushEvent(text);
+  if (!news.restored) sendSeeds(`For ${news.reached}`);
   if (news.unlocked) notify('icon-observe', `${siteById(news.unlocked)?.name} is open to you.`);
   profile.save();
 }

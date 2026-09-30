@@ -129,6 +129,8 @@ export function surveySite(chunks: Iterable<SurveyedHex>): SiteSurvey {
 export interface SiteProgress {
   stage: number
   heldSeasons: number
+  /** The most pollinator and bird kinds seen in each of the last three seasons, this season first. */
+  recent?: Array<{ pollinatorKinds: number; birdKinds: number }>
 }
 
 interface Stage {
@@ -172,16 +174,39 @@ export const STAGES: Stage[] = [
 
 export const STABLE = STAGES.length - 1
 
+/** What the next stage asks of the plants: flowers for pollinators, food and shelter for birds. */
+export function stageNeed(stage: number): 'pollinators' | 'birds' | undefined {
+  return ({ Pollinators: 'pollinators', Birds: 'birds' } as const)[STAGES[stage + 1]?.title as 'Pollinators' | 'Birds']
+}
+
+/** Seasons over which an animal kind counts as living here: this one and the two before, so it must be seen every
+ * year (a winter without pollinators passes; a year without them does not). */
+const MEMORY_SEASONS = 3
+
 /**
  * The next progress for a survey. Stages are reached in order; stability is judged only when a season turns,
- * and a season that falls short starts the count again.
+ * and a season that falls short starts the count again. Animals seen in recent seasons count as living here:
+ * pollinators pass the winter as eggs and pupae, and birds wander, so a winter survey alone would find none.
  */
 export function advance(progress: SiteProgress, survey: SiteSurvey, targets: SiteTargets, seasonTurned: boolean): SiteProgress {
   let { stage, heldSeasons } = progress
-  while (stage < STABLE - 1 && STAGES[stage + 1].met(survey, targets)) stage += 1
-  if (stage === STABLE - 1 && seasonTurned) {
-    heldSeasons = STAGES[STABLE].met(survey, targets) ? heldSeasons + 1 : 0
-    if (heldSeasons >= STABLE_SEASONS) stage = STABLE
+  const [current = { pollinatorKinds: 0, birdKinds: 0 }, ...earlier] = progress.recent ?? []
+  let recent = [
+    { pollinatorKinds: Math.max(current.pollinatorKinds, survey.pollinatorKinds), birdKinds: Math.max(current.birdKinds, survey.birdKinds) },
+    ...earlier,
+  ]
+  const year: SiteSurvey = {
+    ...survey,
+    pollinatorKinds: Math.max(...recent.map(season => season.pollinatorKinds)),
+    birdKinds: Math.max(...recent.map(season => season.birdKinds)),
   }
-  return { stage, heldSeasons }
+  while (stage < STABLE - 1 && STAGES[stage + 1].met(year, targets)) stage += 1
+  if (seasonTurned) {
+    if (stage === STABLE - 1) {
+      heldSeasons = STAGES[STABLE].met(year, targets) ? heldSeasons + 1 : 0
+      if (heldSeasons >= STABLE_SEASONS) stage = STABLE
+    }
+    recent = [{ pollinatorKinds: survey.pollinatorKinds, birdKinds: survey.birdKinds }, ...recent].slice(0, MEMORY_SEASONS)
+  }
+  return { stage, heldSeasons, recent }
 }

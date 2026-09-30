@@ -5,10 +5,12 @@ use crate::{model::*, world::World};
 use std::collections::BTreeMap;
 
 /// How quickly mycelium grows towards (or shrinks from) what its hosts support, per day.
-const GROWTH: f64 = 0.02;
-/// Daily chance that spores start mycelium in a hex with hosts; far higher beside an established patch.
-const SPORES: f64 = 0.004;
-const SPREAD: f64 = 0.03;
+const GROWTH: f64 = 0.01;
+/// Daily chance, per fungus, that spores start mycelium in a hex with hosts; higher beside an established patch.
+/// Tuned (D2) so a new wood sees fruiting bodies in a few hexes by its second autumn and in most of them after
+/// 4–5 years (five fungi share the hexes, so a hex's chance is several times this).
+const SPORES: f64 = 0.0001;
+const SPREAD: f64 = 0.003;
 /// Mycelium this extensive fruits in its seasons (and is what a neighbour spreads from).
 pub const FRUITING: f64 = 0.3;
 /// Host plants that fully support a mycorrhizal fungus in a hex.

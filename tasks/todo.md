@@ -719,13 +719,43 @@ remain in old tests (two in `fieldwork.spec.ts`, from C4).
   showed on the tile; Esc closed the Codex and returned focus to its tab; the digest dialog centred.
 
 ### D2. Pacing
-- [ ] **Playthrough harness.** A scripted player (a `*.balance.ts` run, outside the normal suite) plays each
-      site for 10 years with a fixed policy: sows its pouch, samples, collects and resows, crosses when it can.
-      It reports per site the day each stage is reached, the Codex over time, fungus spread, the main causes
-      of death, and goal rewards received.
-- [ ] Tune from the numbers, one change at a time with its reason recorded: targets that a patient player
-      reaches in 1–3 years per site; fungi slower to establish (C7 left them fast); goal rewards that unlock
-      a new kind of seed at each stage.
+- [x] **Playthrough harness.** `src/tests/playthrough.balance.ts` (run with `npm run test:balance`, ~90 s): a
+      scripted, patient player plays each site for 10 years: sows each kind in its pouch where it fits best,
+      listens and photographs where animals are, samples a new hex, tags, notes firsts, inspects fruiting fungi,
+      collects fully ripe seed in autumn, crosses once each spring. It prints the day each stage is reached, a
+      yearly timeline (cover, kinds, Codex per section, fungal hexes, pouch), rewards received and deaths by
+      cause. It replaces `balance_analysis.balance.ts`, which measured the pre-A game.
+- [x] Tuned, one change at a time (baseline → after):
+  1. **Stable was impossible** (no site in 10 years): stability was judged at each season change, but
+     pollinators are not active in winter, so every winter reset the count. Animals seen in the last three
+     seasons now count as living here (`SiteProgress.recent`), so a winter passes but a year without them does
+     not. The stages read the same yearly figure.
+  2. **Goals ran out in the first week and rewarded nothing after.** Three of the four starter goals were met by
+     the map itself (2 species known, 2 species growing, pollution low) and nothing replaced them. Goals are now
+     six chains following the workflow (Explore: sample 1, 5 hexes; Discover: 3, 10, 25 interactions; Plant: 3
+     plantings, 12, 18 kinds; Observe: follow 3 plants, note 5 firsts, complete 3 Codex entries; Hybridize: a
+     cross, a crossed seedling; Restore: 3 pollinator kinds, 3 bird kinds, 70% vitality). Four are active; a
+     completed goal gives way to the next in its chain, then to a chain not yet begun. Saves from before start
+     the chains afresh.
+  3. **Rewards did not suit the site** (alder and lady fern sent to a dry meadow piled up unsown). A reward is now
+     a missing plant that would like some hex here, and, when the next stage is Pollinators or Birds, one that
+     offers flowers to insects or food to birds. Reaching a stage also sends seed.
+  4. **Fungi spread too fast** (woodland: 14 hexes in year 1, the whole map by year 3). Spores 0.4% → 0.01% per
+     fungus per day, spread from a neighbour 3% → 0.3%, growth 2% → 1% a day. Woodland now: 1, 8, 18, 27, 33
+     fungal hexes in years 1–5.
+
+  | Site | Stable (day) before → after | Plant kinds y1 → y9 before → after | Fungi: Codex f5/5 by |
+  |---|---|---|---|
+  | Meadow | never → 721 (2 yr) | 11 → 11 · 14 → 23 | year 9 |
+  | Woodland | never → 1,176 (3.3 yr) | 13 → 12 · 17 → 25 | year 9 (4/5 by year 4) |
+  | Wetland | never → 1,085 (3 yr) | 14 → 14 · 17 → 27 | year 8 |
+
+- Done: 51 Rust and 208 TS tests pass (new: winter does not reset stability; goal chains and successors; old goal
+  ids; rewards favouring the next stage). Browser: taking a sample completed "First Sample", sent 3 Yarrow
+  seeds and brought "Soil Surveyor" (1/5) in its place.
+- Left as is, with reasons: the woodland waits on pollinators until sown herbs flower (its trees are
+  wind-pollinated), so it is the slowest site, which suits it being second. Early goals still come fast when a
+  player explores eagerly (7 rewards in the first six weeks for the scripted player); D3 groups the toasts.
 
 ### D3. The first hour
 - [ ] Welcome rewritten around the six workflow steps; three short cards, no jargon.

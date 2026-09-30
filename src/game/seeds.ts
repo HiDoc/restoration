@@ -10,11 +10,28 @@ export const REWARD_SEEDS = 3
 
 interface Place { species: { forEach(fn: (plant: { speciesId: string }) => void): void } }
 
-/** The first catalogue plant neither growing on the map nor in the pouch, so each reward brings a new species in. */
-export function rewardSpecies(chunks: Iterable<Place>, pouch: Record<string, number>): string | null {
+/** What a site's next stage needs its plants to offer. */
+export type StageNeed = 'pollinators' | 'birds'
+
+// Plants some bird feeds on or nests in, from the catalogue's links.
+const BIRD_PLANTS = new Set(catalogue.interactions.filter(link => link.species_b_type === 'bird').map(link => link.species_a_id))
+const OFFERS: Record<StageNeed, (plant: SpeciesDefinition) => boolean> = {
+  pollinators: plant => plant.pollination === 'insect',
+  birds: plant => BIRD_PLANTS.has(plant.id),
+}
+
+/**
+ * A catalogue plant neither growing on the map nor in the pouch, so each reward brings a new species in: first one
+ * that would like some hex here and offers what the next stage needs, then one that would like some hex, else the
+ * first at all.
+ */
+export function rewardSpecies(chunks: Iterable<Place & HexConditions>, pouch: Record<string, number>, need?: StageNeed): string | null {
+  const hexes = [...chunks]
   const have = new Set(Object.keys(pouch))
-  for (const chunk of chunks) chunk.species.forEach(plant => have.add(plant.speciesId))
-  return catalogue.plants.find(plant => !have.has(plant.id))?.id ?? null
+  for (const chunk of hexes) chunk.species.forEach(plant => have.add(plant.speciesId))
+  const missing = (catalogue.plants as SpeciesDefinition[]).filter(plant => !have.has(plant.id))
+  const suited = missing.filter(plant => hexes.some(hex => habitatFit(plant, hex).good))
+  return ((need && suited.find(OFFERS[need])) ?? suited[0] ?? missing[0])?.id ?? null
 }
 
 export interface HexConditions {

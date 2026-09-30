@@ -37,12 +37,26 @@ describe('restoration sites', () => {
     let progress = advance({ stage: 0, heldSeasons: 0 }, thriving, targets, false)
     expect(progress.stage).toBe(STABLE - 1)
     for (let season = 1; season < STABLE_SEASONS; season++) progress = advance(progress, thriving, targets, true)
-    expect(progress).toEqual({ stage: STABLE - 1, heldSeasons: STABLE_SEASONS - 1 })
-    // A lean season starts the count again; mid-season checks do not count.
-    progress = advance(progress, survey({ ...thriving, birdKinds: 0 }), targets, true)
+    expect(progress).toMatchObject({ stage: STABLE - 1, heldSeasons: STABLE_SEASONS - 1 })
+    // Plants falling short start the count again; mid-season checks do not count.
+    progress = advance(progress, survey({ ...thriving, plantKinds: 1 }), targets, true)
     expect(progress.heldSeasons).toBe(0)
     for (let season = 0; season < STABLE_SEASONS; season++) progress = advance(advance(progress, thriving, targets, false), thriving, targets, true)
     expect(progress.stage).toBe(STABLE)
+  })
+
+  it('count animals seen in the last year as living here, so winter does not reset stability', () => {
+    let progress = advance({ stage: 0, heldSeasons: 0 }, thriving, targets, false)
+    const winter = survey({ ...thriving, pollinatorKinds: 0, birdKinds: 0 })
+    progress = advance(progress, winter, targets, true)
+    expect(progress.heldSeasons).toBe(1)
+    // Gone for three seasons in a row, they no longer count.
+    const held = [2, 3, 0]
+    for (const expected of held) {
+      progress = advance(progress, winter, targets, true)
+      expect(progress.heldSeasons).toBe(expected)
+    }
+    expect(progress.stage).toBe(STABLE - 1)
   })
 
   it('shape the wetland as a basin whose floor gathers a pond from wet ground', () => {

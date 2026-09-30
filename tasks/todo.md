@@ -691,24 +691,32 @@ remain in old tests (two in `fieldwork.spec.ts`, from C4).
 - Noticed for D2: on a fresh meadow three goals complete within the first week ("Field Researcher" among them).
 
 ### D1. Graphic interface
-- [ ] **Layout at every size.** Laptop: the left column fits (workflow collapses to a compact strip; Time and
-      Interventions always visible). Tablet: map plus one side column. Phone: map first and full width, the
-      hex card as a bottom sheet, side panels behind the dock, the dock fits without scrolling.
-- [ ] **One modal.** A shared `Modal` component (frame, title, close, Esc, focus trap, return focus,
-      enter/leave transition) replaces the nine copies.
-- [ ] **Hex card redesign.** Title and habitat line; tabs Plants · Animals · Ground; each row's actions in one
-      small menu instead of inline Tag/Photo/Follow links; the hex's actions (Plant here, Collect, Cross,
-      Sample, Listen, Trace, Note, Inspect fungi) as an icon bar showing only what applies now.
-- [ ] **The map shows the player's world.** Markers for sampled hexes, tagged plants and pending crosses;
-      mushrooms where fungi fruit; dead wood; shimmer on standing water; the selected hex's neighbours on
-      hover; a gentle season tint. Each at a size that stays readable on a phone.
-- [ ] **Icons.** Line icons in the kit's style for what has none (Sites, seeds, sample, trace, listen, photo,
-      follow, fungi, calendar), as inline SVG; the blank Sites glyph fixed.
-- [ ] **Consistency pass.** One type scale, spacing scale and button set; hover, pressed, disabled and
-      focus-visible states on every control; `prefers-reduced-motion` respected; text contrast checked
-      against the parchment and dark frames.
-- [ ] **World at a glance.** The World Overview gains a small trend line per figure from the history frames
-      already captured, and the Recent Events card groups repeats ("Red Fescue sprouted in 6 hexes").
+- [x] **Layout at every size.** Laptop (1440×900): the workflow's other steps are one compact line each, so
+      Time and Interventions fit. Tablet (768): the map beside one column holding both side panels. Phone
+      (375): the map first, then Time and Interventions (the workflow last); the hex card is an opaque sheet
+      above the dock; the dock's six tabs share the width; the masthead shrinks and its buttons go (the dock
+      has Codex and Sites). No sideways scroll at any size.
+- [x] **One modal.** `Modal.vue` (frame, title, subtitle, Close, Esc, focus trap, focus returned to what opened
+      it, fade-and-rise that respects reduced motion) replaces ten copies: the six panels, Sites, the ecosystem
+      shift (must be answered: no Esc), the digest and the photo. The welcome keeps its own until D3.
+- [x] **Hex card.** `HexCard.vue`: title, phrase and coordinates; tabs Plants · Animals · Ground (the Ground
+      tab holds the sample, tray, trace and fruiting fungi, with a dot once sampled); one ⋯ menu per row (Tag,
+      Photograph, Follow); an icon bar with only what applies now (Plant leads when a seed is in hand; Collect,
+      Cross and Fungi when the hex has fruit, flowers or fruiting bodies; Sample, Listen, Trace, Note always).
+      The same card serves the calm view, which replaces the old slate-styled inspector (deleted).
+- [x] **The map shows the player's world.** Parchment badges on a tile for a sample, tagged plants, a cross
+      waiting for seedlings (Rust now records a cross's hex), fruiting fungi and dead wood; a moving glint on
+      standing water; a dashed rim on the selected hex's neighbours; a tint per season. Badges at least 13 px.
+- [x] **Icons.** 18 line icons (`lineIcons.ts`, `LineIcon.vue`) on a 24-unit grid with the kit's stroke; usable
+      as inline SVG or as a glyph mask. Seeds and Sites in the dock use them (the blank Sites glyph is gone).
+- [x] **Consistency pass.** One focus ring on every control (brass, on parchment and dark frames); brass links on
+      dark panels (the blue link had poor contrast there); reduced motion honoured app-wide. Contrast: muted
+      text on parchment 6.5:1, card text at 70% on dark green 7.2:1, the limit orange 8.5:1.
+- [x] **World at a glance.** Each World Overview figure has a trend line over the last 24 weeks; Recent Events
+      groups the same event in several hexes on one day ("Red Fescue sprouted in 3 hexes").
+- Done: 51 Rust and 208 TS tests pass. Checked at 375, 768 and 1440 wide: phone map-first with the sheet and
+  dock; tablet two columns; laptop left column complete. The row menu tagged a plant; Sample and tag badges
+  showed on the tile; Esc closed the Codex and returned focus to its tab; the digest dialog centred.
 
 ### D2. Pacing
 - [ ] **Playthrough harness.** A scripted player (a `*.balance.ts` run, outside the normal suite) plays each

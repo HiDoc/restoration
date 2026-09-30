@@ -546,6 +546,9 @@ pub struct Baseline {
 #[serde(rename_all = "camelCase")]
 pub struct Cross {
     pub tick: u64,
+    /// The hex the cross was made in.
+    #[serde(default)]
+    pub hex: String,
     pub mother: String,
     pub father: String,
     pub mother_species: String,

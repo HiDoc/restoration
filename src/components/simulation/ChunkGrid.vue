@@ -1,6 +1,6 @@
 <template>
   <div v-if="tessellated" ref="mapHost" class="flex h-full w-full items-center justify-center overflow-hidden">
-    <section class="hex-map" role="grid" :style="mapStyle">
+    <section class="hex-map" role="grid" :style="mapStyle" :data-season="(seasonName || 'spring').toLowerCase()">
       <ChunkHex
         v-for="chunk in chunkGrid"
         :key="`${chunk.x}-${chunk.y}`"
@@ -60,6 +60,8 @@ import type { VizMode } from './types';
 import ChunkHex from './ChunkHex.vue';
 import { buildChunkColumns, type ChunkGridEntry } from './chunkGridLayout';
 import { useSeasonalAtmosphere } from '@/composables/useSeasonalAtmosphere';
+import { neighbours } from '@/game/watching';
+import type { HexMarks } from '@/game/mapMarks';
 
 const HEX_WIDTH = 148;
 const HEX_HEIGHT = HEX_WIDTH * Math.sqrt(3) / 2;
@@ -83,6 +85,8 @@ const props = defineProps<{
   tessellated?: boolean;
   /** Hexes a traced marker passes through, in order. */
   trace?: Array<{ x: number; y: number }>;
+  /** Tagged plants and waiting crosses per hex id. */
+  marks?: Record<string, HexMarks>;
   /** A followed animal's flight from one hex to the next; a new key restarts it. */
   flight?: { from: { x: number; y: number }; to: { x: number; y: number }; key: number; icon?: string } | null;
 }>();
@@ -117,6 +121,8 @@ const hexBindings = (chunk: ChunkGridEntry) => ({
   pollinators: props.pollinators,
   engine: props.engine,
   isSelected: isSelected(chunk),
+  isNeighbour: neighbourKeys.value.has(`${chunk.x},${chunk.y}`),
+  playerMarks: props.marks?.[`chunk_${chunk.x}_${chunk.y}`],
   isHovered: isHovered(chunk),
   contemplative: props.contemplative,
   seasonName: props.seasonName,
@@ -191,6 +197,8 @@ const flightPath = computed(() => {
   return `M${a.x},${a.y} Q${(a.x + b.x) / 2 + (b.y - a.y) * 0.3},${(a.y + b.y) / 2 - (b.x - a.x) * 0.3} ${b.x},${b.y}`;
 });
 
+const neighbourKeys = computed(() => new Set(props.selected ? neighbours(props.selected.x, props.selected.y).map(([x, y]) => `${x},${y}`) : []));
+
 const hovered = ref<{ x: number; y: number } | null>(null);
 
 const isSelected = (chunk: ChunkGridEntry) =>
@@ -258,6 +266,46 @@ function clearHovered() {
     display: block;
   }
 
+  /* What the player made or found in a hex: a row of small parchment badges near the top of the tile. */
+  .hex-marks { display: none; }
+  .hex-map .hex-marks {
+    display: flex;
+    position: absolute;
+    top: 13%;
+    left: 50%;
+    width: 78%;
+    transform: translateX(-50%);
+    justify-content: center;
+    gap: 3%;
+  }
+  .hex-map .hex-mark {
+    width: max(19%, 13px);
+    aspect-ratio: 1;
+    padding: 3%;
+    border-radius: 999px;
+    background: var(--nv-parchment-100);
+    color: var(--nv-ink-900);
+    border: 1px solid var(--nv-brass-700);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  }
+  .hex-map .hex-mark svg { width: 100%; height: 100%; }
+
+  /* Standing water catches the light. */
+  .hex-map .hex-shimmer {
+    background: linear-gradient(115deg, transparent 30%, rgba(214, 238, 250, 0.22) 45%, transparent 60%);
+    background-size: 260% 100%;
+    animation: hex-shimmer 5s linear infinite;
+  }
+  @keyframes hex-shimmer {
+    from { background-position: 130% 0; }
+    to { background-position: -130% 0; }
+  }
+
+  /* A gentle tint for the season over the painted tiles. */
+  .hex-map[data-season='summer'] .hex-cell { filter: saturate(1.08) brightness(1.02); }
+  .hex-map[data-season='autumn'] .hex-cell { filter: sepia(0.18) saturate(1.1) hue-rotate(-8deg); }
+  .hex-map[data-season='winter'] .hex-cell { filter: saturate(0.7) brightness(0.96) hue-rotate(8deg); }
+
   /* Animals on the map: bees loop, butterflies drift and flap, birds hop now and then. */
   .hex-map .hex-sprite {
     display: block;
@@ -307,6 +355,7 @@ function clearHovered() {
     92% { transform: translateY(-15%); }
   }
   @media (prefers-reduced-motion: reduce) {
+    .hex-map .hex-shimmer { animation: none; }
     .hex-map .hex-sprite,
     .hex-map .hex-sprite svg {
       animation: none;

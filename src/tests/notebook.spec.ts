@@ -13,7 +13,7 @@ describe('hybrid notebook', () => {
 
   it('compares each prediction with how the seedlings came out', () => {
     const cross: Cross = {
-      tick: 10, mother: 'p1', father: 'p2', motherSpecies: 'wild_bluebell', fatherSpecies: 'spanish_bluebell',
+      tick: 10, hex: 'chunk_1_1', mother: 'p1', father: 'p2', motherSpecies: 'wild_bluebell', fatherSpecies: 'spanish_bluebell',
       parents: [traits(0.4), traits(0.6)],
       prediction: { drought_tolerance: 'between', cold_resistance: 'higher' },
       seedlings: [{ id: 's1', traits: traits(0.5) }, { id: 's2', traits: traits(0.55) }, { id: 's3', traits: traits(0.7) }],
@@ -28,7 +28,7 @@ describe('hybrid notebook', () => {
   })
 
   it('waits for seedlings', () => {
-    const cross = { tick: 1, mother: 'a', father: 'b', motherSpecies: 'x', fatherSpecies: 'x', parents: [traits(0.5), traits(0.5)], prediction: {}, seedlings: [] } as Cross
+    const cross = { tick: 1, hex: 'chunk_1_1', mother: 'a', father: 'b', motherSpecies: 'x', fatherSpecies: 'x', parents: [traits(0.5), traits(0.5)], prediction: {}, seedlings: [] } as Cross
     expect(notebookEntries([cross], {}, () => 'Clover')[0].status).toMatch(/^Waiting/)
   })
 })

@@ -1,11 +1,5 @@
 <template>
-  <div v-if="show" class="sci-modal-overlay" @click.self="$emit('close')">
-    <div class="sci-modal nv-ornate flex max-h-[90vh] w-full max-w-3xl flex-col" role="dialog" aria-labelledby="journal-title">
-      <!-- Indented to clear the frame's corner flourish -->
-      <header class="flex items-baseline justify-between gap-2 pl-5">
-        <h2 id="journal-title" class="nv-heading text-2xl">Journal</h2>
-        <button type="button" class="nv-link" @click="$emit('close')">Close</button>
-      </header>
+  <Modal :show="show" title="Journal" size="xl" @close="$emit('close')">
       <nav class="mt-2 flex gap-1.5" role="tablist" aria-label="Journal sections">
         <button v-for="tab in TABS" :key="tab.id" type="button" role="tab" class="nv-btn" :aria-pressed="active === tab.id" :aria-selected="active === tab.id" @click="active = tab.id">
           {{ tab.label }}
@@ -95,11 +89,11 @@
           </div>
         </li>
       </ul>
-    </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
+import Modal from './Modal.vue'
 import { computed, ref } from 'vue'
 import { commonGardens, journalEntries, type JournalEntry } from '@/game/journal'
 import { siteById } from '@/game/sites'

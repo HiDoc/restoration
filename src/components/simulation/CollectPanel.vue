@@ -1,11 +1,6 @@
 <template>
-  <div v-if="show" class="sci-modal-overlay" @click.self="$emit('close')">
-    <form class="sci-modal nv-ornate flex max-h-[90vh] w-full max-w-2xl flex-col" role="dialog" aria-labelledby="collect-title" @submit.prevent="$emit('collect', [...chosen])">
-      <!-- Indented to clear the frame's corner flourish -->
-      <header class="flex items-baseline justify-between gap-2 pl-5">
-        <h2 id="collect-title" class="nv-heading text-2xl">Collect seeds</h2>
-        <button type="button" class="nv-link" @click="$emit('close')">Close</button>
-      </header>
+  <Modal :show="show" title="Collect seeds" size="lg" @close="$emit('close')">
+    <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="$emit('collect', [...chosen])">
       <p class="nv-small nv-muted mt-1 pl-5">Choose the plants to take seed from. Seed carries its parent's traits; seed taken before it is fully ripe often fails.</p>
       <ul class="mt-3 grid min-h-0 flex-1 gap-1 overflow-y-auto pr-1">
         <li v-if="ripe.length === 0" class="nv-small nv-muted">Nothing is ripe here yet.</li>
@@ -24,10 +19,11 @@
         <button type="submit" class="nv-btn" :disabled="chosen.length === 0">Collect from {{ chosen.length }} {{ chosen.length === 1 ? 'plant' : 'plants' }}</button>
       </div>
     </form>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
+import Modal from './Modal.vue'
 import { computed, ref, watch } from 'vue'
 import { plantTitle, type Tag } from '@/game/journal'
 import { isRipe, ripeness, traitLine } from '@/game/traits'

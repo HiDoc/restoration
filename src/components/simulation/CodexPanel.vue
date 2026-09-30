@@ -1,11 +1,5 @@
 <template>
-  <div v-if="show" class="sci-modal-overlay" @click.self="$emit('close')">
-    <div class="sci-modal nv-ornate flex max-h-[90vh] w-full max-w-4xl flex-col" role="dialog" aria-labelledby="codex-title">
-      <!-- Indented to clear the frame's corner flourish -->
-      <header class="flex flex-wrap items-baseline justify-between gap-2 pl-5">
-        <h2 id="codex-title" class="nv-heading text-2xl">Codex</h2>
-        <button type="button" class="nv-link" @click="$emit('close')">Close</button>
-      </header>
+  <Modal :show="show" title="Codex" size="xl" @close="$emit('close')">
       <nav class="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Codex sections">
         <button
           v-for="tab in TABS"
@@ -111,11 +105,11 @@
           </ul>
         </section>
       </div>
-    </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
+import Modal from './Modal.vue'
 import { computed, ref, watch } from 'vue'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { codexEntries, TAKES_OF, type CodexEntry, type CodexTab } from '@/game/codex'

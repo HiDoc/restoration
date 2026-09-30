@@ -15,6 +15,16 @@
     <svg v-if="isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="rgba(244,215,122,0.06)" stroke="#f4d77a" stroke-width="6" vector-effect="non-scaling-stroke" />
     </svg>
+    <!-- Neighbours of the selected hex: where water runs, insects fly and seed falls -->
+    <svg v-if="isNeighbour && !isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="none" stroke="rgba(244,215,122,0.45)" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke" />
+    </svg>
+    <!-- Standing water catches the light -->
+    <div v-if="((chunk as any).biomeState?.standingWater ?? 0) > 0.05" class="hex-shimmer pointer-events-none absolute inset-0" aria-hidden="true"></div>
+    <!-- What the player made or found here -->
+    <span v-if="marks.length" class="hex-marks pointer-events-none" :aria-label="marks.map(m => m.label).join(', ')">
+      <span v-for="mark in marks" :key="mark.icon" class="hex-mark" :title="mark.label"><LineIcon :name="mark.icon" /></span>
+    </span>
     <!-- Animals present, drawn by tessellated maps (see ChunkGrid .hex-map) -->
     <span v-for="sprite in sprites" :key="sprite.key" class="hex-sprite pointer-events-none" :class="`hex-sprite--${sprite.group}`" :style="sprite.style" aria-hidden="true">
       <img v-if="sprite.icon" :src="sprite.icon" alt="" />
@@ -80,6 +90,9 @@ import type { VizMode } from './types';
 import type { ChunkGridEntry } from './chunkGridLayout';
 import { getHexOverlayColor } from '@/composables/useSeasonalAtmosphere';
 import { HABITAT_LOOK, SPRITE_ICON } from './habitatLook';
+import LineIcon from './LineIcon.vue';
+import type { LineIconName } from './lineIcons';
+import type { HexMarks } from '@/game/mapMarks';
 import { describeHex } from '@/game/hexDescription';
 
 // Animals drawn per hex: a few sprites hint at abundance without cluttering the map.
@@ -103,6 +116,10 @@ const props = defineProps<{
   engine?: any;
   isSelected: boolean;
   isHovered: boolean;
+  /** Touches the selected hex. */
+  isNeighbour?: boolean;
+  /** Tagged plants and waiting crosses here. */
+  playerMarks?: HexMarks;
   contemplative?: boolean;
   seasonName?: string;
 }>();
@@ -122,6 +139,18 @@ const tooltip = computed(() => {
 });
 
 const description = computed(() => describeHex(props.chunk as any));
+
+// Markers for what the player made (samples, tags, crosses) and found (fungi, dead wood), in that order.
+const marks = computed(() => {
+  const chunk = props.chunk as any;
+  const list: Array<{ icon: LineIconName; label: string }> = [];
+  if (chunk.sample) list.push({ icon: 'sample', label: 'Sampled' });
+  if (props.playerMarks?.tagged) list.push({ icon: 'tag', label: `${props.playerMarks.tagged} tagged` });
+  if (props.playerMarks?.crossing) list.push({ icon: 'cross', label: 'A cross waits for its seedlings' });
+  if (chunk.fruiting?.length) list.push({ icon: 'fungi', label: 'Fungi fruiting' });
+  if ((chunk.biomeState?.deadwood ?? 0) > 0.1) list.push({ icon: 'deadwood', label: 'Dead wood' });
+  return list;
+});
 const look = computed(() => HABITAT_LOOK[description.value.habitat]);
 
 const sprites = computed(() =>

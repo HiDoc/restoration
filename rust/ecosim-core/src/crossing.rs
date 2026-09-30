@@ -160,6 +160,7 @@ impl World {
         let [m, f] = [mother, father].map(|plant| &self.components.organisms[&plant]);
         let cross = Cross {
             tick: self.tick,
+            hex: self.components.habitats[&chunk].id.clone(),
             mother: m.id.clone(),
             father: f.id.clone(),
             mother_species: m.species_id.clone(),

@@ -1,11 +1,6 @@
 <template>
-  <div v-if="show" class="sci-modal-overlay" @click.self="$emit('close')">
-    <form class="sci-modal nv-ornate flex max-h-[90vh] w-full max-w-3xl flex-col" role="dialog" aria-labelledby="cross-title" @submit.prevent="submit">
-      <!-- Indented to clear the frame's corner flourish -->
-      <header class="flex items-baseline justify-between gap-2 pl-5">
-        <h2 id="cross-title" class="nv-heading text-2xl">Cross-pollinate</h2>
-        <button type="button" class="nv-link" @click="$emit('close')">Close</button>
-      </header>
+  <Modal :show="show" title="Cross-pollinate" size="xl" @close="$emit('close')">
+    <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submit">
       <p class="nv-small nv-muted mt-1 pl-5">Carry pollen from one flowering plant to another. Plants of one species cross, and so do species of one genus.</p>
       <div class="mt-3 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
         <fieldset v-for="side in sides" :key="side.key" class="grid content-start gap-1">
@@ -36,10 +31,11 @@
         <button type="submit" class="nv-btn" :disabled="!picked.mother || !picked.father">Pollinate</button>
       </div>
     </form>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
+import Modal from './Modal.vue'
 import { computed, reactive, watch } from 'vue'
 import { plantTitle, type Tag } from '@/game/journal'
 import { GUESSES, type Guess } from '@/game/notebook'

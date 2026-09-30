@@ -47,6 +47,7 @@
           :contemplative="true"
           @select="onSelectChunk"
         />
+        <HexCard v-if="hexCard" v-bind="hexCard" class="fixed right-4 top-24 z-20 max-h-[calc(100vh-8rem)] w-72" v-on="hexCardEvents" />
       </main>
     </template>
 
@@ -55,34 +56,36 @@
     <div class="nouveau flex min-h-0 flex-1 flex-col">
       <!-- Masthead -->
       <header class="nv-masthead flex flex-shrink-0 flex-wrap items-center gap-x-5 gap-y-2 px-3 py-1.5 sm:flex-nowrap sm:px-5">
-        <img :src="nv('logo')" alt="EcoSim — Living systems, brighter tomorrows" class="h-16 w-auto sm:h-24" />
+        <img :src="nv('logo')" alt="EcoSim — Living systems, brighter tomorrows" class="h-12 w-auto sm:h-24" />
         <div class="nv-serif leading-tight">
-          <p class="text-3xl text-[#f6eeda]">{{ seasonLabel }}</p>
-          <p class="nv-nums text-base text-[#e8d5a3]/85">Year {{ currentYear }} · Day {{ simDays }}</p>
+          <p class="text-2xl text-[#f6eeda] sm:text-3xl">{{ seasonLabel }}</p>
+          <p class="nv-nums whitespace-nowrap text-base text-[#e8d5a3]/85">Year {{ currentYear }} · Day {{ simDays }}</p>
         </div>
         <div class="relative order-last mx-auto sm:order-none" role="img" :aria-label="`Season: ${seasonLabel}`">
-          <img :src="nv('seasons')" alt="" class="h-16 w-auto sm:h-[5.5rem]" />
+          <img :src="nv('seasons')" alt="" class="h-12 w-auto sm:h-[5.5rem]" />
           <span class="nv-season-mark" :style="{ left: `${4.6 + seasonIndex * 22.8}%` }" aria-hidden="true"></span>
         </div>
         <p class="nv-serif ml-auto hidden text-right text-lg italic leading-tight text-[#e8d5a3]/85 lg:block">“Small changes.<br />Living worlds.”</p>
-        <div class="ml-auto flex items-center gap-1.5 lg:ml-0">
+        <!-- On a phone the dock carries the Codex and Sites -->
+        <div class="ml-auto hidden items-center gap-1.5 sm:flex lg:ml-0">
           <button type="button" class="research-panel nv-img-btn" title="Codex" aria-label="Open the Codex" @click="openCodex('plant')"><img :src="nv('btn-journal')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Contemplative view" aria-label="Switch to contemplative view" @click="toggleViewMode"><img :src="nv('btn-settings')" alt="" /></button>
           <button type="button" class="nv-img-btn" title="Restoration sites" aria-label="Restoration sites" @click="showSites = true"><img :src="nv('btn-map')" alt="" /></button>
         </div>
       </header>
 
-      <main class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)_18rem] lg:overflow-hidden xl:grid-cols-[8.75rem_15rem_minmax(0,1fr)_18rem]">
+      <!-- Phone: one column, map first. Tablet: the map beside one column of panels. Laptop and up: three columns. -->
+      <main class="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto p-2 sm:p-3 md:grid-cols-[minmax(0,1fr)_17rem] md:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:overflow-hidden lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)_18rem] xl:grid-cols-[8.75rem_15rem_minmax(0,1fr)_18rem]">
         <img :src="nv('portrait-strip')" alt="" class="nv-portrait hidden h-full min-h-0 w-full object-cover object-top xl:block" />
 
         <!-- Workflow, overlays, time, interventions -->
-        <aside class="flex min-h-0 flex-col gap-2 lg:overflow-y-auto">
-          <section class="nv-ornate">
+        <aside class="order-2 flex min-h-0 flex-col gap-2 md:order-none md:col-start-2 md:row-start-1 md:overflow-y-auto lg:col-start-auto lg:row-start-auto">
+          <section class="nv-ornate max-md:order-last">
             <h2 class="nv-heading text-center text-lg">Guided Workflow</h2>
-            <ol class="mt-2 grid gap-1.5">
+            <ol class="mt-1.5 grid gap-1">
               <li v-for="(step, i) in workflowSteps" :key="step.title" class="nv-step" :aria-current="activeStep === i ? 'step' : undefined">
                 <span class="nv-step-num">{{ i + 1 }}</span>
-                <img :src="nv(step.icon)" alt="" class="h-7 w-7 flex-shrink-0 object-contain" />
+                <img :src="nv(step.icon)" alt="" class="flex-shrink-0 object-contain" :class="activeStep === i ? 'h-7 w-7' : 'h-5 w-5'" />
                 <div>
                   <p class="text-[0.95rem] font-bold leading-tight">{{ step.title }}<span v-if="step.done" class="ml-1" aria-label="done">✓</span></p>
                   <p v-if="activeStep === i" class="nv-small nv-muted">{{ step.text }}</p>
@@ -149,8 +152,8 @@
         </aside>
 
         <!-- Hex world map -->
-        <section class="chunk-grid-container relative min-h-[26rem] lg:min-h-0">
-          <div class="nv-map-frame h-full min-h-[26rem] lg:min-h-0">
+        <section class="chunk-grid-container relative order-1 min-h-[22rem] sm:min-h-[26rem] md:order-none md:col-start-1 md:row-span-2 md:row-start-1 md:min-h-0 lg:col-start-auto lg:row-span-1 lg:row-start-auto">
+          <div class="nv-map-frame h-full min-h-[22rem] sm:min-h-[26rem] md:min-h-0">
             <ChunkGrid
               :chunk-grid="displayChunkGrid"
               :width="width"
@@ -160,6 +163,7 @@
               :selected="selected"
               :trace="trace"
               :flight="followFlight"
+              :marks="mapMarks"
               :season-name="(stats as any).seasonName ?? 'Spring'"
               tessellated
               @select="onSelectChunk"
@@ -171,81 +175,27 @@
             <p class="nv-small">{{ follow.landing.value ? 'Where did it land? Pick the hex.' : 'Watch where it flies…' }} ({{ follow.hops.value }} of {{ HOPS }})</p>
             <button type="button" class="nv-link nv-small mt-1" @click="follow.cancel()">Stop following</button>
           </div>
-          <div v-if="tooltipChunk && hexStory" class="nv-panel-dark absolute right-3 top-3 w-64 p-3 sm:right-5 sm:top-5" role="status">
-            <div class="flex items-start justify-between gap-2">
-              <p class="font-bold">{{ hexStory.title }}</p>
-              <span class="nv-nums whitespace-nowrap text-sm opacity-80">({{ tooltipChunk.x }}, {{ tooltipChunk.y }})</span>
-            </div>
-            <p class="nv-small opacity-85">{{ hexStory.phrase }}</p>
-            <h4 v-if="hexStory.plants.length" class="nv-small mt-2 uppercase tracking-[0.15em] opacity-70">Plants</h4>
-            <ul class="grid gap-0.5 text-sm">
-              <li v-for="plant in hexStory.plants.slice(0, 5)" :key="plant.id" class="nv-tooltip-row">
-                <span class="flex items-center gap-2"><img :src="nv(ACTIVITY_ICONS[plant.activity])" alt="" class="h-4 w-4 object-contain" />{{ plant.name }}</span>
-                <span class="nv-small opacity-80">
-                  <span v-if="plant.limit" class="font-bold text-[#f0b48a]">{{ plant.limit }}</span><template v-else>{{ ACTIVITY_WORDS[plant.activity] }}</template> · {{ plant.count }}
-                  <button v-if="untaggedOf(plant.id)" type="button" class="nv-link ml-1" :title="`Tag the oldest ${plant.name} here and follow it in the Journal`" @click="tagOldest(plant.id)">Tag</button>
-                  <button type="button" class="nv-link ml-1" :title="`Photograph ${plant.name}`" @click="takePhoto(plant.id)">Photo</button>
-                </span>
-              </li>
-            </ul>
-            <h4 v-if="hexStory.animals.length" class="nv-small mt-2 uppercase tracking-[0.15em] opacity-70">Animals</h4>
-            <ul class="grid gap-0.5 text-sm">
-              <li v-for="animal in hexStory.animals.slice(0, 4)" :key="animal.id" class="nv-tooltip-row">
-                <span class="flex items-center gap-2"><img :src="nv(animal.group === 'bird' ? 'icon-birds' : 'icon-pollinators')" alt="" class="h-4 w-4 object-contain" />{{ animal.name }}</span>
-                <span class="nv-small nv-nums opacity-80">
-                  {{ animal.count }}
-                  <button type="button" class="nv-link ml-1" :title="`Photograph ${animal.name}`" @click="takePhoto(animal.id)">Photo</button>
-                  <button v-if="animal.group !== 'bird' && knowledgeStore.knowledge.species[animal.id]" type="button" class="nv-link ml-1" :title="`Follow ${animal.name} from flower to flower`" @click="startFollow(animal.id)">Follow</button>
-                </span>
-              </li>
-            </ul>
-            <div class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
-              <template v-if="hexSample">
-                <p class="opacity-80">Sampled on day {{ hexSample.day }}<template v-if="hexSample.changed">; <span class="font-bold text-[#f0b48a]">changed since sampling</span></template></p>
-                <dl class="nv-nums mt-0.5 grid gap-0.5">
-                  <div v-for="row in hexSample.rows" :key="row.label" class="nv-tooltip-row">
-                    <dt>{{ row.label }}</dt>
-                    <dd>{{ row.value }}</dd>
-                  </div>
-                </dl>
-                <p class="mt-0.5">{{ hexSample.tray }}</p>
-              </template>
-              <p v-if="traceText" class="mt-0.5">{{ traceText }}</p>
-              <p v-if="fungiHere.length" class="mt-0.5">
-                Fruiting bodies: {{ fungiHere.join(', ') }}.
-                <button type="button" class="nv-link ml-1" @click="inspectFungiHere">Inspect the fungi</button>
-              </p>
-              <p class="mt-1 flex flex-wrap gap-x-3">
-                <button type="button" class="nv-link" @click="applyToSelected('sample')">{{ hexSample ? 'Sample again' : 'Take a soil & water sample' }}</button>
-                <button type="button" class="nv-link" @click="traceFromSelected">Trace the water</button>
-                <button type="button" class="nv-link" @click="listenHere">Listen</button>
-                <button type="button" class="nv-link" @click="noteHere">Note in calendar</button>
-              </p>
-            </div>
-            <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
-              {{ speciesInfo(interventionStore.selectedPlantSpecies).name }}: <span class="font-bold">{{ plantFit.words }}</span>
-            </p>
-            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <button type="button" class="nv-small underline opacity-80 hover:opacity-100" @click="clearSelection">Close</button>
-              <button v-if="hexStory.plants.some(p => p.activity === 'flowering')" type="button" class="nv-btn" @click="showCross = true">Cross-pollinate</button>
-              <button v-if="plantFit" type="button" class="nv-btn" @click="applyToSelected('plant')">Plant here</button>
-              <button v-if="hexStory.plants.some(p => p.activity === 'fruiting')" type="button" class="nv-btn" @click="showCollect = true">Collect seeds</button>
-              <button type="button" class="nv-btn" @click="showChunkInspector = true">Open inspector</button>
-            </div>
-          </div>
+          <!-- On the map beside the hex; on a phone a sheet above the dock -->
+          <HexCard
+            v-if="hexCard"
+            v-bind="hexCard"
+            class="absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-72 sm:right-5 sm:top-5 max-md:fixed max-md:inset-x-2 max-md:bottom-[4.25rem] max-md:top-auto max-md:w-auto max-md:max-h-[55vh]"
+            v-on="hexCardEvents"
+          />
 
           <img :src="nv('compass')" alt="Hex world: interconnect, explore, preserve" class="nv-compass absolute bottom-2 left-2 hidden w-36 md:block" />
           <p class="nv-pill absolute bottom-3 right-3 hidden md:block" aria-hidden="true">Every habitat matters</p>
         </section>
 
         <!-- World overview, events, scenario -->
-        <aside class="flex min-h-0 flex-col gap-2 lg:overflow-y-auto">
+        <aside class="order-3 flex min-h-0 flex-col gap-2 md:order-none md:col-start-2 md:row-start-2 md:overflow-y-auto lg:col-start-auto lg:row-start-auto">
           <section class="nv-ornate">
             <h2 class="nv-heading">World Overview</h2>
             <div class="nv-nums mt-1.5 grid gap-1 text-sm">
               <div v-for="row in overviewRows" :key="row.label" class="nv-row">
                 <span class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-5 w-5 object-contain" />{{ row.label }}</span>
                 <span class="flex items-center gap-2">
+                  <Sparkline :values="overviewTrend.map(point => point[row.label] ?? 0)" :label="`${row.label} over the last ${overviewTrend.length} weeks`" />
                   <span v-if="row.bar !== undefined" class="nv-bar inline-block w-20" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
                   <strong v-if="row.bar === undefined" class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
                 </span>
@@ -325,10 +275,7 @@
       </footer>
 
     <!-- The land emptied: say what the player saw cause it, and let life go on -->
-    <div v-if="extinction.triggered" class="sci-modal-overlay">
-      <div class="sci-modal nv-ornate max-w-md" role="dialog" aria-labelledby="shift-title">
-        <h2 id="shift-title" class="nv-heading text-center text-xl">Ecosystem shift</h2>
-        <p class="nv-small nv-muted text-center">Year {{ currentYear }} · Day {{ simDays }}</p>
+    <Modal :show="extinction.triggered" title="Ecosystem shift" :subtitle="`Year ${currentYear} · Day ${simDays}`" size="md" centered :closable="false">
         <p class="nv-small mt-2 text-center">No plants or living seed remain. The land will stay open until something arrives or you sow it.</p>
         <ul class="mt-3 grid gap-1.5">
           <li v-if="extinction.causes.length === 0" class="nv-small nv-muted text-center">The last plants faded without a clear cause.</li>
@@ -340,14 +287,10 @@
         <div class="mt-3 flex justify-center">
           <button type="button" class="nv-btn px-5 py-1.5 text-sm font-bold" @click="acknowledgeShift">Continue</button>
         </div>
-      </div>
-    </div>
+    </Modal>
 
-    <div v-if="digest" class="sci-modal-overlay" @click.self="digest = null">
-      <div class="sci-modal nv-ornate max-w-md" role="dialog" aria-labelledby="digest-title">
-        <h2 id="digest-title" class="nv-heading text-center text-xl">{{ digest.title }}</h2>
-        <p class="nv-small nv-muted text-center">Year {{ currentYear }} · Day {{ simDays }}</p>
-        <ul class="mt-3 grid gap-1.5">
+    <Modal :show="!!digest" :title="digest?.title" :subtitle="`Year ${currentYear} · Day ${simDays}`" size="md" centered @close="digest = null">
+        <ul v-if="digest" class="mt-3 grid gap-1.5">
           <li v-if="digest.lines.length === 0" class="nv-small nv-muted text-center">A quiet stretch: nothing notable changed.</li>
           <li v-for="line in digest.lines" :key="line.text" class="nv-row text-sm">
             <span class="flex items-center gap-2"><img :src="nv(DIGEST_ICONS[line.icon])" alt="" class="h-5 w-5 flex-shrink-0 object-contain" />{{ line.text }}</span>
@@ -357,19 +300,16 @@
         <div class="mt-3 flex justify-center">
           <button type="button" class="nv-btn px-5 py-1.5 text-sm font-bold" @click="digest = null">Continue</button>
         </div>
-      </div>
-    </div>
+    </Modal>
 
     </div>
     </template>
 
     <CodexPanel :show="showCodex" :start-tab="codexTab" @close="showCodex = false" />
-    <div v-if="lastPhoto" class="sci-modal-overlay" @click.self="lastPhoto = null">
-      <div class="sci-modal nv-ornate w-full max-w-sm" role="dialog" aria-label="Your photo">
-        <PhotoCard :photo="lastPhoto" />
-        <div class="mt-2 flex justify-end"><button type="button" class="nv-btn" @click="lastPhoto = null">Close</button></div>
-      </div>
-    </div>
+    <Modal :show="!!lastPhoto" label="Your photo" size="sm" @close="lastPhoto = null">
+      <PhotoCard v-if="lastPhoto" :photo="lastPhoto" />
+      <div class="mt-2 flex justify-end"><button type="button" class="nv-btn" @click="lastPhoto = null">Close</button></div>
+    </Modal>
     <SeedsPanel :show="showSeeds" :pouch="pouch" @close="showSeeds = false" @sow="sowFrom" />
     <SettingsPanel
       :show="showSettings"
@@ -416,12 +356,6 @@
 
     <SiteSelector :show="showSites" @close="showSites = false" @travel="travel" />
 
-    <!-- Chunk Inspector -->
-    <ChunkInspector
-      :show="showChunkInspector"
-      :chunk="selectedChunkForInspection"
-      @close="showChunkInspector = false"
-    />
     <p v-if="saveNotice" class="nv-skin nv-frame fixed bottom-6 left-6 z-[110] max-w-sm rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-lg" role="status">{{ saveNotice }}</p>
     </template>
   </div>
@@ -446,6 +380,11 @@ import SeedsPanel from "@/components/simulation/SeedsPanel.vue";
 import SettingsPanel from "@/components/simulation/SettingsPanel.vue";
 import CrossPanel from "@/components/simulation/CrossPanel.vue";
 import PhotoCard from "@/components/simulation/PhotoCard.vue";
+import Modal from "@/components/simulation/Modal.vue";
+import HexCard, { type HexAction } from "@/components/simulation/HexCard.vue";
+import { hexMarks } from "@/game/mapMarks";
+import { groupEvents } from "@/game/glance";
+import Sparkline from "@/components/simulation/Sparkline.vue";
 import { useFollow, HOPS } from "@/composables/useFollow";
 import { HABITAT_WORDS, SPRITE_ICON } from "@/components/simulation/habitatLook";
 import type { Photo } from "@/game/knowledge";
@@ -464,13 +403,12 @@ import { MYSTERIES } from "@/game/mysteries";
 import { describeRareEvent } from "@/game/rareEvents";
 import { CAUSES, mostCommon } from "@/game/causes";
 import { EventType } from "@/simulation/EventJournal";
-import { describeHex, type PlantActivity } from "@/game/hexDescription";
+import { describeHex } from "@/game/hexDescription";
 import { speciesInfo } from "@/game/speciesInfo";
 import type { Discovery } from "@/game/knowledge";
 import WelcomeModal from "@/components/simulation/WelcomeModal.vue";
 import TooltipOverlay from "@/components/simulation/TooltipOverlay.vue";
 import SiteSelector from "@/components/simulation/SiteSelector.vue";
-import ChunkInspector from "@/components/simulation/ChunkInspector.vue";
 
 // Stores and utilities
 import { SimDB, type SimSnapshot } from "@/persistence/SimDB";
@@ -561,7 +499,6 @@ const gameplay = reactive({
 })
 
 // Chunk inspector state
-const showChunkInspector = ref(false);
 const selectedChunkForInspection = ref<any>(null);
 
 // The engine is not reactive; this counter tells the view it has changed (a tick, an action, a load).
@@ -649,8 +586,8 @@ function initializeWorld(carriedPouch?: unknown[]) {
   engine.value.activateAllChunks();
 
   events.value = [];
+  overviewTrend.value = [];
   eventCounter = 0;
-  showChunkInspector.value = false;
   selectedChunkForInspection.value = null;
   selected.value = null;
   extinctionGraceUntilTick = 50;
@@ -741,6 +678,7 @@ function refreshView() {
   updateStats();
   detectWeatherEvents();
   if (historyConfig.captureEvery > 0 && reached(historyConfig.captureEvery)) captureHistory(stats.currentTick);
+  if (reached(7)) captureTrend();
   if (options.autoSave && db && reached(Math.max(1, persist.interval))) saveSnapshot();
 }
 
@@ -899,8 +837,6 @@ function onSelectChunk(payload: { x: number; y: number }) {
   const chunk = engine.value?.readChunk(payload.x, payload.y);
   if (chunk) {
     selectedChunkForInspection.value = chunk;
-    // Nouveau map shows an inline card; the full modal opens on demand.
-    showChunkInspector.value = viewMode.value === 'contemplative';
   }
 }
 
@@ -931,6 +867,46 @@ function untaggedOf(speciesId: string): string | undefined {
     if (plant.speciesId === speciesId && !tags[plant.id] && (!oldest || plant.age > oldest.age)) oldest = plant;
   });
   return oldest?.id;
+}
+
+// What the hex card offers per row: species with an untagged plant here, and animals the player can follow.
+const taggable = computed(() => (hexStory.value?.plants ?? []).map(plant => plant.id).filter(id => untaggedOf(id)));
+const followable = computed(() =>
+  (hexStory.value?.animals ?? []).filter(animal => animal.group !== 'bird' && knowledgeStore.knowledge.species[animal.id]).map(animal => animal.id)
+);
+// Tagged plants and waiting crosses per hex, for the map's markers.
+const mapMarks = computed(() => {
+  void viewVersion.value;
+  const sim = engine.value;
+  return sim ? hexMarks(sim.getTags(), sim.getCrosses(), simDays.value) : {};
+});
+
+// The hex card's data and handlers, shared by the main and the calm view.
+const hexCard = computed(() => {
+  const chunk = tooltipChunk.value;
+  const story = hexStory.value;
+  if (!chunk || !story) return null;
+  return {
+    story,
+    coords: { x: chunk.x, y: chunk.y },
+    taggable: taggable.value,
+    followable: followable.value,
+    sample: hexSample.value,
+    traceText: traceText.value,
+    fungi: fungiHere.value,
+    fit: plantFit.value ? { species: speciesInfo(interventionStore.selectedPlantSpecies).name, words: plantFit.value.words } : null,
+  };
+});
+const hexCardEvents = { close: clearSelection, act: onHexAction, tag: tagOldest, photo: takePhoto, follow: startFollow };
+function onHexAction(action: HexAction) {
+  if (action === 'plant') applyToSelected('plant');
+  else if (action === 'collect') showCollect.value = true;
+  else if (action === 'cross') showCross.value = true;
+  else if (action === 'fungi') inspectFungiHere();
+  else if (action === 'sample') applyToSelected('sample');
+  else if (action === 'listen') listenHere();
+  else if (action === 'trace') traceFromSelected();
+  else noteHere();
 }
 
 function tagOldest(speciesId: string) {
@@ -1056,12 +1032,12 @@ function applySnapshot(snap: SimSnapshot) {
   extinction.triggered = extinction.acknowledged = false;
   rareSeenUntil = -1;
   runtimeError.value = null;
-  showChunkInspector.value = false;
   selectedChunkForInspection.value = null;
   selected.value = null;
   historyFrames.value = [];
   selectedHistoryIndex.value = -1;
   events.value = [];
+  overviewTrend.value = [];
   seenWeather.clear();
   updateStats();
   captureHistory(stats.currentTick);
@@ -1395,8 +1371,12 @@ function fmt01(value: number | undefined): string {
 
 // Engine messages lead with an emoji; the kit icon from eventIcon() replaces it here.
 const recentEvents = computed(() => {
-  const list = showAllEvents.value ? events.value.slice(-12) : events.value.slice(-5);
-  return list.map((event) => ({ ...event, message: event.message.replace(/^[^\p{L}\p{N}]+/u, '') })).reverse();
+  const tidy = (message: string) => {
+    const text = message.replace(/^[^\p{L}\p{N}]+/u, '');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
+  const grouped = groupEvents(events.value.slice(-60).map(event => ({ ...event, message: tidy(event.message) })));
+  return grouped.slice(showAllEvents.value ? -12 : -5).reverse();
 });
 
 const scenarioGoals = computed(() => {
@@ -1438,8 +1418,6 @@ const hexStory = computed(() => {
     return info.animal ? { ...info, name: animalLabel(id, knowledgeStore.knowledge) } : info;
   });
 });
-const ACTIVITY_WORDS: Record<PlantActivity, string> = { flowering: 'in flower', fruiting: 'fruiting', dormant: 'resting', growing: 'growing' };
-const ACTIVITY_ICONS: Record<PlantActivity, string> = { flowering: 'icon-plants', fruiting: 'icon-diversity', dormant: 'icon-leaf', growing: 'icon-vitality' };
 
 // Fieldwork in the selected hex: its latest sample, and the path of a traced marker.
 const hexSample = computed(() => {
@@ -1539,6 +1517,14 @@ function traceFromSelected() {
   trace.value = traceWater(sim.readChunks().values(), `chunk_${selected.value.x}_${selected.value.y}`);
 }
 
+// The overview's figures week by week (the latest 24), for its trend lines.
+const TREND_WEEKS = 24;
+const overviewTrend = ref<Array<Record<string, number>>>([]);
+function captureTrend() {
+  const point = Object.fromEntries(overviewRows.value.map(row => [row.label, row.bar ?? Number(row.value)]));
+  overviewTrend.value = [...overviewTrend.value, point].slice(-TREND_WEEKS);
+}
+
 const overviewRows = computed<StatRow[]>(() => [
   { label: 'Vitality', icon: 'icon-vitality', value: fmt01(stats.avgVitality), bar: stats.avgVitality, barClass: 'nv-bar-leaf' },
   { label: 'Cleanliness', icon: 'icon-moisture', value: fmt01(cleanliness.value), bar: cleanliness.value, barClass: 'nv-bar-water' },
@@ -1570,7 +1556,6 @@ const plantFit = computed(() => {
 function clearSelection() {
   selected.value = null;
   selectedChunkForInspection.value = null;
-  showChunkInspector.value = false;
 }
 
 function saveViewModePreference() {

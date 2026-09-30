@@ -79,3 +79,30 @@ describe('fungi', () => {
     expect(codexTotals(k).fungus).toEqual({ known: 2, total: 5 })
   })
 })
+
+describe('map marks', () => {
+  it('marks hexes with living tagged plants and crosses still waiting for seedlings', async () => {
+    const { hexMarks } = await import('@/game/mapMarks')
+    const tag = (hex: string, died = false) => ({ label: '#M1', speciesId: 'x', taggedTick: 0, reason: 'planted' as const, seedsSet: 0, descendants: 0, hex, ...(died ? { died: { tick: 1, cause: 'drought', ageDays: 1 } } : {}) })
+    const cross = (hex: string, tick: number, seedlings = 0) =>
+      ({ tick, hex, mother: 'a', father: 'b', motherSpecies: 'x', fatherSpecies: 'x', parents: [{}, {}], prediction: {}, seedlings: Array.from({ length: seedlings }, (_, i) => ({ id: `s${i}`, traits: {} })) }) as any
+    const marks = hexMarks({ a: tag('h1'), b: tag('h1'), c: tag('h2', true) }, [cross('h2', 100), cross('h3', 100, 1), cross('h4', 0)], 400)
+    expect(marks).toEqual({ h1: { tagged: 2, crossing: false }, h2: { tagged: 0, crossing: true } })
+  })
+})
+
+describe('at a glance', () => {
+  it('groups the same event in several hexes on one day', async () => {
+    const { groupEvents, sparkPath } = await import('@/game/glance')
+    const events = [
+      { id: 1, message: 'Red Fescue sprouted in (4,3)', tick: 7 },
+      { id: 2, message: 'Red Fescue sprouted in (2,2)', tick: 7 },
+      { id: 3, message: 'Bluebell sprouted in (4,4)', tick: 7 },
+      { id: 4, message: 'Red Fescue sprouted in (1,1)', tick: 8 },
+      { id: 5, message: 'Saved snapshot #1', tick: 8 },
+    ]
+    expect(groupEvents(events).map(e => e.message)).toEqual(['Red Fescue sprouted in 2 hexes', 'Bluebell sprouted in (4,4)', 'Red Fescue sprouted in (1,1)', 'Saved snapshot #1'])
+    expect(sparkPath([1, 3, 2], 10, 4)).toBe('M0.0,4.0 L5.0,0.0 L10.0,2.0')
+    expect(sparkPath([2], 10, 4)).toBe('')
+  })
+})

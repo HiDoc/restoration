@@ -151,6 +151,26 @@
 }
 .nv-subheading::before { content: '– '; color: var(--nv-brass-700); }
 
+/* Keyboard focus: one visible ring on every control, on parchment and on the dark frames alike */
+.nouveau :focus-visible,
+.sci-modal :focus-visible {
+  outline: 2px solid var(--nv-brass-500);
+  outline-offset: 2px;
+}
+
+/* Links on the dark panels read in brass (the blue link is for parchment) */
+.nv-panel-dark .nv-link { color: var(--nv-brass-300); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nouveau *,
+  .nouveau *::before,
+  .nouveau *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .nv-link {
   font-size: 0.8rem;
   color: #2f5d8a;
@@ -179,6 +199,9 @@
   border-radius: 8px;
   background: rgba(246, 238, 218, 0.6);
 }
+/* Steps other than the current one are a single compact line */
+.nv-step:not([aria-current='step']) { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+.nv-step:not([aria-current='step']) .nv-step-num { height: 1.6rem; }
 .nv-step[aria-current='step'] {
   background: linear-gradient(180deg, #f8f0dc 0%, #eedfb8 100%);
   border-color: var(--nv-brass-500);
@@ -393,6 +416,12 @@
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
 }
 .nv-dock-tab[aria-selected='true'] .nv-glyph { background: var(--nv-green-700); }
+
+/* On a phone the six tabs share the width */
+@media (max-width: 767px) {
+  .nv-dock-tab { min-width: 0; flex: 1 1 0; height: 3.4rem; padding: 0.4rem 0.15rem 0.3rem; font-size: 0.68rem; border-radius: 1.6rem 1.6rem 0 0; }
+  .nv-dock-tab .nv-glyph { width: 1.2rem; height: 1.2rem; }
+}
 
 /* Kit glyph tinted by currentColor through a mask */
 .nv-glyph {

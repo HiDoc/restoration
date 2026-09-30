@@ -1,11 +1,5 @@
 <template>
-  <div v-if="show" class="sci-modal-overlay" @click.self="$emit('close')">
-    <div class="sci-modal nv-ornate w-full max-w-md" role="dialog" aria-labelledby="settings-title">
-      <!-- Indented to clear the frame's corner flourish -->
-      <header class="flex items-baseline justify-between gap-2 pl-5">
-        <h2 id="settings-title" class="nv-heading text-2xl">Settings</h2>
-        <button type="button" class="nv-link" @click="$emit('close')">Close</button>
-      </header>
+  <Modal :show="show" title="Settings" size="md" @close="$emit('close')">
       <section class="mt-3 grid gap-2">
         <div class="flex items-center justify-between gap-2">
           <span>This site's ecosystem</span>
@@ -31,11 +25,11 @@
         </div>
         <p v-if="notice" class="nv-small" role="status">{{ notice }}</p>
       </section>
-    </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup lang="ts">
+import Modal from './Modal.vue'
 import { computed } from 'vue'
 
 const props = defineProps<{ show: boolean; autoSave: boolean; autosaveDays: number; tickMs: number; saving: boolean; loading: boolean; notice?: string }>()

@@ -7,6 +7,8 @@ export const GUESSES: Guess[] = ['lower', 'between', 'higher']
 /** A cross the player made, as the engine keeps it. */
 export interface Cross {
   tick: number
+  /** The hex it was made in. */
+  hex: string
   mother: string
   father: string
   motherSpecies: string

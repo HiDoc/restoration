@@ -154,6 +154,19 @@ fn projection_sync_retains_entities_rng_and_future_evolution() {
     let mut synced = original.clone();
     let chunks = serde_json::from_value(synced.snapshot()["chunks"].clone()).unwrap();
     synced.sync(chunks).unwrap();
+    let genetics = |w: &World| -> Vec<Value> {
+        w.components
+            .habitats
+            .values()
+            .flat_map(|h| h.seeds.iter().map(|s| s.extra["genetics"].clone()))
+            .collect()
+    };
+    assert!(!genetics(&original).is_empty());
+    assert_eq!(
+        genetics(&original),
+        genetics(&synced),
+        "buried seeds keep their genetics, which the projection leaves out"
+    );
     original.step(150).unwrap();
     synced.step(150).unwrap();
     assert_eq!(original.rng.state, synced.rng.state);

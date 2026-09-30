@@ -1,7 +1,7 @@
 use crate::{genetics::origin_of, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub const SAVE_VERSION: u32 = 1;
 /// Seed a fruiting plant has ripened since it last dropped or gave seed; about ten days' worth for a grass.
@@ -329,6 +329,29 @@ impl World {
             extra.remove("sample");
             extra.remove("fungi");
             extra.remove("fruiting");
+            // Projected seeds carry no genetics: a seed coming back without them is matched, in order, to the
+            // hex's existing seeds of its species, which keep theirs. The host only adds or removes seeds.
+            let mut kept = BTreeMap::<String, VecDeque<BTreeMap<String, Value>>>::new();
+            for seed in self
+                .components
+                .habitats
+                .get_mut(&entity)
+                .map(|h| std::mem::take(&mut h.seeds))
+                .unwrap_or_default()
+            {
+                kept.entry(seed.species_id)
+                    .or_default()
+                    .push_back(seed.extra);
+            }
+            let mut seeds = chunk.seed_bank;
+            for seed in seeds
+                .iter_mut()
+                .filter(|s| !s.extra.contains_key("genetics"))
+            {
+                if let Some(extra) = kept.get_mut(&seed.species_id).and_then(VecDeque::pop_front) {
+                    seed.extra = extra;
+                }
+            }
             let mut biome = chunk.biome_state;
             biome.normalize();
             self.components.biomes.insert(entity, biome);
@@ -339,7 +362,7 @@ impl World {
                     id: chunk.id,
                     x: chunk.x,
                     y: chunk.y,
-                    seeds: chunk.seed_bank,
+                    seeds,
                     residues: chunk.ritual_residues,
                     elevation: chunk.elevation.clamp(0.0, 1.0),
                     extra,

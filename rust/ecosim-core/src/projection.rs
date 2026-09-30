@@ -27,6 +27,18 @@ pub(crate) struct Snapshot<'a> {
     weather_events: &'a [Weather],
 }
 
+/// A buried seed as the host sees it: what and where it is, not its genetics, which stay in the engine (a hex
+/// holds up to 128 seeds, and their genetics would double the projection sent every tick).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SeedView<'a> {
+    species_id: &'a str,
+    x: f64,
+    y: f64,
+    viability: f64,
+    maturity_ticks: u64,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Chunk<'a> {
@@ -38,7 +50,7 @@ struct Chunk<'a> {
     last_update_tick: u64,
     species: Vec<(&'a str, Plant<'a>)>,
     ritual_residues: &'a [(String, Value)],
-    seed_bank: &'a [Seed],
+    seed_bank: Vec<SeedView<'a>>,
     elevation: f64,
     /// Water running to each neighbouring hex, per day.
     outflow: BTreeMap<&'a str, f64>,
@@ -145,7 +157,17 @@ impl World {
                 last_update_tick: self.tick,
                 species: by_chunk.remove(entity).unwrap_or_default(),
                 ritual_residues: &habitat.residues,
-                seed_bank: &habitat.seeds,
+                seed_bank: habitat
+                    .seeds
+                    .iter()
+                    .map(|seed| SeedView {
+                        species_id: &seed.species_id,
+                        x: seed.x,
+                        y: seed.y,
+                        viability: seed.viability,
+                        maturity_ticks: seed.maturity_ticks,
+                    })
+                    .collect(),
                 elevation: habitat.elevation,
                 outflow: self
                     .flows

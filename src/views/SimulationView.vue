@@ -676,31 +676,38 @@ function rewardGoal(title: string) {
   notify('icon-plants', `${title} done: ${REWARD_SEEDS} ${speciesInfo(species).name} seeds arrive.`);
 }
 
+// The loop may run several ticks in one frame; the view catches up once, after the frame's last tick.
+let refreshQueued = false;
 function updateOnce() {
   if (!engine.value || runtimeError.value) return;
 
   // Rust owns the full ecology schedule. Vue only observes the completed tick.
   engine.value.update();
-  refreshView();
+  if (refreshQueued) return;
+  refreshQueued = true;
+  queueMicrotask(() => {
+    refreshQueued = false;
+    refreshView();
+  });
 }
 
 /** Bring the screen, goals, knowledge and history up to the engine's latest tick. */
+let refreshedTick = -1;
 function refreshView() {
   if (!engine.value) return;
+  const tick = engine.value.getCurrentTick();
+  // After travelling or loading, time can run backwards: count from the tick before.
+  const previous = refreshedTick < tick ? refreshedTick : tick - 1;
+  refreshedTick = tick;
+  // A multiple of `every` ticks passed since the last refresh (which may be several ticks back).
+  const reached = (every: number) => Math.floor(refreshedTick / every) > Math.floor(previous / every);
   announce(knowledgeStore.observe(engine.value));
   readJournal(engine.value);
-  evaluateProgress(engine.value.getCurrentTick());
+  evaluateProgress(refreshedTick);
   updateStats();
   detectWeatherEvents();
-  captureHistory(stats.currentTick);
-  // Auto save
-  if (
-    persist.autoSave &&
-    db &&
-    stats.currentTick % Math.max(1, persist.interval) === 0
-  ) {
-    saveSnapshot();
-  }
+  if (historyConfig.captureEvery > 0 && reached(historyConfig.captureEvery)) captureHistory(stats.currentTick);
+  if (persist.autoSave && db && reached(Math.max(1, persist.interval))) saveSnapshot();
 }
 
 function updateStats() {
@@ -743,8 +750,7 @@ function updateStats() {
 }
 
 function captureHistory(tick: number) {
-  if (!engine.value || historyConfig.captureEvery <= 0) return;
-  if (tick % historyConfig.captureEvery !== 0) return;
+  if (!engine.value) return;
 
   const frame: HistoryFrame = {
     tick,

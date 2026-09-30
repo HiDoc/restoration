@@ -49,7 +49,7 @@
       <button type="button" class="control-btn text-control" :disabled="saving" @click="$emit('save')">{{ saving ? 'Saving…' : 'Save' }}</button>
       <button type="button" class="control-btn text-control" :disabled="loading" @click="$emit('load')">{{ loading ? 'Loading…' : 'Load' }}</button>
     </div>
-    <button type="button" class="control-btn text-control" @click="$emit('scenarios')">Scenarios</button>
+    <button type="button" class="control-btn text-control" @click="$emit('sites')">Sites</button>
 
     <!-- View Mode Toggle -->
     <button
@@ -88,7 +88,7 @@ defineEmits<{
   (e: 'step'): void;
   (e: 'save'): void;
   (e: 'load'): void;
-  (e: 'scenarios'): void;
+  (e: 'sites'): void;
 }>();
 
 const speedLabel = computed(() => `×${Number((100 / props.speed).toFixed(2))}`);

@@ -51,7 +51,7 @@ describe('ChunkHex', () => {
       showLabels: true,
       pollinators: { showBees: true, showArrows: true },
       engine: {
-        getChunk: vi.fn().mockReturnValue({ pollinatorDensity: 0.65 }),
+        readChunk: vi.fn().mockReturnValue({ pollinatorDensity: 0.65 }),
       },
       isSelected: overrides.isSelected ?? false,
       isHovered: overrides.isHovered ?? false,

@@ -11,6 +11,25 @@
     @click="emit('select', { x: chunk.x, y: chunk.y })"
   >
     <div class="hex-overlay absolute inset-0 pointer-events-none transition-colors duration-200" :style="{ backgroundColor: overlayColor }"></div>
+    <!-- Selection rim, shown only by tessellated maps (see ChunkGrid .hex-map) -->
+    <svg v-if="isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="rgba(244,215,122,0.06)" stroke="#f4d77a" stroke-width="6" vector-effect="non-scaling-stroke" />
+    </svg>
+    <!-- Neighbours of the selected hex: where water runs, insects fly and seed falls -->
+    <svg v-if="isNeighbour && !isSelected" class="hex-outline pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" fill="none" stroke="rgba(244,215,122,0.45)" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke" />
+    </svg>
+    <!-- Standing water catches the light -->
+    <div v-if="((chunk as any).biomeState?.standingWater ?? 0) > 0.05" class="hex-shimmer pointer-events-none absolute inset-0" aria-hidden="true"></div>
+    <!-- What the player made or found here -->
+    <span v-if="marks.length" class="hex-marks pointer-events-none" :aria-label="marks.map(m => m.label).join(', ')">
+      <span v-for="mark in marks" :key="mark.icon" class="hex-mark" :title="mark.label"><LineIcon :name="mark.icon" /></span>
+    </span>
+    <!-- Animals present, drawn by tessellated maps (see ChunkGrid .hex-map) -->
+    <span v-for="sprite in sprites" :key="sprite.key" class="hex-sprite pointer-events-none" :class="`hex-sprite--${sprite.group}`" :style="sprite.style" aria-hidden="true">
+      <img v-if="sprite.icon" :src="sprite.icon" alt="" />
+      <svg v-else viewBox="0 0 20 16"><path d="M10 8C6 1 1 1 1.5 5.5 2 9 6 10 10 8Zm0 0c4-7 9-7 8.5-2.5C18 9 14 10 10 8Z" /><path d="M10 8C7 11 4 14 6 15s3-3 4-7Zm0 0c3 3 6 6 4 7s-3-3-4-7Z" opacity=".8" /></svg>
+    </span>
 
     <!-- Analytical View Badges -->
     <div v-if="!contemplative" class="hex-content pointer-events-none absolute inset-3 flex items-center justify-center text-[0.65rem] text-slate-100 drop-shadow">
@@ -70,14 +89,21 @@ import { SpeciesRegistry } from '@/simulation/SpeciesRegistry';
 import type { VizMode } from './types';
 import type { ChunkGridEntry } from './chunkGridLayout';
 import { getHexOverlayColor } from '@/composables/useSeasonalAtmosphere';
+import { HABITAT_LOOK, SPRITE_ICON } from './habitatLook';
+import LineIcon from './LineIcon.vue';
+import type { LineIconName } from './lineIcons';
+import type { HexMarks } from '@/game/mapMarks';
+import { describeHex } from '@/game/hexDescription';
 
-const textureMap = {
-  grassland: '/assets/terrain/grassland.png',
-  forest: '/assets/terrain/forest.png',
-  wetland: '/assets/terrain/wetland.png',
-  savanna: '/assets/terrain/savanna.png',
-  wasteland: '/assets/terrain/wasteland.png',
-} as const;
+// Animals drawn per hex: a few sprites hint at abundance without cluttering the map.
+const MAX_SPRITES = 6;
+
+/** Stable 32-bit hash, so a hex's sprites keep their places between renders. */
+function hash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
 
 const props = defineProps<{
   chunk: ChunkGridEntry;
@@ -90,6 +116,10 @@ const props = defineProps<{
   engine?: any;
   isSelected: boolean;
   isHovered: boolean;
+  /** Touches the selected hex. */
+  isNeighbour?: boolean;
+  /** Tagged plants and waiting crosses here. */
+  playerMarks?: HexMarks;
   contemplative?: boolean;
   seasonName?: string;
 }>();
@@ -108,11 +138,40 @@ const tooltip = computed(() => {
   return `(${props.chunk.x},${props.chunk.y}) v:${fmt(biome.vitality)} m:${fmt(biome.moisture)} p:${fmt(biome.pollution)} d:${fmt((biome as any).diversity)} pol:${fmt((props.chunk as any).pollinatorDensity)}`;
 });
 
+const description = computed(() => describeHex(props.chunk as any));
+
+// Markers for what the player made (samples, tags, crosses) and found (fungi, dead wood), in that order.
+const marks = computed(() => {
+  const chunk = props.chunk as any;
+  const list: Array<{ icon: LineIconName; label: string }> = [];
+  if (chunk.sample) list.push({ icon: 'sample', label: 'Sampled' });
+  if (props.playerMarks?.tagged) list.push({ icon: 'tag', label: `${props.playerMarks.tagged} tagged` });
+  if (props.playerMarks?.crossing) list.push({ icon: 'cross', label: 'A cross waits for its seedlings' });
+  if (chunk.fruiting?.length) list.push({ icon: 'fungi', label: 'Fungi fruiting' });
+  if ((chunk.biomeState?.deadwood ?? 0) > 0.1) list.push({ icon: 'deadwood', label: 'Dead wood' });
+  return list;
+});
+const look = computed(() => HABITAT_LOOK[description.value.habitat]);
+
+const sprites = computed(() =>
+  description.value.animals
+    .flatMap(animal => Array.from({ length: Math.min(3, Math.ceil(animal.count / 3)) }, (_, i) => {
+      const h = hash(`${props.chunk.x},${props.chunk.y}:${animal.id}:${i}`);
+      return {
+        key: `${animal.id}-${i}`,
+        group: animal.group,
+        icon: SPRITE_ICON[animal.group],
+        style: { left: `${18 + (h % 60)}%`, top: `${22 + ((h >>> 8) % 52)}%`, animationDelay: `${-((h >>> 16) % 3000) / 1000}s` },
+      };
+    }))
+    .slice(0, MAX_SPRITES)
+);
+
 const hexBackground = computed(() => {
-  const texture = biomeTexture(props.chunk);
+  const texture = look.value.tile;
   const baseColor = baseFill(props.chunk, props.vizMode);
   return {
-    backgroundImage: texture ? `url(${texture})` : undefined,
+    backgroundImage: texture ? `url("${texture}")` : undefined,
     backgroundColor: texture ? undefined : baseColor,
     backgroundSize: 'cover',
     backgroundRepeat: 'no-repeat',
@@ -123,9 +182,7 @@ const hexBackground = computed(() => {
 const overlayColor = computed(() => {
   if (props.contemplative) {
     // Use naturalistic colors in contemplative mode
-    const biomeState = props.chunk.biomeState || {};
-    const biomeType = determineBiomeType(biomeState);
-    return getHexOverlayColor(biomeType, props.seasonName || 'spring', biomeState.vitality || 0.5);
+    return getHexOverlayColor(look.value.biome, props.seasonName || 'spring', props.chunk.biomeState?.vitality || 0.5);
   }
   return overlayFill(props.chunk, props.vizMode);
 });
@@ -142,11 +199,7 @@ const birdsBadge = computed(() => birdsLabel(props.chunk));
 
 const seedCountValue = computed(() => seedCount(props.chunk));
 
-const biomeTypeName = computed(() => {
-  const biomeState = props.chunk.biomeState || {};
-  const type = determineBiomeType(biomeState);
-  return type.charAt(0).toUpperCase() + type.slice(1);
-});
+const biomeTypeName = computed(() => description.value.title);
 
 const pollinatorInfo = computed(() => {
   const density = (props.chunk as any).pollinatorDensity ?? 0;
@@ -154,14 +207,6 @@ const pollinatorInfo = computed(() => {
   return `Pollinators: ${Math.round(density * 100)}%`;
 });
 
-function biomeTexture(chunk: ChunkGridEntry): string | null {
-  const { moisture = 0, pollution = 0, canopy = 0 } = chunk.biomeState ?? {};
-  if (pollution > 0.65) return textureMap.wasteland;
-  if (moisture > 0.75) return textureMap.wetland;
-  if (canopy > 0.55) return textureMap.forest;
-  if (moisture < 0.3) return textureMap.savanna;
-  return textureMap.grassland;
-}
 
 function baseFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
   const bs = chunk.biomeState ?? {};
@@ -174,6 +219,14 @@ function baseFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
       return `rgba(248,113,113,${0.25 + (bs.pollution ?? 0) * 0.4})`;
     case 'diversity':
       return `rgba(192,132,252,${0.25 + (bs.diversity ?? 0) * 0.4})`;
+    case 'temperature': {
+      const t = Math.max(0, Math.min(1, (((chunk as any).climateState?.temperature ?? 14) as number) / 30));
+      return `rgba(251,146,60,${0.25 + t * 0.4})`;
+    }
+    case 'species': {
+      const n = Math.max(0, Math.min(1, countSpecies(chunk) / 12));
+      return `rgba(45,212,191,${0.25 + n * 0.4})`;
+    }
     case 'succession':
       return `rgba(251,191,36,${0.25 + (bs.succession ?? 0) * 0.4})`;
     case 'pollinators':
@@ -195,6 +248,14 @@ function overlayFill(chunk: ChunkGridEntry, vizMode: VizMode): string {
       return `rgba(248,113,113,${0.18 + (bs.pollution ?? 0) * 0.35})`;
     case 'diversity':
       return `rgba(192,132,252,${0.18 + (bs.diversity ?? 0) * 0.35})`;
+    case 'temperature': {
+      const t = Math.max(0, Math.min(1, (((chunk as any).climateState?.temperature ?? 14) as number) / 30));
+      return `rgba(251,146,60,${0.18 + t * 0.35})`;
+    }
+    case 'species': {
+      const n = Math.max(0, Math.min(1, countSpecies(chunk) / 12));
+      return `rgba(45,212,191,${0.18 + n * 0.35})`;
+    }
     case 'succession':
       return `rgba(251,191,36,${0.18 + (bs.succession ?? 0) * 0.35})`;
     case 'pollinators':
@@ -249,7 +310,7 @@ function flowArrow(chunk: ChunkGridEntry, engine: any): string {
   if (!engine) return '•';
   const here = (chunk as any).pollinatorDensity ?? 0;
   const nx = (dx: number, dy: number) => {
-    const cc = engine.getChunk(chunk.x + dx, chunk.y + dy);
+    const cc = engine.readChunk(chunk.x + dx, chunk.y + dy);
     return (cc as any)?.pollinatorDensity ?? here;
   };
   const diffs = [
@@ -306,14 +367,6 @@ function abbrev(name: string): string {
   return clean.slice(0, 3).toUpperCase();
 }
 
-function determineBiomeType(biomeState: any): string {
-  const { moisture = 0, pollution = 0, canopy = 0 } = biomeState;
-  if (pollution > 0.65) return 'wasteland';
-  if (moisture > 0.75) return 'wetland';
-  if (canopy > 0.55) return 'forest';
-  if (moisture < 0.3) return 'savanna';
-  return 'grassland';
-}
 </script>
 
 <style>
@@ -329,6 +382,11 @@ function determineBiomeType(biomeState: any): string {
 
   .hex-content {
     border-radius: 14%;
+  }
+
+  .hex-outline,
+  .hex-sprite {
+    display: none;
   }
 
   .hex-overlay {

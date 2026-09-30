@@ -1,389 +1,116 @@
 /**
- * Pinia store for tutorial system
- * Manages reactive state for onboarding and contextual tooltips
+ * The welcome and the hints of the first hour. A hint appears once, centred on screen, when its moment first comes in
+ * play (the first hex opened, the first seeds in the pouch, the first pollinator, …).
  */
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 
-import { defineStore } from 'pinia';
-import { ref, computed, type Ref } from 'vue';
+/** Moments in play a hint waits for. */
+export type HintSignal = 'start' | 'hexOpened' | 'seedsInPouch' | 'pollinator' | 'ripe' | 'fungi' | 'goalDone'
 
-export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
-export type TooltipTrigger = 'manual' | 'event' | 'tick';
-
-export interface TooltipStep {
-  id: string;
-  title: string;
-  content: string;
-  targetElement?: string; // CSS selector for positioning
-  placement: TooltipPlacement;
-  trigger: TooltipTrigger;
-  triggerCondition?: string; // EventType or tick number
+export interface Hint {
+  id: string
+  title: string
+  content: string
+  when: HintSignal
+  /** Once this happens the hint has done its work and goes by itself. */
+  doneWhen?: HintSignal
 }
 
-/**
- * Tutorial tooltip sequence
- */
-const TUTORIAL_STEPS: TooltipStep[] = [
+/** In the order they are offered when several moments have come. */
+export const HINTS: Hint[] = [
+  { id: 'open_hex', when: 'start', doneWhen: 'hexOpened', title: 'Open a hex', content: 'Tap a hex to see what grows and visits there.' },
   {
-    id: 'chunk_grid_intro',
-    title: 'Ecosystem Grid',
-    content: 'This hexagonal grid represents your ecosystem. Each hex is a chunk where species live and interact.',
-    targetElement: '.chunk-grid-container',
-    placement: 'right',
-    trigger: 'manual'
+    id: 'hex_card',
+    when: 'hexOpened',
+    title: 'What lives here',
+    content: 'The plants, animals and ground of this hex. The buttons below act here: listen for birds, sample the soil, trace where the water runs.',
   },
   {
-    id: 'event_log_intro',
-    title: 'Event Log',
-    content: 'Watch species births, deaths, and ecological events unfold in real-time here.',
-    targetElement: '.event-log-container',
-    placement: 'left',
-    trigger: 'event'
+    id: 'sow',
+    when: 'seedsInPouch',
+    title: 'Seeds in your pouch',
+    content: 'Choose Plant, then a hex: the card says how the seed would fare before you sow it.',
   },
   {
-    id: 'goals_intro',
-    title: 'Your Goals',
-    content: 'Complete these goals to earn points and unlock new capabilities. Track your progress here.',
-    targetElement: '.goals-panel',
-    placement: 'left',
-    trigger: 'tick'
+    id: 'pollinator',
+    when: 'pollinator',
+    title: 'A visitor',
+    content: 'Insects have come to the flowers. Open their hex and use ⋯ beside one to follow or photograph it: watching shows who feeds on what.',
   },
+  { id: 'ripe', when: 'ripe', title: 'Seed is ripening', content: 'Plants are in fruit. Open a hex with fruiting plants and choose Collect to take seed from the ripest.' },
+  { id: 'fungi', when: 'fungi', title: 'Mushrooms', content: 'Fungi are fruiting. In their hex, choose Fungi to look closely and learn which trees they live with.' },
   {
-    id: 'interventions_intro',
-    title: 'Interventions',
-    content: 'Use these tools to shape your ecosystem. Each intervention costs points and has a cooldown period.',
-    targetElement: '.intervention-panel',
-    placement: 'left',
-    trigger: 'manual'
+    id: 'goals',
+    when: 'goalDone',
+    title: 'Goals bring seed',
+    content: 'Each goal done sends seed of a plant this site lacks, and the next goal takes its place.',
   },
-  {
-    id: 'research_intro',
-    title: 'Research & Discovery',
-    content: 'Discover new species through observation. Unlock detailed traits as you study them.',
-    targetElement: '.research-panel',
-    placement: 'left',
-    trigger: 'event'
-  }
-];
+]
 
-/**
- * Tutorial store - single source of truth for tutorial state
- */
+const STORAGE_KEY = 'ecosim-tutorial-state'
+
 export const useTutorialStore = defineStore('tutorial', () => {
-  // Persistence key
-  const STORAGE_KEY = 'ecosim-tutorial-state';
+  const hasSeenWelcome = ref(false)
+  const showWelcomeModal = ref(false)
+  /** Hints on, until the player asks for no more. */
+  const enabled = ref(true)
+  const shown = ref(new Set<string>())
+  const activeTooltip = ref<Hint | null>(null)
+  const showTooltip = computed(() => activeTooltip.value !== null)
 
-  // State
-  const hasSeenWelcome = ref(false);
-  const showWelcomeModal = ref(false);
-  const tutorialEnabled = ref(true);
-  const completedSteps = ref<Set<string>>(new Set());
-  const currentStepIndex = ref(0);
-
-  // UI state
-  const activeTooltip: Ref<TooltipStep | null> = ref(null);
-  const showTooltip = ref(false);
-
-  // Computed
-  const tutorialProgress = computed(() => {
-    if (TUTORIAL_STEPS.length === 0) return 1;
-    return completedSteps.value.size / TUTORIAL_STEPS.length;
-  });
-
-  const tutorialComplete = computed(() => {
-    return completedSteps.value.size >= TUTORIAL_STEPS.length;
-  });
-
-  const nextStep = computed((): TooltipStep | null => {
-    for (const step of TUTORIAL_STEPS) {
-      if (!completedSteps.value.has(step.id)) {
-        return step;
-      }
-    }
-    return null;
-  });
-
-  // Actions
-
-  /**
-   * Initialize tutorial system
-   */
-  function initializeTutorial() {
-    // Load from localStorage
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const state = JSON.parse(stored);
-        hasSeenWelcome.value = state.hasSeenWelcome || false;
-        tutorialEnabled.value = state.tutorialEnabled !== undefined ? state.tutorialEnabled : true;
-        completedSteps.value = new Set(state.completedSteps || []);
-        currentStepIndex.value = state.currentStepIndex || 0;
-      } catch (e) {
-        console.error('Failed to load tutorial state:', e);
-      }
-    }
-
-    // Show welcome modal if first time
-    if (!hasSeenWelcome.value && tutorialEnabled.value) {
-      showWelcomeModal.value = true;
-    }
-  }
-
-  /**
-   * Show welcome modal
-   */
-  function showWelcome() {
-    showWelcomeModal.value = true;
-  }
-
-  /**
-   * Dismiss welcome modal and start tutorial
-   */
-  function startTutorial() {
-    showWelcomeModal.value = false;
-    hasSeenWelcome.value = true;
-    tutorialEnabled.value = true;
-    saveTutorialState();
-
-    // Show first tooltip after a delay
-    setTimeout(() => {
-      if (nextStep.value) {
-        showTooltipStep(nextStep.value);
-      }
-    }, 1000);
-  }
-
-  /**
-   * Skip tutorial entirely
-   */
-  function skipTutorial() {
-    showWelcomeModal.value = false;
-    hasSeenWelcome.value = true;
-    tutorialEnabled.value = false;
-    showTooltip.value = false;
-    activeTooltip.value = null;
-    saveTutorialState();
-  }
-
-  /**
-   * Dismiss welcome modal without starting tutorial
-   */
-  function dismissWelcome() {
-    showWelcomeModal.value = false;
-    hasSeenWelcome.value = true;
-    saveTutorialState();
-  }
-
-  /**
-   * Show a specific tooltip step
-   */
-  function showTooltipStep(step: TooltipStep) {
-    if (!tutorialEnabled.value) return;
-
-    activeTooltip.value = step;
-    showTooltip.value = true;
-  }
-
-  /**
-   * Show next tooltip in sequence
-   */
-  function showNextTooltip() {
-    const next = nextStep.value;
-    if (next) {
-      showTooltipStep(next);
-    } else {
-      hideTooltip();
-    }
-  }
-
-  /**
-   * Hide current tooltip
-   */
-  function hideTooltip() {
-    showTooltip.value = false;
-    activeTooltip.value = null;
-  }
-
-  /**
-   * Mark a step as completed
-   */
-  function markStepComplete(stepId: string) {
-    completedSteps.value.add(stepId);
-    saveTutorialState();
-
-    // Auto-show next tooltip after completing current
-    if (tutorialEnabled.value) {
-      setTimeout(() => {
-        showNextTooltip();
-      }, 500);
-    }
-  }
-
-  /**
-   * Complete current tooltip step
-   */
-  function completeCurrentStep() {
-    if (activeTooltip.value) {
-      markStepComplete(activeTooltip.value.id);
-      hideTooltip();
-    }
-  }
-
-  /**
-   * Reset tutorial progress
-   */
-  function resetTutorial() {
-    hasSeenWelcome.value = false;
-    completedSteps.value.clear();
-    currentStepIndex.value = 0;
-    tutorialEnabled.value = true;
-    showWelcomeModal.value = false;
-    showTooltip.value = false;
-    activeTooltip.value = null;
-    saveTutorialState();
-  }
-
-  /**
-   * Disable tutorial
-   */
-  function disableTutorial() {
-    tutorialEnabled.value = false;
-    showTooltip.value = false;
-    activeTooltip.value = null;
-    saveTutorialState();
-  }
-
-  /**
-   * Enable tutorial
-   */
-  function enableTutorial() {
-    tutorialEnabled.value = true;
-    saveTutorialState();
-  }
-
-  /**
-   * Get all tutorial steps
-   */
-  function getAllSteps(): TooltipStep[] {
-    return TUTORIAL_STEPS;
-  }
-
-  /**
-   * Get step by ID
-   */
-  function getStepById(id: string): TooltipStep | undefined {
-    return TUTORIAL_STEPS.find(s => s.id === id);
-  }
-
-  /**
-   * Trigger tooltip by event condition
-   */
-  function triggerByEvent(eventType: string) {
-    if (!tutorialEnabled.value) return;
-
-    const step = TUTORIAL_STEPS.find(
-      s => s.trigger === 'event' &&
-           s.triggerCondition === eventType &&
-           !completedSteps.value.has(s.id)
-    );
-
-    if (step) {
-      showTooltipStep(step);
-    }
-  }
-
-  /**
-   * Trigger tooltip by tick number
-   */
-  function triggerByTick(currentTick: number) {
-    if (!tutorialEnabled.value) return;
-
-    const step = TUTORIAL_STEPS.find(
-      s => s.trigger === 'tick' &&
-           s.triggerCondition &&
-           currentTick >= parseInt(s.triggerCondition) &&
-           !completedSteps.value.has(s.id)
-    );
-
-    if (step) {
-      showTooltipStep(step);
-    }
-  }
-
-  /**
-   * Save tutorial state to localStorage
-   */
-  function saveTutorialState() {
-    const state = {
-      hasSeenWelcome: hasSeenWelcome.value,
-      tutorialEnabled: tutorialEnabled.value,
-      completedSteps: Array.from(completedSteps.value),
-      currentStepIndex: currentStepIndex.value
-    };
-
+  function save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.error('Failed to save tutorial state:', e);
-    }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(exportState()))
+    } catch {}
   }
 
-  /**
-   * Export state for persistence
-   */
+  function initializeTutorial() {
+    try {
+      importState(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'))
+    } catch {}
+    showWelcomeModal.value = !hasSeenWelcome.value
+  }
+
+  /** Offer the first hint whose moment has come and that has not been shown, one at a time. */
+  function consider(signals: Partial<Record<HintSignal, boolean>>) {
+    const done = activeTooltip.value?.doneWhen
+    if (done && signals[done]) completeCurrentStep()
+    if (!enabled.value || activeTooltip.value || showWelcomeModal.value) return
+    activeTooltip.value = HINTS.find(hint => !shown.value.has(hint.id) && signals[hint.when]) ?? null
+  }
+
+  /** "Got it": this hint is done. */
+  function completeCurrentStep() {
+    if (!activeTooltip.value) return
+    shown.value.add(activeTooltip.value.id)
+    activeTooltip.value = null
+    save()
+  }
+
+  function welcomed(hints: boolean) {
+    showWelcomeModal.value = false
+    hasSeenWelcome.value = true
+    enabled.value = hints
+    if (!hints) activeTooltip.value = null
+    save()
+  }
+  /** From the welcome: show me around. */
+  const startTutorial = () => welcomed(true)
+  /** "No more hints", from the welcome or a hint. */
+  const skipTutorial = () => welcomed(false)
+  const dismissWelcome = () => welcomed(enabled.value)
+
   function exportState() {
-    return {
-      hasSeenWelcome: hasSeenWelcome.value,
-      tutorialEnabled: tutorialEnabled.value,
-      completedSteps: Array.from(completedSteps.value),
-      currentStepIndex: currentStepIndex.value
-    };
+    return { hasSeenWelcome: hasSeenWelcome.value, enabled: enabled.value, shown: [...shown.value] }
+  }
+  function importState(state: Partial<ReturnType<typeof exportState>> | null | undefined) {
+    if (!state) return
+    hasSeenWelcome.value = state.hasSeenWelcome ?? hasSeenWelcome.value
+    enabled.value = state.enabled ?? enabled.value
+    shown.value = new Set(state.shown ?? [])
+    activeTooltip.value = null
   }
 
-  /**
-   * Import state from persistence
-   */
-  function importState(state: any) {
-    if (state.hasSeenWelcome !== undefined) hasSeenWelcome.value = state.hasSeenWelcome;
-    if (state.tutorialEnabled !== undefined) tutorialEnabled.value = state.tutorialEnabled;
-    if (state.completedSteps) completedSteps.value = new Set(state.completedSteps);
-    if (state.currentStepIndex !== undefined) currentStepIndex.value = state.currentStepIndex;
-  }
-
-  return {
-    // State
-    hasSeenWelcome,
-    showWelcomeModal,
-    tutorialEnabled,
-    completedSteps,
-    currentStepIndex,
-    activeTooltip,
-    showTooltip,
-
-    // Computed
-    tutorialProgress,
-    tutorialComplete,
-    nextStep,
-
-    // Methods
-    initializeTutorial,
-    showWelcome,
-    startTutorial,
-    skipTutorial,
-    dismissWelcome,
-    showTooltipStep,
-    showNextTooltip,
-    hideTooltip,
-    markStepComplete,
-    completeCurrentStep,
-    resetTutorial,
-    disableTutorial,
-    enableTutorial,
-    getAllSteps,
-    getStepById,
-    triggerByEvent,
-    triggerByTick,
-    saveTutorialState,
-    exportState,
-    importState
-  };
-});
+  return { hasSeenWelcome, showWelcomeModal, enabled, shown, activeTooltip, showTooltip, initializeTutorial, consider, completeCurrentStep, startTutorial, skipTutorial, dismissWelcome, exportState, importState }
+})

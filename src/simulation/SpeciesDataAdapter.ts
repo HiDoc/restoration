@@ -3,8 +3,28 @@
  * Bridges SQLite species database with the simulation registry
  */
 
-import { SpeciesDefinition, SpeciesCategory, CanopyLayer, RootDepth, PollinationType, SuccessionStage, SpeciesRarity, BiomeType } from './SpeciesRegistry'
-import { SpeciesDatabase, VegetalSpecies, BirdSpecies } from '../database/SpeciesDatabase'
+import { SpeciesDefinition, SpeciesCategory, CanopyLayer, RootDepth, PollinationType, SuccessionStage, SpeciesRarity, BiomeType, type Season } from './SpeciesRegistry'
+import { SpeciesDatabase, VegetalSpecies, BirdSpecies, type SpeciesInteraction } from '../database/SpeciesDatabase'
+
+// One tick is one day; the engine year is four 90-day seasons.
+const DAYS_PER_YEAR = 360
+// Shrubs and trees live on a compressed clock (1 game year ≈ 5 real years) so they flower and fruit within a
+// session; herbs keep real timing. Real ages stay in the catalogue for the Codex.
+const WOODY_COMPRESSION = 5
+// Balance defaults; per-species tuning lives in simulation_species_overrides.
+const DEFAULT_SEED_PRODUCTION = 60 // 120 is the engine's reference rate
+const DEFAULT_SEED_DORMANCY_DAYS = 20
+const MATURITY_BIOMASS_FRACTION = 0.15
+// New shoots per plant per growing day by spreading habit.
+const CLONAL_RATE = { stolon: 0.006, rhizome: 0.004, tiller: 0.004, bulb: 0.002 } as const
+
+const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+/** Catalogue season text ("late spring", "late spring-summer", "none") → engine seasons. */
+function parseSeason(text: string | undefined): Season[] {
+  const [from, to = from] = (text ?? '').split('-').map(part => SEASONS.indexOf(part.trim().split(' ').pop() as Season))
+  return from < 0 || to < from ? [] : SEASONS.slice(from, to + 1)
+}
 
 export class SpeciesDataAdapter {
   private database: SpeciesDatabase
@@ -20,9 +40,10 @@ export class SpeciesDataAdapter {
    * Load species data from database and populate caches
    */
   async initialize(): Promise<void> {
+    // Associations first: converting a plant reads its preferred biomes from them.
+    await this.loadBiomeAssociations()
     await this.loadVegetalSpecies()
     await this.loadBirdSpecies()
-    await this.loadBiomeAssociations()
   }
 
   /**
@@ -60,15 +81,18 @@ export class SpeciesDataAdapter {
       { db: 'temperate_forest', sim: BiomeType.TEMPERATE_FOREST },
       { db: 'coniferous_forest', sim: BiomeType.BOREAL_FOREST },
       { db: 'grassland', sim: BiomeType.GRASSLAND },
-      { db: 'forest_edge', sim: BiomeType.TEMPERATE_FOREST } // Map edge to temperate for now
+      { db: 'forest_edge', sim: BiomeType.TEMPERATE_FOREST }, // Map edge to temperate for now
+      { db: 'wetland', sim: BiomeType.WETLAND }
     ]
     
+    // Several catalogue biomes share one simulation biome, so their species lists are merged.
     for (const { db, sim } of biomes) {
       const species = await this.database.getSpeciesByBiome(db)
-      this.biomeCache.set(sim, {
-        vegetal: species.vegetal.map(s => s.id),
-        birds: species.bird.map(s => s.id)
-      })
+      const entry = this.biomeCache.get(sim) ?? { vegetal: [], birds: [] }
+      const add = (list: string[], ids: string[]) => ids.forEach(id => { if (!list.includes(id)) list.push(id) })
+      add(entry.vegetal, species.vegetal.map(s => s.id))
+      add(entry.birds, species.bird.map(s => s.id))
+      this.biomeCache.set(sim, entry)
     }
   }
 
@@ -76,23 +100,29 @@ export class SpeciesDataAdapter {
    * Convert database vegetal species to simulation species definition
    */
   private convertVegetalToSimulation(dbSpecies: VegetalSpecies): SpeciesDefinition {
+    const clock = dbSpecies.type === 'tree' || dbSpecies.type === 'shrub' ? WOODY_COMPRESSION : 1
     return {
       id: dbSpecies.id,
       name: dbSpecies.common_name || dbSpecies.name,
+      scientificName: dbSpecies.name,
+      genus: dbSpecies.name.split(' ')[0],
       category: this.convertSpeciesCategory(dbSpecies.type),
       maxBiomass: dbSpecies.max_biomass,
-      growthRate: dbSpecies.growth_rate,
-      lifespanTicks: Math.round(dbSpecies.max_age * 365 / 7), // Convert years to weekly ticks
+      growthRate: dbSpecies.growth_rate * clock,
+      lifespanTicks: Math.round(dbSpecies.max_age * DAYS_PER_YEAR / clock),
+      maturityDays: Math.round(dbSpecies.reproduction_age * DAYS_PER_YEAR / clock),
+      clonalRate: dbSpecies.clonal_method ? CLONAL_RATE[dbSpecies.clonal_method] : 0,
+      floodTolerance: dbSpecies.flood_tolerance ?? 0,
       reproductionThreshold: typeof dbSpecies.sim_reproduction_threshold === 'number'
         ? dbSpecies.sim_reproduction_threshold
-        : dbSpecies.max_biomass * 0.3,
+        : dbSpecies.max_biomass * MATURITY_BIOMASS_FRACTION,
       reproductionNeed: dbSpecies.reproduction_need,
       seedProduction: typeof dbSpecies.sim_seed_production === 'number'
         ? dbSpecies.sim_seed_production
-        : Math.round(50 / Math.max(0.1, dbSpecies.max_biomass)),
+        : DEFAULT_SEED_PRODUCTION,
       seedMaturityTicks: typeof dbSpecies.sim_seed_maturity_ticks === 'number'
         ? dbSpecies.sim_seed_maturity_ticks
-        : 0,
+        : DEFAULT_SEED_DORMANCY_DAYS,
       temperatureRange: {
         min: dbSpecies.temp_min,
         max: dbSpecies.temp_max
@@ -124,7 +154,14 @@ export class SpeciesDataAdapter {
       },
       rarity: dbSpecies.sim_rarity ? (dbSpecies.sim_rarity as any) : this.convertRarity(dbSpecies.max_biomass, dbSpecies.succession_stage),
       preferredBiomes: this.getPreferredBiomes(dbSpecies),
-      nativeRegions: this.generateNativeRegions(dbSpecies)
+      nativeRegions: this.generateNativeRegions(dbSpecies),
+      ecology: {
+        floweringSeasons: parseSeason(dbSpecies.flowering_season),
+        fruitingSeasons: parseSeason(dbSpecies.fruit_season),
+        dormantSeasons: parseSeason(dbSpecies.dormant_season),
+        nitrogenFixation: Boolean(dbSpecies.nitrogen_fixation),
+        allelopathy: dbSpecies.allelopathy
+      }
     }
   }
 
@@ -314,6 +351,10 @@ export class SpeciesDataAdapter {
    * Determine preferred biomes based on characteristics
    */
   private getPreferredBiomes(species: VegetalSpecies): BiomeType[] {
+    // The catalogue's biome associations are authoritative; the heuristic covers species without any.
+    const associated = [...this.biomeCache].filter(([, ids]) => ids.vegetal.includes(species.id)).map(([biome]) => biome)
+    if (associated.length > 0) return associated
+
     const biomes: BiomeType[] = []
 
     // Forest species
@@ -401,8 +442,8 @@ export class SpeciesDataAdapter {
    */
   async getSpeciesInteractions(speciesId: string): Promise<Array<{
     targetSpeciesId: string
-    targetType: 'vegetal' | 'bird'
-    interactionType: 'pollination' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral'
+    targetType: SpeciesInteraction['species_a_type'] | SpeciesInteraction['species_b_type']
+    interactionType: SpeciesInteraction['interaction_type']
     strength: number
   }>> {
     const interactions = await this.database.getSpeciesInteractions()

@@ -58,13 +58,24 @@ export interface RuntimeSnapshot {
   simTimeDays: number;
   chunks: any[];
   weatherEvents?: any[];
-  hybridizationEvents?: number;
+  /** Hybrid taxa bred so far, as Rust defines them. */
+  hybrids?: Array<Record<string, unknown> & { id: string; hybridOf: string[] }>;
+  /** Seeds in the player's pouch per species. */
+  inventory?: Record<string, number>;
+  /** Plants the player follows, by instance id. */
+  tags?: Record<string, import('@/game/journal').Tag>;
+  baselines?: Record<string, import('@/game/traits').Baseline>;
+  crosses?: import('@/game/notebook').Cross[];
+  pouch?: Record<string, Record<string, number>>;
 }
 
 export interface RuntimeResponse {
   ok: boolean;
   error?: string;
   snapshot?: RuntimeSnapshot;
+  // A `step` with `snapshot: false` reports only time and events.
+  tick?: number;
+  simTimeDays?: number;
   events?: Array<{ tick: number; type: string; chunkId?: string; data: unknown }>;
   state?: unknown;
 }
@@ -98,7 +109,8 @@ export class RustSimulationRuntime {
       const resultPointer = this.exports.request(pointer, bytes.length);
       // request may grow memory, so read from its current buffer.
       const resultBytes = new Uint8Array(this.exports.memory.buffer, resultPointer, this.exports.response_len());
-      const result = decodeSimulationState<RuntimeResponse>(this.decoder.decode(resultBytes));
+      // Rust never writes the Map markers old TS saves used, so its responses parse natively.
+      const result = JSON.parse(this.decoder.decode(resultBytes)) as RuntimeResponse;
       if (!result.ok) throw new Error(result.error || 'Rust simulation request failed');
       return result;
     } finally {

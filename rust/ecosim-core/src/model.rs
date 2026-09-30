@@ -13,6 +13,10 @@ pub struct Config {
     pub season_length_ticks: u64,
     pub time_per_tick_minutes: u64,
     pub max_population_per_chunk: usize,
+    /// The restoration site this world is, recorded on the seed it sets.
+    pub site: String,
+    /// Whether seasons roll for rare events; off for controlled experiments.
+    pub rare_events: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -23,6 +27,8 @@ impl Default for Config {
             season_length_ticks: 90,
             time_per_tick_minutes: 1440,
             max_population_per_chunk: 64,
+            site: String::new(),
+            rare_events: true,
         }
     }
 }
@@ -60,6 +66,12 @@ pub struct Biome {
     pub pollution: f64,
     pub invasion: f64,
     pub succession: f64,
+    /// Water standing above saturated ground, as a pond's depth [0-1].
+    pub standing_water: f64,
+    /// Soil pH, set by the site's ground.
+    pub ph: f64,
+    /// Dead wood lying in the hex [0-1], left by trees and shrubs that died; it rots back into the soil.
+    pub deadwood: f64,
 }
 impl Default for Biome {
     fn default() -> Self {
@@ -72,10 +84,19 @@ impl Default for Biome {
             pollution: 0.05,
             invasion: 0.1,
             succession: 0.2,
+            standing_water: 0.0,
+            ph: 6.5,
+            deadwood: 0.0,
         }
     }
 }
 impl Biome {
+    /// Share a hex's water between the soil and, past saturation, standing water.
+    pub fn set_water(&mut self, water: f64) {
+        let water = water.max(0.0);
+        self.moisture = water.min(1.0);
+        self.standing_water = (water - 1.0).clamp(0.0, 1.0);
+    }
     pub fn normalize(&mut self) {
         for value in [
             &mut self.vitality,
@@ -86,9 +107,16 @@ impl Biome {
             &mut self.pollution,
             &mut self.invasion,
             &mut self.succession,
+            &mut self.standing_water,
+            &mut self.deadwood,
         ] {
             *value = value.clamp(0.0, 1.0);
         }
+        self.ph = if self.ph.is_finite() {
+            self.ph.clamp(3.0, 10.0)
+        } else {
+            6.5
+        };
     }
     pub fn apply(&mut self, name: &str, amount: f64) {
         let field = match name {
@@ -100,6 +128,7 @@ impl Biome {
             "pollution" => &mut self.pollution,
             "invasion" => &mut self.invasion,
             "succession" => &mut self.succession,
+            "standing_water" => &mut self.standing_water,
             _ => return,
         };
         *field = (*field + amount).clamp(0.0, 1.0);
@@ -129,12 +158,23 @@ impl Default for Climate {
 #[serde(rename_all = "camelCase")]
 pub struct Seed {
     pub species_id: String,
+    /// A summary projection leaves out place and ripening time; a sync keeps the stored seed's.
+    #[serde(default = "Seed::unplaced")]
     pub x: f64,
+    #[serde(default = "Seed::unplaced")]
     pub y: f64,
     pub viability: f64,
+    #[serde(default)]
     pub maturity_ticks: u64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+impl Seed {
+    /// Marks a place the host did not send.
+    fn unplaced() -> f64 {
+        f64::NAN
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -142,8 +182,11 @@ pub struct Seed {
 pub struct SpeciesInstance {
     pub id: String,
     pub species_id: String,
-    pub x: f64,
-    pub y: f64,
+    /// Absent in a summary projection; a plant already in the world then keeps its place.
+    #[serde(default)]
+    pub x: Option<f64>,
+    #[serde(default)]
+    pub y: Option<f64>,
     pub age: u64,
     pub biomass: f64,
     pub health: f64,
@@ -167,16 +210,22 @@ pub struct ChunkSnapshot {
     #[serde(default)]
     pub species: Vec<(String, SpeciesInstance)>,
     #[serde(default)]
-    pub hybrids: Vec<(String, Value)>,
-    #[serde(default)]
     pub ritual_residues: Vec<(String, Value)>,
     #[serde(default)]
     pub seed_bank: Vec<Seed>,
+    /// Height of the ground, 0 in a hollow to 1 on a rise; water runs downhill.
+    #[serde(default = "flat")]
+    pub elevation: f64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// The height of ground nobody has shaped: level with its neighbours.
+pub fn flat() -> f64 {
+    0.5
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Range {
     pub min: f64,
     pub max: f64,
@@ -201,7 +250,31 @@ pub struct SpeciesDefinition {
     pub shade_tolerance_max: f64,
     pub dispersal_range: f64,
     pub pollination: String,
+    /// Age before a plant can flower; 0 means biomass alone decides.
+    pub maturity_days: f64,
+    /// New shoots per plant per growing day from runners, rhizomes or bulbs.
+    pub clonal_rate: f64,
+    /// Catalogue phenology; when absent, `reproduction_seasons` drives a flower-then-fruit cycle.
+    pub ecology: Option<Ecology>,
+    /// Only species of one genus can cross. Empty means the species crosses with nothing.
+    pub genus: String,
+    /// For a hybrid, the non-hybrid species it descends from, sorted.
+    pub hybrid_of: Vec<String>,
+    /// How well roots stand standing water [0-1]: 0 drowns, 1 is a marsh plant.
+    pub flood_tolerance: f64,
+    /// Soil pH the species grows in without stress.
+    #[serde(rename = "pHRange")]
+    pub ph_range: Range,
 }
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Ecology {
+    pub flowering_seasons: Vec<String>,
+    pub fruiting_seasons: Vec<String>,
+    pub dormant_seasons: Vec<String>,
+}
+
 impl Default for SpeciesDefinition {
     fn default() -> Self {
         Self {
@@ -224,8 +297,61 @@ impl Default for SpeciesDefinition {
             shade_tolerance_max: 0.4,
             dispersal_range: 2.0,
             pollination: "self".into(),
+            maturity_days: 0.0,
+            clonal_rate: 0.0,
+            ecology: None,
+            genus: String::new(),
+            hybrid_of: vec![],
+            ph_range: Range {
+                min: 0.0,
+                max: 14.0,
+            },
+            flood_tolerance: 0.0,
         }
     }
+}
+
+/// A fungus: how it lives ("mycorrhizal", "parasite" or "saprotroph"), the plants it lives with or on, and
+/// when it fruits.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FungusDefinition {
+    pub id: String,
+    pub lifestyle: String,
+    pub hosts: Vec<String>,
+    pub fruiting_seasons: Vec<String>,
+}
+
+/// An animal species: what it eats, where it can breed and when it is about.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FaunaDefinition {
+    pub id: String,
+    /// "bee", "butterfly", "hoverfly", "bird", …
+    pub group: String,
+    pub active_seasons: Vec<String>,
+    pub temperature_range: Range,
+    pub pollution_tolerance: f64,
+    /// Hexes it forages across; also how far it spreads.
+    pub foraging_range: u32,
+    /// Animals supported per unit of forage (one plant in the right stage × link strength).
+    pub capacity_per_forage: f64,
+    pub forage: Vec<FaunaLink>,
+    /// Larval host or nesting plants.
+    pub hosts: Vec<String>,
+    /// Without a host in range the population cannot breed (e.g. butterflies without larval food plants).
+    pub needs_host: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FaunaLink {
+    pub plant: String,
+    pub strength: f64,
+    /// "nectar" (plant flowering), "fruit" or "seed" (plant fruiting), "insects" (plant not dormant).
+    pub takes: String,
+    pub pollinates: bool,
+    pub disperses: bool,
 }
 
 /// Components live in independent stores; the renderer's chunk shape is only a projection.
@@ -248,11 +374,71 @@ pub struct Growth {
     pub age: u64,
     #[serde(default)]
     pub age_days: f64,
+    /// What is costing this plant health, when it is losing any: its largest stress.
+    #[serde(default)]
+    pub limit: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Reproduction {
     pub stage: String,
     pub reserve: f64,
+    /// How well the current bloom was pollinated [0-1]; sets seed output when it fruits.
+    #[serde(default)]
+    pub pollinated: f64,
+    /// Pollen the player placed on this bloom; its seed is then hybrid.
+    #[serde(default)]
+    pub pollen: Option<Pollen>,
+}
+
+/// A plant the player follows. Kept after it dies, as its record.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tag {
+    pub label: String,
+    pub species_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub tagged_tick: u64,
+    /// Why it is followed: "planted", "hybrid" or "chosen".
+    pub reason: String,
+    #[serde(default)]
+    pub seeds_set: u32,
+    #[serde(default)]
+    pub descendants: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub died: Option<Death>,
+    /// The hex it grows in, by id; plants do not move.
+    #[serde(default)]
+    pub hex: String,
+    /// The site its seed was set on; none for packet seed and the plants a site starts with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Death {
+    pub tick: u64,
+    pub cause: String,
+    pub age_days: f64,
+}
+
+/// A rare event's lasting effect, such as a superbloom or a mast year, running until a tick.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RareEffect {
+    pub kind: String,
+    pub until_tick: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pollen {
+    pub species_id: String,
+    pub genetics: Value,
+    /// The plant the pollen came from, by instance id.
+    #[serde(default)]
+    pub donor: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Habitat {
@@ -260,8 +446,9 @@ pub struct Habitat {
     pub x: i32,
     pub y: i32,
     pub seeds: Vec<Seed>,
-    pub hybrids: Vec<(String, Value)>,
     pub residues: Vec<(String, Value)>,
+    #[serde(default = "flat")]
+    pub elevation: f64,
     pub extra: BTreeMap<String, Value>,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -273,6 +460,9 @@ pub struct Components {
     pub organisms: BTreeMap<Entity, Organism>,
     pub growth: BTreeMap<Entity, Growth>,
     pub reproduction: BTreeMap<Entity, Reproduction>,
+    /// Animal abundance per habitat per fauna species.
+    #[serde(default)]
+    pub fauna: BTreeMap<Entity, BTreeMap<String, f64>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -340,4 +530,51 @@ impl Rng {
         self.state = x;
         f64::from(x) / 4294967296.0
     }
+}
+
+/// A species' trait spread when first recorded: counts of plants per bin over [0, 1], by trait.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Baseline {
+    pub tick: u64,
+    pub traits: BTreeMap<String, Vec<u32>>,
+}
+
+/// A cross the player made: both parents and their traits then, the prediction for each trait (lower, between
+/// or higher than the parents), and the first seedlings it gave.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cross {
+    pub tick: u64,
+    /// The hex the cross was made in.
+    #[serde(default)]
+    pub hex: String,
+    pub mother: String,
+    pub father: String,
+    pub mother_species: String,
+    pub father_species: String,
+    pub parents: [BTreeMap<String, f64>; 2],
+    pub prediction: BTreeMap<String, String>,
+    pub seedlings: Vec<CrossSeedling>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CrossSeedling {
+    pub id: String,
+    pub traits: BTreeMap<String, f64>,
+}
+
+/// A soil and water sample from a hex: its readings when taken, and the species a germination tray of its soil
+/// brings up, known once the tray is ready.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sample {
+    pub tick: u64,
+    pub ph: f64,
+    pub moisture: f64,
+    pub nutrients: f64,
+    pub pollution: f64,
+    pub standing_water: f64,
+    pub tray: Vec<String>,
+    pub tray_ready: u64,
 }

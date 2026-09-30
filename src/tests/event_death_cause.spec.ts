@@ -18,7 +18,7 @@ describe('Death events include cause', () => {
     engine.activateAllChunks()
 
     const chunk = engine.getChunk(0, 0)!
-    // Use natural aging death path to avoid recovery from health regeneration
+    // Past its lifespan and nearly spent, so it dies of old age within a tick or two
     chunk.addSpecies({
       id: 'will_die',
       speciesId: 'common_grass',
@@ -27,7 +27,7 @@ describe('Death events include cause', () => {
       biomass: 0.05,
       age: 10050, // exceeds internal age limit in WorldChunk
       phenologyStage: PhenologyStage.SEED,
-      health: 0.5,
+      health: 0.01,
       reproductiveOutput: 0,
       reproductiveUrge: 0,
       lastReproductionAttempt: 0,
@@ -41,6 +41,6 @@ describe('Death events include cause', () => {
     expect(death).toBeDefined()
     expect(death.data).toBeDefined()
     expect(death.data.speciesId).toBe('common_grass')
-    expect(death.data.cause).toBeDefined()
+    expect(death.data.cause).toBe('old_age')
   })
 })

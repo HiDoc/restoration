@@ -16,6 +16,7 @@ describe('SimulationEngine export/import', () => {
     })
     engine.activateAllChunks()
     const c = engine.getChunk(0, 0)!
+    engine.addSeeds({ common_grass: 2 })
     const planted = engine.executeIntervention({ chunkId: c.id, x: 0.4, y: 0.4, type: 'plant', data: { speciesId: 'common_grass' } })
     expect(planted).toBe(true)
     engine.update()
@@ -31,6 +32,8 @@ describe('SimulationEngine export/import', () => {
     })
     engine2.importState(state)
 
+    // The seed left in the pouch travels with the world
+    expect(engine2.getInventory()).toEqual({ common_grass: 1 })
     // Check species persisted
     const c2 = engine2.getChunk(0, 0)!
     expect(c2.species.size).toBeGreaterThan(0)

@@ -42,8 +42,9 @@ describe('SimulationEngine', () => {
     expect(okCleanse).toBe(true)
     expect(chunk.biomeState.pollution).toBeLessThanOrEqual(beforePollution)
 
+    engine.addSeeds({ english_oak: 1 })
     const okPlant = engine.executeIntervention({
-      chunkId: chunk.id, x: 0.5, y: 0.5, type: 'plant', data: { speciesId: 'oak' },
+      chunkId: chunk.id, x: 0.5, y: 0.5, type: 'plant', data: { speciesId: 'english_oak' },
     })
     expect(okPlant).toBe(true)
     expect(chunk.species.size).toBeGreaterThan(beforeSpecies)

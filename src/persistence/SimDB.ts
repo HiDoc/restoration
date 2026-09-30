@@ -3,6 +3,8 @@
 
 export interface SimSnapshot {
   id?: number;
+  /** The restoration site this world belongs to; saves from before sites are the meadow. */
+  siteId?: string;
   createdAt: number;
   tick: number;
   state: any;
@@ -50,7 +52,8 @@ export class SimDB {
     });
   }
 
-  async loadLatest(): Promise<SimSnapshot | null> {
+  /** The newest save of one site. */
+  async loadLatest(siteId = 'meadow'): Promise<SimSnapshot | null> {
     const db = await this.dbp;
     return new Promise((resolve, reject) => {
       const tx = db.transaction('snapshots', 'readonly');
@@ -59,7 +62,10 @@ export class SimDB {
       const req = index.openCursor(null, 'prev');
       req.onsuccess = () => {
         const cursor = req.result as IDBCursorWithValue | null;
-        resolve(cursor ? (cursor.value as SimSnapshot) : null);
+        if (!cursor) return resolve(null);
+        const snapshot = cursor.value as SimSnapshot;
+        if ((snapshot.siteId ?? 'meadow') === siteId) resolve(snapshot);
+        else cursor.continue();
       };
       req.onerror = () => reject(req.error);
     });

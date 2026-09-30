@@ -14,7 +14,7 @@ import {
   type GoalCategory
 } from '@/simulation/GoalsSystem';
 import type { SimulationEngine } from '@/simulation/SimulationEngine';
-import type { ResearchSystem } from '@/simulation/ResearchSystem';
+import type { KnowledgeSummary } from '@/game/codex';
 
 /**
  * Goals store - single source of truth for goal state
@@ -27,7 +27,6 @@ export const useGoalsStore = defineStore('goals', () => {
   // State
   const activeGoalIds = ref<string[]>([]);
   const difficulty: Ref<GoalDifficulty> = ref('normal');
-  const totalPointsAwarded = ref(0);
   const lastEvaluationTick = ref(0);
 
   // UI state
@@ -72,11 +71,12 @@ export const useGoalsStore = defineStore('goals', () => {
    */
   const goalsByCategory = computed(() => {
     const grouped: Record<GoalCategory, GoalProgress[]> = {
-      biodiversity: [],
-      ecosystem_health: [],
-      research: [],
-      succession: [],
-      pollution: []
+      explore: [],
+      discover: [],
+      plant: [],
+      observe: [],
+      hybridize: [],
+      restore: []
     };
 
     for (const goalProgress of activeGoals.value) {
@@ -94,11 +94,11 @@ export const useGoalsStore = defineStore('goals', () => {
   function initialize(
     simulationEngine: SimulationEngine,
     gameDifficulty: GoalDifficulty = 'normal',
-    researchSystem?: ResearchSystem
+    knowledge?: () => KnowledgeSummary
   ) {
     engine.value = simulationEngine;
     difficulty.value = gameDifficulty;
-    system.value = new GoalsSystem(simulationEngine, researchSystem);
+    system.value = new GoalsSystem(simulationEngine, knowledge);
 
     // Set starter goals
     const starterGoals = GoalsSystem.getStarterGoals();
@@ -120,28 +120,32 @@ export const useGoalsStore = defineStore('goals', () => {
     const results = system.value.evaluateGoals(currentTick);
     lastEvaluationTick.value = currentTick;
 
-    // Check for new completions
+    // Check for new completions; each gives way to what follows it.
     for (const result of results) {
       const wasCompleted = previousStates.get(result.goal.id);
       if (result.completed && !wasCompleted) {
-        onGoalCompleted(result.goal, result.goal.rewardPoints);
+        onGoalCompleted(result.goal);
+        replace(result.goal.id);
       }
     }
 
     return results;
   }
 
+  /** Swap a completed goal for its successor; the list shrinks once every chain is under way. */
+  function replace(completedId: string) {
+    if (!system.value) return;
+    const taken = new Set([...activeGoalIds.value, ...system.value.getCompletedGoalIds()]);
+    const next = GoalsSystem.successor(completedId, taken);
+    activeGoalIds.value = activeGoalIds.value.flatMap(id => (id !== completedId ? [id] : next ? [next.id] : []));
+    system.value.setActiveGoals(activeGoalIds.value);
+  }
+
   /**
    * Handle goal completion
    */
-  function onGoalCompleted(goal: Goal, points: number): void {
-    totalPointsAwarded.value += points;
+  function onGoalCompleted(goal: Goal): void {
     latestCompletedGoal.value = goal;
-
-    // Could trigger modal or notification
-    console.log(`Goal completed: ${goal.title} (+${points} points)`);
-
-    // Emit event for other systems (e.g., award points to intervention store)
   }
 
   /**
@@ -197,13 +201,6 @@ export const useGoalsStore = defineStore('goals', () => {
   }
 
   /**
-   * Get total points from completed goals
-   */
-  const totalPointsFromGoals = computed(() => {
-    return completedGoals.value.reduce((sum, g) => sum + g.goal.rewardPoints, 0);
-  });
-
-  /**
    * Show goal completion modal
    */
   function showCompletionModal(goal: Goal): void {
@@ -226,7 +223,6 @@ export const useGoalsStore = defineStore('goals', () => {
     return {
       activeGoalIds: activeGoalIds.value,
       difficulty: difficulty.value,
-      totalPointsAwarded: totalPointsAwarded.value,
       lastEvaluationTick: lastEvaluationTick.value,
       systemState: system.value?.exportState()
     };
@@ -238,12 +234,16 @@ export const useGoalsStore = defineStore('goals', () => {
   function importState(state: any) {
     if (state.activeGoalIds) activeGoalIds.value = state.activeGoalIds;
     if (state.difficulty) difficulty.value = state.difficulty;
-    if (state.totalPointsAwarded !== undefined) totalPointsAwarded.value = state.totalPointsAwarded;
     if (state.lastEvaluationTick !== undefined) lastEvaluationTick.value = state.lastEvaluationTick;
     latestCompletedGoal.value = null;
     showGoalCompletionModal.value = false;
     if (state.systemState && system.value) {
       system.value.importState(state.systemState);
+    }
+    // A save from before the goal chains holds ids that no longer exist: begin the chains afresh.
+    if (system.value && !activeGoalIds.value.some(id => ALL_GOALS.some(goal => goal.id === id))) {
+      activeGoalIds.value = GoalsSystem.getStarterGoals().map(goal => goal.id);
+      system.value.setActiveGoals(activeGoalIds.value);
     }
   }
 
@@ -252,7 +252,6 @@ export const useGoalsStore = defineStore('goals', () => {
    */
   function reset() {
     activeGoalIds.value = [];
-    totalPointsAwarded.value = 0;
     lastEvaluationTick.value = 0;
     showGoalCompletionModal.value = false;
     latestCompletedGoal.value = null;
@@ -271,7 +270,6 @@ export const useGoalsStore = defineStore('goals', () => {
     engine,
     activeGoalIds,
     difficulty,
-    totalPointsAwarded,
     lastEvaluationTick,
     showGoalCompletionModal,
     latestCompletedGoal,
@@ -286,7 +284,6 @@ export const useGoalsStore = defineStore('goals', () => {
     totalGoalCount,
     completionPercentage,
     goalsByCategory,
-    totalPointsFromGoals,
 
     // Methods
     initialize,

@@ -23,6 +23,7 @@ function advance(engine: SimulationEngine, ticks: number) {
 }
 
 function plant(engine: SimulationEngine, tick?: number) {
+  engine.addSeeds({ common_grass: 1 })
   return engine.executeIntervention({
     chunkId: 'chunk_1_1',
     type: 'plant',

@@ -1,14 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { SimulationEngine, SimulationConfig } from '@/simulation/SimulationEngine';
-import { WeatherSystem } from '@/simulation/WeatherSystem';
-import { HydrologySystem } from '@/simulation/HydrologySystem';
-import { CanopySystem } from '@/simulation/CanopySystem';
-import { VegetationSystem } from '@/simulation/VegetationSystem';
-import { PollinatorSystem } from '@/simulation/PollinatorSystem';
-import { BirdsSystem } from '@/simulation/BirdsSystem';
 import { RNGManager } from '@/simulation/SeededRNG';
-import { DiscoveryMethod, TraitCategory } from '@/simulation/ResearchSystem';
-import { useResearchStore } from '@/stores/researchStore';
+import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import { STARTING_MEADOW, plantStartingMeadow } from '@/game/startingMeadow';
 import { createPinia, setActivePinia } from 'pinia';
 
 /**
@@ -16,21 +10,14 @@ import { createPinia, setActivePinia } from 'pinia';
  *
  * These tests verify the complete simulation behavior from initialization
  * through multiple update cycles, including all integrated systems:
- * - SimulationEngine orchestration
- * - Environmental systems (Weather, Hydrology, Canopy)
- * - Vegetation system (growth, reproduction, mortality)
- * - Research system (species discovery, trait unlocking)
+ * - SimulationEngine orchestration of the Rust core (climate, hydrology,
+ *   growth, reproduction, germination, dispersal)
+ * - Knowledge (what the player learns from the world)
  * - Year-end workflow (callbacks, seed selection)
  */
 
 describe('Simulation E2E Tests', () => {
   let engine: SimulationEngine;
-  let weather: WeatherSystem;
-  let hydrology: HydrologySystem;
-  let canopy: CanopySystem;
-  let vegetation: VegetationSystem;
-  let pollinators: PollinatorSystem;
-  let birds: BirdsSystem;
   let config: SimulationConfig;
 
   beforeEach(() => {
@@ -54,19 +41,8 @@ describe('Simulation E2E Tests', () => {
 
     // Initialize all systems
     engine = new SimulationEngine(config);
-    weather = new WeatherSystem();
-    hydrology = new HydrologySystem();
-    canopy = new CanopySystem();
-    vegetation = new VegetationSystem(engine);
-    pollinators = new PollinatorSystem();
-    birds = new BirdsSystem();
 
-    // Initialize hydrology elevation
-    hydrology.initializeElevation(engine.getAllChunks());
 
-    // Initialize pollinators and birds
-    pollinators.initialize(engine.getAllChunks());
-    birds.initialize(engine.getAllChunks());
 
     // Activate all chunks for testing
     engine.activateAllChunks();
@@ -85,29 +61,7 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should run complete update cycle across all systems', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = engine.getActiveChunkIds();
-
-      // Run one complete cycle
       engine.update();
-      const tick = engine.getCurrentTick();
-
-      // Update all environmental systems
-      weather.update(tick, chunks);
-      hydrology.update(chunks, activeIds);
-
-      activeIds.forEach((id) => {
-        const chunk = chunks.get(id);
-        if (chunk) {
-          canopy.update(chunk);
-          vegetation.update(chunk, 1);
-        }
-      });
-
-      pollinators.update(chunks);
-      birds.update(chunks, tick);
-
-      // Verify tick advanced
       expect(engine.getCurrentTick()).toBe(1);
 
       // Verify systems updated
@@ -116,28 +70,14 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should maintain deterministic behavior over 100 ticks', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const speciesCountHistory: number[] = [];
 
       for (let i = 0; i < 100; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
 
         const stats = engine.getStatistics();
         speciesCountHistory.push(stats.totalSpecies);
@@ -175,202 +115,35 @@ describe('Simulation E2E Tests', () => {
     });
   });
 
-  describe('Research System Integration E2E', () => {
-    let researchStore: ReturnType<typeof useResearchStore>;
+  describe('Knowledge E2E', () => {
+    it('learns what the player could see over a spring on the starting meadow', () => {
+      plantStartingMeadow(engine);
+      const knowledge = useKnowledgeStore();
+      knowledge.reset();
+      knowledge.observe(engine);
+      expect(Object.keys(knowledge.knowledge.species)).toEqual(expect.arrayContaining(STARTING_MEADOW));
 
-    beforeEach(() => {
-      researchStore = useResearchStore();
-      const eventJournal = (engine as any).eventJournal; // Access private eventJournal
-      researchStore.initialize(eventJournal, 0);
-      if (researchStore.system) {
-        engine.setResearchSystem(researchStore.system as any);
-      }
-    });
-
-    it('should discover species through observation', () => {
-      // Manually discover starting species
-      researchStore.manualDiscovery('common_grass', 0, DiscoveryMethod.INITIAL);
-
-      expect(researchStore.discoveredCount).toBe(1);
-      expect(researchStore.discoveredSpeciesIds).toContain('common_grass');
-    });
-
-    it('should track observations and unlock traits progressively', () => {
-      const chunk = engine.getChunk(1, 1)!;
-
-      // Add test species to chunk
-      chunk.addSpecies({
-        id: 'test_plant_1',
-        speciesId: 'test_species',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: 0,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // Observe species multiple times
-      for (let i = 0; i < 15; i++) {
-        engine.observeAllActiveSpecies();
-      }
-
-      expect(researchStore.getObservationCount('test_species')).toBe(15);
-      // BASIC is unlocked on first discovery, ENVIRONMENTAL requires 10 observations
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.BASIC)).toBe(true);
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.ENVIRONMENTAL)).toBe(true);
-      expect(researchStore.hasUnlockedTrait('test_species', TraitCategory.REPRODUCTIVE)).toBe(false);
-    });
-
-    it('should integrate observation into simulation loop', () => {
-      // Add species to multiple chunks
-      const chunk1 = engine.getChunk(0, 0)!;
-      const chunk2 = engine.getChunk(1, 1)!;
-
-      chunk1.addSpecies({
-        id: 'p1',
-        speciesId: 'species_a',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: 0,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      chunk2.addSpecies({
-        id: 'p2',
-        speciesId: 'species_b',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: 0,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // Observe periodically during simulation
-      for (let tick = 0; tick < 50; tick++) {
+      for (let day = 0; day < 89; day++) {
         engine.update();
-
-        if (tick % 10 === 0) {
-          engine.observeAllActiveSpecies();
-        }
+        knowledge.observe(engine);
       }
 
-      // Should have observed both species multiple times
-      expect(researchStore.discoveredCount).toBeGreaterThanOrEqual(2);
-      expect(researchStore.totalObservations).toBeGreaterThanOrEqual(10);
-    });
-
-    it('should calculate research progress correctly', () => {
-      const chunk = engine.getChunk(0, 0)!;
-
-      chunk.addSpecies({
-        id: 'p1',
-        speciesId: 'progress_test',
-        x: 0.5,
-        y: 0.5,
-        biomass: 1.0,
-        age: 50,
-        phenologyStage: 0,
-        health: 1.0,
-        reproductiveOutput: 0,
-      });
-
-      // 0 observations = 0% progress
-      expect(researchStore.getResearchProgress('progress_test')).toBe(0);
-
-      // 10 observations = partial progress
-      for (let i = 0; i < 10; i++) {
-        engine.observeAllActiveSpecies();
-      }
-      expect(researchStore.getResearchProgress('progress_test')).toBeGreaterThan(0);
-      expect(researchStore.getResearchProgress('progress_test')).toBeLessThan(1);
-
-      // 100+ observations = 100% progress
-      for (let i = 0; i < 95; i++) {
-        engine.observeAllActiveSpecies();
-      }
-      expect(researchStore.getResearchProgress('progress_test')).toBe(1.0);
-    });
-  });
-
-  describe('Year-End Workflow E2E', () => {
-    it('should trigger year-end callback after season completion', () => {
-      const yearEndCallback = vi.fn();
-      engine.onYearEnd(yearEndCallback);
-
-      // Advance through one full year (360 ticks = 4 seasons * 90 ticks)
-      for (let i = 0; i < 360; i++) {
-        engine.update();
-      }
-
-      expect(yearEndCallback).toHaveBeenCalledWith(1);
-    });
-
-    it('should track year progress correctly', () => {
-      expect(engine.getCurrentYear()).toBe(0);
-      expect(engine.getYearProgress()).toBe(0);
-
-      // Advance halfway through year (180 ticks = half of 360)
-      for (let i = 0; i < 180; i++) {
-        engine.update();
-      }
-
-      expect(engine.getCurrentYear()).toBe(0);
-      expect(engine.getYearProgress()).toBeCloseTo(0.5, 1);
-
-      // Complete the year
-      for (let i = 0; i < 180; i++) {
-        engine.update();
-      }
-
-      expect(engine.getCurrentYear()).toBe(1);
-      expect(engine.getYearProgress()).toBeCloseTo(0, 1);
-    });
-
-    it('should handle multiple year completions', () => {
-      const yearEndCallback = vi.fn();
-      engine.onYearEnd(yearEndCallback);
-
-      // Simulate 3 full years (360 ticks per year)
-      for (let year = 0; year < 3; year++) {
-        for (let i = 0; i < 360; i++) {
-          engine.update();
-        }
-      }
-
-      expect(yearEndCallback).toHaveBeenCalledTimes(3);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(1, 1);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(2, 2);
-      expect(yearEndCallback).toHaveBeenNthCalledWith(3, 3);
-      expect(engine.getCurrentYear()).toBe(3);
+      const clover = knowledge.knowledge.species.white_clover;
+      expect(clover.flowering).toContain('spring');
+      expect(clover.fruiting).toEqual([]); // clover fruits in summer and autumn, not yet seen
+      expect(knowledge.summary.knownSpecies).toBeGreaterThanOrEqual(STARTING_MEADOW.length);
     });
   });
 
   describe('Environmental Systems Integration E2E', () => {
     it('should maintain environmental consistency across systems', () => {
       const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       // Run simulation for 20 ticks
       for (let i = 0; i < 20; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-          }
-        });
       }
 
       // Verify all chunks have valid environmental state
@@ -395,7 +168,6 @@ describe('Simulation E2E Tests', () => {
       // Run weather system for multiple ticks
       for (let i = 0; i < 30; i++) {
         engine.update();
-        weather.update(engine.getCurrentTick(), chunks);
       }
 
       // Verify temperatures changed
@@ -412,7 +184,6 @@ describe('Simulation E2E Tests', () => {
 
     it('should update hydrology moisture levels', () => {
       const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       // Record initial moisture
       const initialMoisture = new Map<string, number>();
@@ -420,10 +191,8 @@ describe('Simulation E2E Tests', () => {
         initialMoisture.set(id, chunk.biomeState.moisture);
       });
 
-      // Run hydrology updates
-      for (let i = 0; i < 20; i++) {
-        hydrology.update(chunks, activeIds);
-      }
+      // Hydrology runs inside the engine's Rust step
+      engine.advance(20);
 
       // Verify moisture is within valid range
       chunks.forEach((chunk) => {
@@ -435,26 +204,12 @@ describe('Simulation E2E Tests', () => {
 
   describe('Long-Running Simulation Scenarios', () => {
     it('should handle 500-tick simulation without errors', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       for (let i = 0; i < 500; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
       }
 
       expect(engine.getCurrentTick()).toBe(500);
@@ -465,25 +220,13 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should track species population dynamics over time', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const populationHistory: number[] = [];
 
       for (let i = 0; i < 200; i++) {
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
         const stats = engine.getStatistics();
         populationHistory.push(stats.totalSpecies);
@@ -499,8 +242,6 @@ describe('Simulation E2E Tests', () => {
     });
 
     it('should maintain system performance over extended simulation', () => {
-      const chunks = engine.getAllChunks();
-      const activeIds = Array.from(engine.getActiveChunkIds());
 
       const updateTimes: number[] = [];
 
@@ -508,21 +249,9 @@ describe('Simulation E2E Tests', () => {
         const startTime = performance.now();
 
         engine.update();
-        const tick = engine.getCurrentTick();
 
-        weather.update(tick, chunks);
-        hydrology.update(chunks, activeIds);
 
-        activeIds.forEach((id) => {
-          const chunk = chunks.get(id);
-          if (chunk) {
-            canopy.update(chunk);
-            vegetation.update(chunk, 1);
-          }
-        });
 
-        pollinators.update(chunks);
-        birds.update(chunks, tick);
 
         const endTime = performance.now();
         updateTimes.push(endTime - startTime);
@@ -545,16 +274,7 @@ describe('Simulation E2E Tests', () => {
       expect(testChunk.species.size).toBe(0);
 
       // Should not throw when updating empty chunk
-      expect(() => {
-        canopy.update(testChunk);
-        vegetation.update(testChunk, 1);
-      }).not.toThrow();
-    });
-
-    it('should handle observation of non-existent species', () => {
-      expect(() => {
-        engine.observeSpeciesInChunk('chunk_99_99');
-      }).not.toThrow();
+      expect(() => engine.update()).not.toThrow();
     });
 
     it('should recover from extreme environmental conditions', () => {
@@ -568,7 +288,6 @@ describe('Simulation E2E Tests', () => {
       expect(() => {
         for (let i = 0; i < 10; i++) {
           engine.update();
-          vegetation.update(chunk, 1);
         }
       }).not.toThrow();
     });

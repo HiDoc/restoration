@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS vegetal_species (
     -- Ecological attributes
     pollution_tolerance REAL DEFAULT 0.3,
     drought_resistance REAL DEFAULT 0.4,
+    flood_tolerance REAL DEFAULT 0 CHECK (flood_tolerance BETWEEN 0 AND 1), -- How well roots stand standing water
     cold_hardiness REAL DEFAULT 0.5,
     wind_resistance REAL DEFAULT 0.6,
     
@@ -52,6 +53,8 @@ CREATE TABLE IF NOT EXISTS vegetal_species (
     seed_dispersal TEXT CHECK (seed_dispersal IN ('wind', 'animal', 'water', 'gravity', 'ballistic')),
     flowering_season TEXT,
     fruit_season TEXT,
+    dormant_season TEXT, -- Season(s) spent dormant underground outside winter (e.g. spring ephemerals)
+    clonal_method TEXT CHECK (clonal_method IN ('rhizome', 'stolon', 'bulb', 'tiller')), -- Vegetative spread, if any
     
     -- Interaction factors
     allelopathy REAL DEFAULT 0.0, -- Chemical inhibition of other plants
@@ -121,16 +124,40 @@ CREATE TABLE IF NOT EXISTS bird_species (
 CREATE TABLE IF NOT EXISTS species_interactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     species_a_id TEXT NOT NULL,
-    species_a_type TEXT CHECK (species_a_type IN ('vegetal', 'bird')),
+    species_a_type TEXT CHECK (species_a_type IN ('vegetal', 'bird', 'pollinator')),
     species_b_id TEXT NOT NULL,
-    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird')),
-    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral')),
+    species_b_type TEXT CHECK (species_b_type IN ('vegetal', 'bird', 'pollinator', 'fungus')),
+    -- larval_host: species_b's caterpillars feed on species_a
+    -- mycorrhiza / parasitism / decomposition: fungus species_b lives with the roots of, on, or in the dead wood of species_a
+    interaction_type TEXT CHECK (interaction_type IN ('pollination', 'larval_host', 'seed_dispersal', 'nesting', 'feeding', 'competition', 'facilitation', 'neutral', 'mycorrhiza', 'parasitism', 'decomposition')),
     interaction_strength REAL DEFAULT 0.5, -- 0.0 to 1.0
     seasonal_modifier TEXT, -- JSON object with seasonal variations
-    notes TEXT,
-    
-    FOREIGN KEY (species_a_id) REFERENCES vegetal_species(id) ON DELETE CASCADE,
-    FOREIGN KEY (species_b_id) REFERENCES bird_species(id) ON DELETE CASCADE
+    notes TEXT
+    -- Rows are polymorphic (plant/bird/pollinator), so no foreign keys; species_a is always the plant.
+);
+
+-- Pollinator Species Table (bees, butterflies, hoverflies).
+-- What each one feeds on and breeds on lives in species_interactions (pollination / larval_host rows).
+CREATE TABLE IF NOT EXISTS pollinator_species (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,                 -- Scientific name
+    common_name TEXT,
+    pollinator_group TEXT CHECK (pollinator_group IN ('bee', 'butterfly', 'moth', 'hoverfly', 'beetle')),
+    flight_seasons TEXT NOT NULL,       -- JSON array of seasons adults are on the wing
+    temp_min REAL,                      -- Minimum air temperature for flight (°C)
+    temp_max REAL,
+    pollution_tolerance REAL,           -- 0.0 to 1.0
+    foraging_range INTEGER              -- Typical foraging distance in hexes
+);
+
+-- Fungal Species Table. Host plants live in species_interactions (mycorrhiza / parasitism / decomposition rows).
+CREATE TABLE IF NOT EXISTS fungal_species (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,                 -- Scientific name
+    common_name TEXT,
+    lifestyle TEXT CHECK (lifestyle IN ('mycorrhizal', 'parasite', 'saprotroph')),
+    fruiting_seasons TEXT NOT NULL,     -- JSON array of seasons its fruiting bodies appear
+    description TEXT
 );
 
 -- Biome Associations Table

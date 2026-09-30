@@ -1,305 +1,182 @@
 /**
- * Pinia store for intervention system
- * Manages reactive state for player interventions, resource points, and cooldowns
+ * Pinia store for player interventions: the seed pouch, the armed intervention and cooldowns.
  */
 
 import { defineStore } from 'pinia';
-import { ref, computed, type Ref } from 'vue';
-import {
-  InterventionManager,
-  type InterventionType
-} from '@/simulation/InterventionManager';
-import type { SimulationEngine } from '@/simulation/SimulationEngine';
-import type { PlayerIntervention } from '@/simulation/SimulationEngine';
+import { ref, type Ref } from 'vue';
+import { InterventionManager, type InterventionType } from '@/simulation/InterventionManager';
+import type { SimulationEngine, PlayerIntervention } from '@/simulation/SimulationEngine';
+import { speciesInfo } from '@/game/speciesInfo';
 
-/**
- * Intervention store - single source of truth for intervention state
- */
 export const useInterventionStore = defineStore('intervention', () => {
-  // Core system instance
   const manager: Ref<InterventionManager | null> = ref(null);
   const engine: Ref<SimulationEngine | null> = ref(null);
 
-  // Resource state
-  const resourcePoints = ref(100); // Starting points
-  const totalPointsEarned = ref(0);
-  const totalPointsSpent = ref(0);
-
-  // UI state
+  /** Seeds in hand per species, mirrored from the engine after every change. */
+  const seeds = ref<Record<string, number>>({});
   const selectedIntervention: Ref<InterventionType | null> = ref(null);
-  const selectedPlantSpecies = ref('common_grass');
+  const selectedPlantSpecies = ref('');
+  /** The site the seed to plant was set on ("" for packet seed); undefined plants whichever comes first. */
+  const selectedPlantOrigin = ref<string | undefined>();
+  const pouchByOrigin = ref<Record<string, Record<string, number>>>({});
   const actionMessage = ref('');
   const observedTick = ref(0);
   let engineVersion = 0;
-  const pendingIntervention: Ref<{ type: InterventionType; chunkId: string } | null> = ref(null);
 
-  // Computed getters
-  const isInitialized = computed(() => manager.value !== null && engine.value !== null);
-
-  const currentTick = computed(() => observedTick.value);
-
-  const availableInterventions = computed(() => {
-    if (!manager.value) return [];
-    return manager.value.getAllDefinitions();
-  });
-
-  /**
-   * Check if player can afford an intervention
-   */
-  function canAfford(type: InterventionType): boolean {
-    if (!manager.value) return false;
-    const cost = manager.value.calculateCost(type);
-    return resourcePoints.value >= cost;
+  function refreshSeeds() {
+    seeds.value = { ...(engine.value?.getInventory() ?? {}) };
+    pouchByOrigin.value = { ...(engine.value?.getPouch() ?? {}) };
+    if (!seeds.value[selectedPlantSpecies.value]) selectedPlantSpecies.value = Object.keys(seeds.value)[0] ?? '';
+    const origin = selectedPlantOrigin.value;
+    if (origin !== undefined && !pouchByOrigin.value[selectedPlantSpecies.value]?.[origin]) selectedPlantOrigin.value = undefined;
   }
 
-  /**
-   * Check if intervention is on cooldown
-   */
   function isOnCooldown(type: InterventionType): boolean {
-    if (!manager.value) return false;
-    return manager.value.isOnCooldown(type, currentTick.value);
+    return manager.value?.isOnCooldown(type, observedTick.value) ?? false;
   }
 
-  /**
-   * Get remaining cooldown ticks
-   */
   function getRemainingCooldown(type: InterventionType): number {
-    if (!manager.value) return 0;
-    return manager.value.getRemainingCooldown(type, currentTick.value);
+    return manager.value?.getRemainingCooldown(type, observedTick.value) ?? 0;
   }
 
-  /**
-   * Get intervention cost
-   */
-  function getCost(type: InterventionType): number {
-    if (!manager.value) return 0;
-    return manager.value.calculateCost(type);
-  }
-
-  /**
-   * Check if intervention can be executed
-   */
-  function canExecute(type: InterventionType): boolean {
-    if (!manager.value) return false;
-    const validation = manager.value.validateIntervention(
-      type,
-      resourcePoints.value,
-      currentTick.value
-    );
-    return validation.valid;
-  }
-
-  /**
-   * Get validation result with reason
-   */
-  function getValidation(type: InterventionType) {
-    if (!manager.value) {
-      return { valid: false, reason: 'System not initialized' };
-    }
-    return manager.value.validateIntervention(
-      type,
-      resourcePoints.value,
-      currentTick.value
-    );
-  }
-
-  // Actions
-
-  /**
-   * Initialize the intervention system
-   */
-  function initialize(simulationEngine: SimulationEngine, difficulty: 'easy' | 'normal' | 'hard' = 'normal') {
+  function initialize(simulationEngine: SimulationEngine) {
     const version = ++engineVersion;
     engine.value = simulationEngine;
     observedTick.value = simulationEngine.getCurrentTick();
     simulationEngine.onTick(tick => {
       if (version === engineVersion) observedTick.value = tick;
     });
-    manager.value = new InterventionManager(difficulty);
-
-    // Set intervention manager on engine
+    manager.value = new InterventionManager();
     simulationEngine.interventionManager = manager.value;
+    refreshSeeds();
   }
 
-  /**
-   * Execute an intervention
-   */
-  async function executeIntervention(intervention: PlayerIntervention): Promise<boolean> {
-    if (!manager.value || !engine.value) {
-      console.error('Intervention system not initialized');
-      return false;
+  /** The pouch the player carried in from another site replaces this world's. */
+  function carryPouch(pouch: unknown[]) {
+    engine.value?.importPouch(pouch);
+    refreshSeeds();
+  }
+
+  /** Seeds for the pouch: the starter packet and rewards. */
+  function addSeeds(counts: Record<string, number>) {
+    engine.value?.addSeeds(counts);
+    refreshSeeds();
+  }
+
+  function collectedMessage(before: Record<string, number>): string {
+    const gained = Object.entries(seeds.value)
+      .filter(([id, count]) => count > (before[id] ?? 0))
+      .map(([id, count]) => `${count - (before[id] ?? 0)} ${speciesInfo(id).name}`);
+    return `Collected ${gained.join(', ')} seed.`;
+  }
+
+  /** Why an intervention the engine accepted in principle did not take in that hex. */
+  function failureMessage(intervention: PlayerIntervention): string {
+    if (intervention.type === 'collect') return 'Nothing ripe to collect here yet.';
+    if (intervention.type === 'cross') return 'Those two cannot be crossed now: both must be in flower, and the mother not yet pollinated by hand.';
+    if (intervention.type === 'plant') {
+      return seeds.value[intervention.data?.speciesId] ? 'There is no room for another plant here.' : 'You have no seeds of that species.';
     }
+    return 'This intervention could not be applied there. Choose another hex.';
+  }
 
-    // Validate intervention
-    const validation = manager.value.validateIntervention(
-      intervention.type,
-      resourcePoints.value,
-      currentTick.value
-    );
+  /** Every plant that comes up is tagged, so no new tag means the seed was not viable. */
+  function plantedMessage(speciesId: string, tagsBefore: number): string {
+    const name = speciesInfo(speciesId).name;
+    return Object.keys(engine.value?.getTags() ?? {}).length > tagsBefore
+      ? `Planted ${name}.`
+      : `The ${name} seed did not come up. Seed taken before it is fully ripe often fails.`;
+  }
 
+  function crossedMessage(): string {
+    const crosses = engine.value?.getCrosses() ?? []
+    const cross = crosses[crosses.length - 1]
+    if (!cross) return 'Pollinated.'
+    const [mother, father] = [cross.motherSpecies, cross.fatherSpecies].map(id => speciesInfo(id).name)
+    return `${mother} carries ${mother === father ? `pollen of another ${mother}` : `${father} pollen`}. Collect its seed when it ripens; the notebook will compare its seedlings with your prediction.`
+  }
+
+  function taggedMessage(instanceId: string): string {
+    const tag = engine.value?.getTags()[instanceId];
+    return tag ? `Tagged ${tag.label}, a ${speciesInfo(tag.speciesId).name}. Follow it in the Journal.` : 'Tagged.';
+  }
+
+  function executeIntervention(intervention: PlayerIntervention): boolean {
+    if (!manager.value || !engine.value) return false;
+    const validation = manager.value.validateIntervention(intervention.type, observedTick.value);
     if (!validation.valid) {
-      actionMessage.value = validation.reason || 'This intervention is not available yet.';
-      console.warn('Intervention validation failed:', validation.reason);
+      actionMessage.value = validation.reason ?? 'This intervention is not available yet.';
       return false;
     }
-
-    // Execute through engine
+    const before = seeds.value;
+    const tagsBefore = Object.keys(engine.value.getTags()).length;
     const success = engine.value.executeIntervention(intervention);
-
-    if (success && validation.cost !== undefined) {
-      // Deduct cost
-      resourcePoints.value -= validation.cost;
-      totalPointsSpent.value += validation.cost;
-
-      // Record usage
-      manager.value.recordUsage(
-        intervention.type,
-        currentTick.value,
-        intervention.chunkId,
-        validation.cost
-      );
-
-      // Clear selection
-      selectedIntervention.value = null;
-      pendingIntervention.value = null;
-      actionMessage.value = `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied. ${validation.cost} points used.`;
-    } else if (!success) {
-      actionMessage.value = 'This intervention could not be applied to that chunk. Choose another location.';
+    refreshSeeds();
+    if (!success) {
+      actionMessage.value = failureMessage(intervention);
+      return false;
     }
-
-    return success;
+    manager.value.recordUsage(intervention.type, observedTick.value, intervention.chunkId);
+    // An armed tool is put away once used, except Plant while seeds of that kind remain; card actions (collect,
+    // cross, tag) leave whatever is armed alone.
+    if (intervention.type === selectedIntervention.value && (intervention.type !== 'plant' || !seeds.value[intervention.data?.speciesId])) {
+      selectedIntervention.value = null;
+    }
+    actionMessage.value =
+      intervention.type === 'collect' ? collectedMessage(before)
+      : intervention.type === 'plant' ? plantedMessage(intervention.data.speciesId, tagsBefore)
+      : intervention.type === 'tag' ? taggedMessage(intervention.data.instanceId)
+      : intervention.type === 'sample' ? 'Sampled the soil and water. A tray of the soil will show in two weeks what seed it holds.'
+      : intervention.type === 'cross' ? crossedMessage()
+      : `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied.`;
+    return true;
   }
 
-  /**
-   * Add resource points (from goal completion, etc.)
-   */
-  function addPoints(amount: number): void {
-    resourcePoints.value += amount;
-    totalPointsEarned.value += amount;
-  }
-
-  /**
-   * Deduct resource points
-   */
-  function deductPoints(amount: number): void {
-    resourcePoints.value = Math.max(0, resourcePoints.value - amount);
-  }
-
-  /**
-   * Select an intervention for targeting
-   */
   function selectIntervention(type: InterventionType | null): void {
     selectedIntervention.value = type;
   }
 
-  /**
-   * Set pending intervention with target chunk
-   */
-  function setPendingIntervention(type: InterventionType, chunkId: string): void {
-    pendingIntervention.value = { type, chunkId };
-  }
-
-  /**
-   * Clear pending intervention
-   */
-  function clearPendingIntervention(): void {
-    pendingIntervention.value = null;
-  }
-
-  /**
-   * Get usage statistics
-   */
-  const usageStats = computed(() => {
-    if (!manager.value) {
-      return {
-        totalInterventions: 0,
-        totalCost: 0,
-        byType: {} as Record<InterventionType, number>
-      };
-    }
-    return manager.value.getUsageStats();
-  });
-
-  /**
-   * Export state for persistence
-   */
   function exportState() {
-    return {
-      resourcePoints: resourcePoints.value,
-      totalPointsEarned: totalPointsEarned.value,
-      totalPointsSpent: totalPointsSpent.value,
-      selectedPlantSpecies: selectedPlantSpecies.value,
-      managerState: manager.value?.exportState()
-    };
+    return { selectedPlantSpecies: selectedPlantSpecies.value, managerState: manager.value?.exportState() };
   }
 
-  /**
-   * Import state from persistence
-   */
+  /** The pouch itself is saved with the Rust world; this restores cooldowns and the chosen species. */
   function importState(state: any) {
     observedTick.value = engine.value?.getCurrentTick() ?? 0;
     selectedIntervention.value = null;
-    pendingIntervention.value = null;
     actionMessage.value = '';
-    if (state.resourcePoints !== undefined) resourcePoints.value = state.resourcePoints;
-    if (state.totalPointsEarned !== undefined) totalPointsEarned.value = state.totalPointsEarned;
-    if (state.totalPointsSpent !== undefined) totalPointsSpent.value = state.totalPointsSpent;
-    if (state.selectedPlantSpecies) selectedPlantSpecies.value = state.selectedPlantSpecies;
-    if (state.managerState && manager.value) {
-      manager.value.importState(state.managerState);
-    }
+    if (state?.selectedPlantSpecies) selectedPlantSpecies.value = state.selectedPlantSpecies;
+    if (state?.managerState && manager.value) manager.value.importState(state.managerState);
+    refreshSeeds();
   }
 
-  /**
-   * Reset intervention system
-   */
   function reset() {
-    resourcePoints.value = 100;
-    totalPointsEarned.value = 0;
-    totalPointsSpent.value = 0;
+    seeds.value = {};
     selectedIntervention.value = null;
-    selectedPlantSpecies.value = 'common_grass';
+    selectedPlantSpecies.value = '';
+    selectedPlantOrigin.value = undefined;
+    pouchByOrigin.value = {};
     actionMessage.value = '';
-    pendingIntervention.value = null;
-    if (manager.value) {
-      manager.value = new InterventionManager();
-    }
   }
 
   return {
-    // State
     manager,
     engine,
-    resourcePoints,
-    totalPointsEarned,
-    totalPointsSpent,
+    seeds,
+    pouchByOrigin,
+    selectedPlantOrigin,
     selectedIntervention,
     selectedPlantSpecies,
     actionMessage,
-    pendingIntervention,
-
-    // Computed
-    isInitialized,
-    currentTick,
-    availableInterventions,
-    usageStats,
-
-    // Methods
-    canAfford,
     isOnCooldown,
     getRemainingCooldown,
-    getCost,
-    canExecute,
-    getValidation,
     initialize,
+    addSeeds,
+    carryPouch,
     executeIntervention,
-    addPoints,
-    deductPoints,
     selectIntervention,
-    setPendingIntervention,
-    clearPendingIntervention,
     exportState,
     importState,
-    reset
+    reset,
   };
 });

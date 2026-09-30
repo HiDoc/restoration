@@ -2,15 +2,23 @@
  * Main simulation engine orchestrating all systems
  */
 
+import catalogue from '../database/catalogue.json';
+import { buildFungusDefinitions } from './fungusDefinitions';
+import { buildFaunaDefinitions } from './faunaDefinitions';
 import { RNGManager } from './SeededRNG';
 import { EventJournal, EventType } from '@/simulation/EventJournal';
 import { WorldChunk, PhenologyStage, SpeciesInstance } from './WorldChunk';
 import { SpeciesRegistry, BiomeType } from './SpeciesRegistry';
 import { markRaw } from 'vue';
 import { RustSimulationRuntime, encodeSimulationState, decodeSimulationState, type RuntimeResponse, type RuntimeSnapshot } from './rust/SimulationRuntime';
-import { GeneticSystem, GeneticProfile } from './GeneticSystem';
-import { ResearchSystem } from './ResearchSystem';
-import { InterventionManager } from './InterventionManager';
+import { InterventionManager, type InterventionType } from './InterventionManager';
+import type { Tag } from '@/game/journal';
+import type { Baseline } from '@/game/traits';
+import type { Cross } from '@/game/notebook';
+
+// Animals come from the same catalogue as the plants.
+const FAUNA = buildFaunaDefinitions(catalogue);
+const FUNGI = buildFungusDefinitions(catalogue as any);
 
 export interface SimulationConfig {
   worldWidth: number;      // Number of chunks horizontally
@@ -22,6 +30,8 @@ export interface SimulationConfig {
   seasonLengthTicks?: number; // Ticks per season (quarter year)
   // Time scale: minutes of simulated time per engine tick (default 1440 = 1 day)
   timePerTickMinutes?: number;
+  /** The restoration site this world is; the engine records it on the seed plants set. */
+  site?: string;
   // Legacy diagnostics settings. They never skip ecological updates in Rust.
   updateBudgetMs?: number;
   chunksPerTick?: number;
@@ -31,7 +41,7 @@ export interface PlayerIntervention {
   chunkId: string;
   x: number;
   y: number;
-  type: 'plant' | 'hybridize' | 'irrigate' | 'cleanse' | 'ritual';
+  type: InterventionType;
   data: any;
   playerId?: string;
   /** Omit to apply now; future ticks are replayable scheduled commands. */
@@ -47,28 +57,28 @@ export class SimulationEngine {
   // Interactions system (optional, available when DB adapter is set)
   private runtime: RustSimulationRuntime;
   private runtimeSnapshot?: RuntimeSnapshot;
+  // Rust owns the world; `projection` mirrors it as WorldChunks. Refreshing the mirror is a full-world JSON
+  // copy, so it happens lazily on read, except while callers hold mutable chunks (see grantMutableAccess).
+  private projection: Map<string, WorldChunk> = new Map();
+  private projectionStale = false;
+  /** Whether the projection holds every plant in full, or only the per-tick summary. */
+  private projectionDetailed = true;
+  private projectionEdited = false;
+  private mutableAccess = false;
   private projectionSignature = '';
   private runtimeMinutes = 1440;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   // Genetics management
-  private geneticSystem: GeneticSystem;
-
-  // Research and discovery system (optional)
-  private researchSystem?: ResearchSystem;
 
   // Intervention management (for player actions with costs/cooldowns)
   public interventionManager?: InterventionManager;
 
-  private masterGenomes: Map<string, GeneticProfile> = new Map();
-  private pendingMasterGenomes: Map<string, GeneticProfile> = new Map();
-  private selectedSeeds: Map<string, string> = new Map(); // speciesId -> seedId for next year
   // Seeding controls for center area
   private readonly centerSeedAreaRadius: number = 1; // 3x3 chunks
   private readonly centerSeedsPerChunk: number = 3;
   
   // World state
-  private chunks: Map<string, WorldChunk> = new Map();
   private activeChunks: Set<string> = new Set();
   
   // Timing
@@ -82,9 +92,6 @@ export class SimulationEngine {
   private simTimeDays: number = 0;
   private timePerTickMinutes: number = 1440;
   private yearLengthDays: number;
-  private currentYearIndex: number = 0;
-  private lastYearEndCheck: number = 0; // Track last year we checked for seed selection
-  private yearEndCallbacks: Array<(year: number) => void> = [];
   private tickCallbacks: Array<(tick: number) => void> = [];
 
   // Performance monitoring
@@ -97,7 +104,45 @@ export class SimulationEngine {
   private lastUpdatedChunks = 0;  // How many chunks were updated last tick
   private scheduledLimit = 0;     // Planned chunks for current tick
 
+  /** The projection as of the latest Rust tick. */
+  private get chunks(): Map<string, WorldChunk> {
+    this.refreshProjection();
+    return this.projection;
+  }
+
+  /**
+   * Bring the projection up to the latest tick. The per-tick read is a summary (no plant places, pollen or
+   * genetics, most of a plant's size); `detail` asks for every plant in full.
+   */
+  private refreshProjection(detail = false): void {
+    if (!this.projectionStale && (this.projectionDetailed || !detail)) return;
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot', detail }));
+    this.projectionDetailed = detail;
+  }
+
+  private chunkAt(x: number, y: number): WorldChunk | null {
+    return this.chunks.get(`chunk_${x}_${y}`) ?? null;
+  }
+
+  /**
+   * Callers of the mutable accessors may edit chunks in place (the legacy editing API). From then on the engine
+   * refreshes the projection every tick and diffs it for edits, a full-world copy per tick. Read-only callers
+   * use readChunk/readChunks, which keep ticks cheap.
+   */
+  private grantMutableAccess(): void {
+    if (this.mutableAccess) return;
+    this.mutableAccess = true;
+    this.projectionSignature = this.signature();
+  }
+
+  private signature(): string {
+    return encodeSimulationState(Array.from(this.chunks.values(), chunk => chunk.exportState()));
+  }
+
   constructor(config: SimulationConfig) {
+    // The engine lives outside Vue's reactivity: tracking every read and write of a tick through proxies costs
+    // as much as the tick. The view pulls from it after each tick instead (see `viewVersion` there).
+    markRaw(this);
     this.config = { ...config };
     this.validateConfig(this.config);
     this.runtime = markRaw(new RustSimulationRuntime());
@@ -111,8 +156,6 @@ export class SimulationEngine {
     // Initialize core systems
     this.rngManager = RNGManager.create(config.masterSeed);
     this.eventJournal = new EventJournal(() => this.currentTick);
-    this.geneticSystem = new GeneticSystem(this.rngManager);
-    this.researchSystem = new ResearchSystem(this.eventJournal, 0);
 
     // Initialize world chunks
     this.initializeWorld();
@@ -140,7 +183,7 @@ export class SimulationEngine {
         
         this.chunks.set(chunk.id, chunk);
         // Provide neighbor access hook for seeding between chunks
-        (chunk as any).__getChunk = (cx: number, cy: number) => this.getChunk(cx, cy);
+        (chunk as any).__getChunk = (cx: number, cy: number) => this.chunkAt(cx, cy);
         // Provide event emission hook for systems operating on chunks
         (chunk as any).__emitEvent = (type: EventType, data: any) => {
           this.eventJournal.recordEvent(type, data, chunk.id)
@@ -203,14 +246,11 @@ export class SimulationEngine {
   async setSpeciesAdapter(adapter: any): Promise<void> {
     this.speciesAdapter = adapter;
 
-    // Import species into the simulation registry while preserving existing hybrids
     try {
-      const registry = SpeciesRegistry.getInstance();
-      const exported = registry.exportData();
       const dbSpecies = (typeof adapter.getAllVegetalSpecies === 'function')
         ? adapter.getAllVegetalSpecies()
         : [];
-      registry.importData({ species: dbSpecies, hybrids: exported.hybrids });
+      SpeciesRegistry.getInstance().importData({ species: dbSpecies });
     } catch (e) {
       console.warn('Failed to import species from adapter:', e);
     }
@@ -233,6 +273,7 @@ export class SimulationEngine {
 
   /** Use the adapter to seed a few starting species per chunk according to biome. */
   private seedInitialSpeciesFromAdapter(): void {
+    this.projectionEdited = true;
     if (!this.speciesAdapter) return;
     const rng = this.rngManager.getRNG('initial_seeding');
     const registry = SpeciesRegistry.getInstance();
@@ -266,13 +307,6 @@ export class SimulationEngine {
           reproductiveUrge: 0,
           lastReproductionAttempt: 0,
         };
-        // Initialize varied genetics for diversity at start
-        try {
-          const base = this.geneticSystem.initializeGenetics(def)
-          const stress = rng.nextFloat(0, 0.2)
-          const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1)
-          ;(inst as any).genetics = mutated.genetics
-        } catch {}
         chunk.addSpecies(inst);
       }
     });
@@ -280,6 +314,7 @@ export class SimulationEngine {
 
   /** Ensure at least 3 Common Grass individuals in each chunk on init. */
   private ensureCommonGrassBaseline(): void {
+    this.projectionEdited = true;
     const registry = SpeciesRegistry.getInstance();
     const grass = registry.getSpecies('common_grass');
     if (!grass) return;
@@ -318,189 +353,18 @@ export class SimulationEngine {
             x: rng.nextFloat(0.3, 0.7),
             y: rng.nextFloat(0.3, 0.7),
             biomass: Math.max(0.05, grass.maxBiomass * rng.nextFloat(0.08, 0.15)),
-            age: Math.floor(rng.nextFloat(0, grass.lifespanTicks * 0.05)),
+            // The world opens on an existing meadow, so its grass is already old enough to flower.
+            age: (grass.maturityDays ?? 0) + Math.floor(rng.nextFloat(0, grass.lifespanTicks * 0.05)),
             phenologyStage: PhenologyStage.VEGETATIVE,
             health: rng.nextFloat(0.75, 0.95),
             reproductiveOutput: 0,
             reproductiveUrge: 0,
             lastReproductionAttempt: 0,
-            genetics: undefined as any,
           };
-          const base = this.geneticSystem.initializeGenetics(grass);
-          const stress = rng.nextFloat(0, 0.15);
-          const mutated = this.geneticSystem.applyMutations(base, stress, base.generation + 1);
-          inst.genetics = mutated.genetics;
           chunk.addSpecies(inst);
         }
       }
     });
-  }
-
-  /**
-   * Clone a genetic profile for sharing between individuals
-   */
-  private cloneGenome(original: GeneticProfile): GeneticProfile {
-    return {
-      traits: new Map(Array.from(original.traits, ([id, trait]) => [id, { ...trait }])),
-      generation: original.generation,
-      mutations: [...original.mutations],
-      adaptationScore: original.adaptationScore
-    };
-  }
-
-  /**
-   * Select a seed for the next year cycle from available common_grass individuals
-   */
-  selectSeedForNextYear(speciesId: string, seedInstanceId: string): boolean {
-    // Find the instance to use as seed
-    let seedInstance: SpeciesInstance | null = null;
-    for (const chunk of this.chunks.values()) {
-      const instance = Array.from(chunk.species.values()).find(s => s.id === seedInstanceId && s.speciesId === speciesId);
-      if (instance) {
-        seedInstance = instance;
-        break;
-      }
-    }
-
-    if (!seedInstance) {
-      return false;
-    }
-
-    // Determine genome to set: use seed genetics if present; otherwise initialize from species def
-    let genome: GeneticProfile | undefined = seedInstance.genetics
-    if (!genome) {
-      try {
-        const def = SpeciesRegistry.getInstance().getSpecies(speciesId as any)
-        if (def) {
-          const base = this.geneticSystem.initializeGenetics(def)
-          const mutated = this.geneticSystem.applyMutations(base, 0.1, base.generation + 1)
-          genome = mutated.genetics
-        }
-      } catch {}
-    }
-    if (!genome) return false
-
-    // Store pending master genome to apply at year boundary
-    this.pendingMasterGenomes.set(speciesId, this.cloneGenome(genome));
-    this.selectedSeeds.set(speciesId, seedInstanceId);
-
-    // Record the selection event
-    this.eventJournal.recordEvent(EventType.SEED_SELECTION, {
-      type: 'seed_selection',
-      speciesId,
-      seedInstanceId,
-      genetics: seedInstance.genetics,
-      tick: this.currentTick
-    });
-
-    return true;
-  }
-
-  /** Apply pending master genomes at year boundary and clear selections. */
-  private applyPendingSelectionsAtYearBoundary(newYearIndex: number): void {
-    // YEAR_END event for previous year
-    this.eventJournal.recordEvent(EventType.YEAR_END, { yearIndex: this.currentYearIndex });
-    this.commitYearEndSelections();
-    // YEAR_START event for new year
-    this.eventJournal.recordEvent(EventType.YEAR_START, { yearIndex: newYearIndex });
-  }
-
-  /** Commit the selection made by the paused year-end dialog to this new year. */
-  commitYearEndSelections(): void {
-    // Apply pending genomes
-    const toSeed: string[] = []
-    this.pendingMasterGenomes.forEach((profile, speciesId) => {
-      this.masterGenomes.set(speciesId, this.cloneGenome(profile))
-      toSeed.push(speciesId)
-    })
-    // Replace seeds in center 3x3 area for each selected species
-    toSeed.forEach((speciesId) => {
-      this.seedCenterArea(speciesId, { clearExistingSpeciesSeeds: true, maturityTicks: 1, viability: 1.0, seedsPerChunk: this.centerSeedsPerChunk, applyMasterToExisting: true })
-    })
-    this.pendingMasterGenomes.clear()
-    this.selectedSeeds.clear()
-    this.syncRuntime();
-  }
-
-  /**
-   * Get all available common_grass instances for seed selection
-   */
-  getAvailableSeeds(speciesId: string): Array<{
-    instance: SpeciesInstance;
-    chunkId: string;
-    adaptationScore: number;
-  }> {
-    const candidates: Array<{
-      instance: SpeciesInstance;
-      chunkId: string;
-      adaptationScore: number;
-    }> = [];
-
-    for (const chunk of this.chunks.values()) {
-      chunk.species.forEach(instance => {
-        if (instance.speciesId === speciesId && instance.genetics) {
-          candidates.push({
-            instance,
-            chunkId: chunk.id,
-            adaptationScore: instance.genetics.adaptationScore
-          });
-        }
-      });
-    }
-
-    // Sort by adaptation score (best first)
-    return candidates.sort((a, b) => b.adaptationScore - a.adaptationScore);
-  }
-
-  /**
-   * Get the current master genome for a species
-   */
-  getMasterGenome(speciesId: string): GeneticProfile | undefined {
-    return this.masterGenomes.get(speciesId);
-  }
-
-  /**
-   * Get information about currently selected seeds
-   */
-  getSelectedSeeds(): Map<string, string> {
-    return new Map(this.selectedSeeds);
-  }
-
-  /**
-   * Check if a year has ended and trigger callbacks
-   */
-  private checkYearEnd(): void {
-    const yearLen = this.yearLengthDays > 0 ? this.yearLengthDays : 365
-    const currentYear = Math.floor(this.simTimeDays / yearLen);
-    if (currentYear > this.lastYearEndCheck) {
-      this.lastYearEndCheck = currentYear;
-      
-      // Trigger all year-end callbacks
-      this.yearEndCallbacks.forEach(callback => {
-        try {
-          callback(currentYear);
-        } catch (error) {
-          console.error('Error in year-end callback:', error);
-        }
-      });
-    }
-  }
-
-  /**
-   * Register a callback to be called at the end of each year
-   */
-  onYearEnd(callback: (year: number) => void): void {
-    this.yearEndCallbacks.push(callback);
-  }
-
-  /**
-   * Remove a year-end callback
-   */
-  removeYearEndCallback(callback: (year: number) => void): void {
-    const index = this.yearEndCallbacks.indexOf(callback);
-    if (index > -1) {
-      this.yearEndCallbacks.splice(index, 1);
-    }
   }
 
   /**
@@ -549,21 +413,16 @@ export class SimulationEngine {
     this.pause();
     this.currentTick = 0;
     this.simTimeDays = 0;
-    this.currentYearIndex = 0;
-    this.lastYearEndCheck = 0;
+    this.projectionStale = false;
+    this.projectionEdited = false;
     this.chunks.clear();
     this.activeChunks.clear();
-    this.masterGenomes.clear();
-    this.pendingMasterGenomes.clear();
-    this.selectedSeeds.clear();
     this.eventJournal.clear();
     this.updateTimes = [];
     this.lastUpdatedChunks = 0;
     this.scheduledLimit = 0;
     this.rngManager = RNGManager.create(this.config.masterSeed);
-    this.geneticSystem = new GeneticSystem(this.rngManager);
     // Keep store references alive while resetting their gameplay state.
-    this.researchSystem?.importState(new ResearchSystem(this.eventJournal, 0).exportState());
     if (this.interventionManager) {
       const previous = this.interventionManager.exportState();
       this.interventionManager.importState({ ...previous, usageHistory: [], lastUsedTick: [] });
@@ -595,20 +454,14 @@ export class SimulationEngine {
     // Legacy editor/scenario APIs may mutate projections between ticks. Import those
     // edits explicitly, without advancing RNG, before the authoritative ECS step.
     this.syncRuntime();
-    this.applyRuntimeResponse(this.runtime.request({ op: 'step', ticks: 1 }));
-    const newYearIndex = Math.floor(this.simTimeDays / this.yearLengthDays);
-    if (newYearIndex > this.currentYearIndex) {
-      this.applyPendingSelectionsAtYearBoundary(newYearIndex);
-      this.currentYearIndex = newYearIndex;
-      this.syncRuntime();
-    }
-    this.checkYearEnd();
-    this.lastUpdatedChunks = this.chunks.size;
-    this.scheduledLimit = this.chunks.size;
+    this.applyRuntimeResponse(this.runtime.request({ op: 'step', ticks: 1, snapshot: this.mutableAccess }));
+    // Chunk count is fixed by the world size; reading it must not pull a snapshot.
+    this.lastUpdatedChunks = this.projection.size;
+    this.scheduledLimit = this.projection.size;
     this.tickCallbacks.forEach(callback => callback(this.currentTick));
     const updateTime = performance.now() - updateStart;
     this.updateTimes.push(updateTime);
-    this.estimatedChunkMs = updateTime / Math.max(1, this.chunks.size);
+    this.estimatedChunkMs = updateTime / Math.max(1, this.projection.size);
     if (this.updateTimes.length > this.maxUpdateTimeHistory) this.updateTimes.shift();
   }
 
@@ -620,18 +473,44 @@ export class SimulationEngine {
     for (let x = cx - radius; x <= cx + radius; x++) {
       for (let y = cy - radius; y <= cy + radius; y++) {
         if (x < 0 || x >= this.config.worldWidth || y < 0 || y >= this.config.worldHeight) continue
-        const ch = this.getChunk(x, y)
+        const ch = this.chunkAt(x, y)
         if (ch) chunks.push(ch)
       }
     }
     return chunks
   }
 
+  /** Adult plants of a species in the centre chunks: past maturity and above the flowering biomass. */
+  private establishCenterPlants(speciesId: string, perChunk: number): void {
+    const def = SpeciesRegistry.getInstance().getSpecies(speciesId);
+    if (!def) return;
+    this.projectionEdited = true;
+    const rng = this.rngManager.getRNG('established_plants');
+    for (const chunk of this.getCenterAreaChunks(this.centerSeedAreaRadius)) {
+      for (let i = 0; i < perChunk; i++) {
+        chunk.addSpecies({
+          id: `${speciesId}_established_${chunk.x}_${chunk.y}_${i}`,
+          speciesId,
+          x: rng.nextFloat(0.2, 0.8),
+          y: rng.nextFloat(0.2, 0.8),
+          biomass: Math.min(def.maxBiomass, def.reproductionThreshold * rng.nextFloat(1.2, 2)),
+          age: (def.maturityDays ?? 0) + rng.nextInt(0, 60),
+          phenologyStage: PhenologyStage.VEGETATIVE,
+          health: rng.nextFloat(0.8, 0.95),
+          reproductiveOutput: 0,
+          reproductiveUrge: 0,
+          lastReproductionAttempt: 0,
+        });
+      }
+    }
+  }
+
   /** Seed center 3x3 area with seeds of a species */
   private seedCenterArea(
     speciesId: string,
-    opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number; applyMasterToExisting?: boolean }
+    opts?: { clearExistingSpeciesSeeds?: boolean; seedsPerChunk?: number; maturityTicks?: number; viability?: number }
   ): void {
+    this.projectionEdited = true
     const chunks = this.getCenterAreaChunks(this.centerSeedAreaRadius)
     const seedsPerChunk = Math.max(1, opts?.seedsPerChunk ?? 3)
     const maturity = Math.max(1, Math.floor(opts?.maturityTicks ?? 2))
@@ -642,17 +521,6 @@ export class SimulationEngine {
         const bank = (chunk as any).seedBank || []
         ;(chunk as any).seedBank = bank.filter((s: any) => s.speciesId !== speciesId)
       }
-      // Optionally align existing individuals with master genome in this area
-      if (opts?.applyMasterToExisting) {
-        const master = this.getMasterGenome(speciesId)
-        if (master) {
-          chunk.species.forEach((inst) => {
-            if (inst.speciesId === speciesId) {
-              ;(inst as any).genetics = this.cloneGenome(master)
-            }
-          })
-        }
-      }
       for (let i = 0; i < seedsPerChunk; i++) {
         chunk.addSeed({
           speciesId,
@@ -660,7 +528,6 @@ export class SimulationEngine {
           y: rng.nextFloat(0.2, 0.8),
           viability,
           maturityTicks: maturity,
-          genetics: this.masterGenomes.has(speciesId) ? this.cloneGenome(this.masterGenomes.get(speciesId)!) : undefined,
         })
       }
     })
@@ -710,7 +577,7 @@ export class SimulationEngine {
   executeIntervention(intervention: PlayerIntervention): boolean {
     if (!this.chunks.has(intervention.chunkId)) return false;
     if (this.interventionManager) {
-      const validation = this.interventionManager.validateIntervention(intervention.type, Number.MAX_SAFE_INTEGER, this.currentTick);
+      const validation = this.interventionManager.validateIntervention(intervention.type, this.currentTick);
       if (!validation.valid) return false;
     }
     if (intervention.type === 'plant' && !SpeciesRegistry.getInstance().getSpecies(intervention.data?.speciesId)) return false;
@@ -725,18 +592,82 @@ export class SimulationEngine {
     }
   }
 
+  /** Seeds in the player's pouch per species. Only commands and syncs change it, and both return a snapshot. */
+  getInventory(): Readonly<Record<string, number>> {
+    return this.runtimeSnapshot?.inventory ?? {};
+  }
+
+  /** Seeds in the pouch per species and the site each was set on ("" for packet seed). */
+  getPouch(): Readonly<Record<string, Record<string, number>>> {
+    return this.runtimeSnapshot?.pouch ?? {};
+  }
+
+  /** The whole pouch, seed by seed with its genetics, for carrying to another site. */
+  exportPouch(): unknown[] {
+    return (this.runtime.request({ op: 'export' }).state as { inventory?: unknown[] }).inventory ?? [];
+  }
+
+  /** Replace the pouch with seeds carried from another site. */
+  importPouch(seeds: unknown[]): void {
+    this.syncRuntime(true);
+    this.runtime.request({ op: 'sync', inventory: seeds });
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  }
+
+  /** Plants the player follows, by instance id, as of the latest tick. */
+  getTags(): Readonly<Record<string, Tag>> {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.tags ?? {};
+  }
+
+  /** The player's crosses, for the notebook. */
+  getCrosses(): readonly Cross[] {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.crosses ?? [];
+  }
+
+  /** Each species' trait spread when first recorded here. */
+  getBaselines(): Readonly<Record<string, Baseline>> {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.baselines ?? {};
+  }
+
+  /** Fresh seeds for the pouch: a starter packet or a reward. */
+  addSeeds(counts: Record<string, number>): void {
+    this.syncRuntime();
+    this.runtime.request({ op: 'sync', addSeeds: counts });
+    this.applyRuntimeResponse(this.runtime.request({ op: 'snapshot' }));
+  }
+
   /**
    * Get chunk by coordinates
    */
   getChunk(x: number, y: number): WorldChunk | null {
-    const chunkId = `chunk_${x}_${y}`;
-    return this.chunks.get(chunkId) || null;
+    this.grantMutableAccess();
+    return this.chunkAt(x, y);
+  }
+
+  /** Read-only chunk as of the latest tick. Unlike getChunk, it never makes ticks slower. */
+  readChunk(x: number, y: number): Readonly<WorldChunk> | null {
+    return this.chunkAt(x, y);
+  }
+
+  /** Read-only chunks as of the latest tick. Unlike getAllChunks, it never makes ticks slower. */
+  readChunks(): ReadonlyMap<string, Readonly<WorldChunk>> {
+    return this.chunks;
+  }
+
+  /** Read-only chunks with every plant in full (place, pollen, genetics), for panels that show individuals. */
+  readChunksDetailed(): ReadonlyMap<string, Readonly<WorldChunk>> {
+    this.refreshProjection(true);
+    return this.projection;
   }
 
   /**
    * Get all chunks in an area
    */
   getChunksInArea(x1: number, y1: number, x2: number, y2: number): WorldChunk[] {
+    this.grantMutableAccess();
     const chunks: WorldChunk[] = [];
     const minX = Math.max(0, Math.min(x1, x2));
     const maxX = Math.min(this.config.worldWidth - 1, Math.max(x1, x2));
@@ -745,7 +676,7 @@ export class SimulationEngine {
     
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
-        const chunk = this.getChunk(x, y);
+        const chunk = this.chunkAt(x, y);
         if (chunk) chunks.push(chunk);
       }
     }
@@ -763,14 +694,12 @@ export class SimulationEngine {
 
     let totalSpecies = 0;
     const uniqueSpecies = new Set<string>();
-    let totalHybrids = 0;
     let avgVitality = 0;
     let avgPollution = 0;
 
     this.chunks.forEach(chunk => {
       totalSpecies += chunk.species.size;
       chunk.species.forEach(instance => uniqueSpecies.add(instance.speciesId));
-      totalHybrids += chunk.hybrids.size;
       avgVitality += chunk.biomeState.vitality;
       avgPollution += chunk.biomeState.pollution;
     });
@@ -791,7 +720,6 @@ export class SimulationEngine {
       totalChunks: chunkCount,
       totalSpecies,
       uniqueSpecies: uniqueSpecies.size,
-      totalHybrids,
       avgVitality,
       avgPollution,
       avgUpdateTime,
@@ -811,71 +739,6 @@ export class SimulationEngine {
   }
 
   /**
-   * Get goal-relevant metrics for goal evaluation
-   */
-  getGoalMetrics() {
-    const stats = this.getStatistics();
-    const discoveredSpecies = this.researchSystem?.getDiscoveredSpecies().length || 0;
-    const totalObservations = this.researchSystem?.getState().totalObservations || 0;
-
-    return {
-      // From statistics
-      totalSpecies: stats.totalSpecies,
-      totalHybrids: stats.totalHybrids,
-      avgVitality: stats.avgVitality,
-      avgPollution: stats.avgPollution,
-      activeChunks: stats.activeChunks,
-      currentTick: stats.currentTick,
-      simDays: stats.simDays,
-
-      // From research system
-      discoveredSpecies,
-      totalObservations,
-
-      // Additional computed metrics
-      ecosystemStability: this.calculateStability(),
-      canopyDevelopment: this.calculateCanopyDevelopment()
-    };
-  }
-
-  /**
-   * Calculate ecosystem stability metric (0-1)
-   */
-  private calculateStability(): number {
-    // Simple stability metric based on vitality variance
-    const vitalities: number[] = [];
-    this.chunks.forEach(chunk => {
-      vitalities.push(chunk.biomeState.vitality);
-    });
-
-    if (vitalities.length === 0) return 0;
-
-    const mean = vitalities.reduce((a, b) => a + b, 0) / vitalities.length;
-    const variance = vitalities.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / vitalities.length;
-    const stability = Math.max(0, 1 - variance); // Lower variance = higher stability
-
-    return stability;
-  }
-
-  /**
-   * Calculate canopy development metric (0-1)
-   */
-  private calculateCanopyDevelopment(): number {
-    let totalCanopy = 0;
-    let chunkCount = 0;
-
-    this.chunks.forEach(chunk => {
-      if ((chunk as any).canopyState) {
-        totalCanopy += (chunk as any).canopyState.canopyHeight || 0;
-        chunkCount++;
-      }
-    });
-
-    if (chunkCount === 0) return 0;
-    return totalCanopy / chunkCount;
-  }
-
-  /**
    * Apply scenario initial conditions
    */
   applyScenarioConditions(conditions: {
@@ -888,8 +751,17 @@ export class SimulationEngine {
     };
     clearSpecies?: boolean;
     initialSpecies?: string[];
+    /** Species that start as adult plants in the centre, as if the meadow had grown for years. */
+    establishedSpecies?: string[];
+    /** The lie of the land: each hex's height, 0 (hollow) to 1 (rise). */
+    elevation?: (x: number, y: number) => number;
+    /** Each hex's soil pH. */
+    ph?: (x: number, y: number) => number;
   }): void {
-    const { biomeStates, clearSpecies, initialSpecies } = conditions;
+    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies, elevation, ph } = conditions;
+    this.projectionEdited = true;
+    if (elevation) this.chunks.forEach(chunk => { chunk.elevation = elevation(chunk.x, chunk.y); });
+    if (ph) this.chunks.forEach(chunk => { chunk.biomeState.ph = ph(chunk.x, chunk.y); });
 
     // Apply biome states to all chunks
     if (biomeStates) {
@@ -920,6 +792,8 @@ export class SimulationEngine {
       });
     }
 
+    establishedSpecies?.forEach(speciesId => this.establishCenterPlants(speciesId, 2));
+
     // Seed initial species if provided
     if (initialSpecies && initialSpecies.length > 0) {
       // Seed center area with initial species
@@ -937,11 +811,8 @@ export class SimulationEngine {
   /**
    * Public getters for external systems
    */
-  getResearchSystem(): ResearchSystem | undefined {
-    return this.researchSystem;
-  }
-
   getChunksMap(): Map<string, WorldChunk> {
+    this.grantMutableAccess();
     return this.chunks;
   }
 
@@ -954,7 +825,7 @@ export class SimulationEngine {
    */
   exportState(): any {
     this.syncRuntime();
-    // Export a detached JSON-safe value, including genetic trait Maps.
+    // Export a detached JSON-safe value.
     return JSON.parse(encodeSimulationState({
       schemaVersion: 2,
       backend: 'rust-ecs',
@@ -962,16 +833,10 @@ export class SimulationEngine {
       currentTick: this.currentTick,
       simTimeDays: this.simTimeDays,
       timePerTickMinutes: this.timePerTickMinutes,
-      currentYearIndex: this.currentYearIndex,
-      lastYearEndCheck: this.lastYearEndCheck,
       chunks: Array.from(this.chunks.entries()).map(([id, chunk]) => [id, chunk.exportState()]),
       activeChunks: Array.from(this.activeChunks).sort(),
       rngState: this.rngManager.exportState(),
       eventJournal: this.eventJournal.exportToJSON(),
-      masterGenomes: this.masterGenomes,
-      pendingMasterGenomes: this.pendingMasterGenomes,
-      selectedSeeds: this.selectedSeeds,
-      researchState: this.researchSystem?.exportState(),
       interventionState: this.interventionManager?.exportState(),
       rustState: this.runtime.request({ op: 'export' }).state
     }));
@@ -1010,7 +875,7 @@ export class SimulationEngine {
       ? runtime.request({
         op: 'init', config, tick: state.currentTick ?? 0, simTimeDays: savedDays,
         chunks: state.chunks.map((entry: [string, unknown]) => entry[1]),
-        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies()
+        speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI
       })
       : runtime.request({ op: 'import', state: state.rustState });
     if (!response.snapshot) throw new Error('Save is missing its simulation snapshot');
@@ -1026,23 +891,10 @@ export class SimulationEngine {
       rng.importState(state.rngState);
       if (rng.generateStateHash() !== state.rngState.stateHash) throw new Error('Invalid saved random generator state');
     }
-    const geneticSystem = new GeneticSystem(rng);
-    const masterGenomes = state.masterGenomes ?? new Map();
-    const pendingMasterGenomes = state.pendingMasterGenomes ?? new Map();
-    const selectedSeeds = state.selectedSeeds ?? new Map();
-    if (![masterGenomes, pendingMasterGenomes, selectedSeeds].every(value => value instanceof Map)) throw new Error('Invalid saved seed selection');
-    for (const profile of [...masterGenomes.values(), ...pendingMasterGenomes.values()]) {
-      if (!(profile?.traits instanceof Map) || !Array.isArray(profile.mutations)) throw new Error('Invalid saved genetics');
-    }
-    const yearIndex = Math.floor(response.snapshot.simTimeDays / (config.seasonLengthTicks * 4));
-    const lastYearEndCheck = state.lastYearEndCheck ?? yearIndex;
-    if (!Number.isSafeInteger(lastYearEndCheck) || lastYearEndCheck < 0) throw new Error('Invalid saved year');
     if (state.eventJournal) {
       const journal = JSON.parse(state.eventJournal);
       if (!Array.isArray(journal.events)) throw new Error('Invalid saved event journal');
     }
-    const research = new ResearchSystem(this.eventJournal, response.snapshot.tick);
-    if (state.researchState) research.importState(state.researchState);
     const manager = new InterventionManager();
     if (state.interventionState) manager.importState(state.interventionState);
     if (state.activeChunks !== undefined && !Array.isArray(state.activeChunks)) throw new Error('Invalid saved active chunks');
@@ -1054,19 +906,12 @@ export class SimulationEngine {
     this.timePerTickMinutes = minutes;
     this.yearLengthDays = config.seasonLengthTicks * 4;
     this.targetDeltaTime = 1000 / config.tickRate;
-    this.currentYearIndex = yearIndex;
-    this.lastYearEndCheck = lastYearEndCheck;
     this.rngManager = rng;
-    this.geneticSystem = geneticSystem;
-    this.masterGenomes = masterGenomes;
-    this.pendingMasterGenomes = pendingMasterGenomes;
-    this.selectedSeeds = selectedSeeds;
     this.activeChunks = activeChunks;
     this.applyRuntimeResponse(response);
     this.eventJournal.clear();
     if (state.eventJournal) this.eventJournal.importFromJSON(state.eventJournal);
     this.eventJournal.setCurrentTick(this.currentTick);
-    this.researchSystem?.importState(research.exportState());
     if (state.interventionState) {
       this.interventionManager ??= new InterventionManager();
       this.interventionManager.importState(manager.exportState());
@@ -1080,6 +925,7 @@ export class SimulationEngine {
   }
 
   getAllChunks(): Map<string, WorldChunk> {
+    this.grantMutableAccess();
     return this.chunks;
   }
 
@@ -1135,41 +981,6 @@ export class SimulationEngine {
     return this.timePerTickMinutes / 1440;
   }
 
-  setResearchSystem(system: ResearchSystem): void {
-    this.researchSystem = system;
-  }
-
-  /**
-   * Manually trigger species observation for research
-   * Called by UI or can be automated in tick loop
-   */
-  observeSpeciesInChunk(chunkId: string): void {
-    if (!this.researchSystem) return;
-
-    const chunk = this.chunks.get(chunkId);
-    if (!chunk) return;
-
-    // Observe all species instances in the chunk
-    chunk.species.forEach(instance => {
-      this.researchSystem!.observeSpecies(
-        instance.speciesId,
-        chunk,
-        this.currentTick,
-        instance
-      );
-    });
-  }
-
-  /**
-   * Observe all species in all active chunks (expensive - use sparingly)
-   */
-  observeAllActiveSpecies(): void {
-    if (!this.researchSystem) return;
-
-    this.activeChunks.forEach(chunkId => {
-      this.observeSpeciesInChunk(chunkId);
-    });
-  }
   private validateConfig(config: SimulationConfig): void {
     if (!config || !Number.isInteger(config.worldWidth) || !Number.isInteger(config.worldHeight) || config.worldWidth < 1 || config.worldHeight < 1 || config.worldWidth * config.worldHeight > 65536) {
       throw new Error('Simulation world dimensions must be positive integers with at most 65536 chunks');
@@ -1184,55 +995,65 @@ export class SimulationEngine {
   }
 
   private initializeRuntime(): void {
+    this.projectionEdited = false; // init sends the whole projection
     this.applyRuntimeResponse(this.runtime.request({
       op: 'init',
       config: this.config,
       chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()),
-      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies()
+      speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI
     }));
   }
 
   private syncRuntime(includeDefinitions = false): void {
-    const chunks = Array.from(this.chunks.values(), chunk => chunk.exportState());
-    const signature = encodeSimulationState(chunks);
-    if (!includeDefinitions && signature === this.projectionSignature && this.runtimeMinutes === this.timePerTickMinutes) return;
+    const signature = this.mutableAccess ? this.signature() : '';
+    const edited = this.projectionEdited || signature !== this.projectionSignature;
+    if (!includeDefinitions && !edited && this.runtimeMinutes === this.timePerTickMinutes) return;
     this.runtime.request({
       op: 'sync',
       config: { ...this.config, timePerTickMinutes: this.timePerTickMinutes },
-      chunks,
-      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies() } : {})
+      // Only an edited projection is sent: an unedited one may be stale and would roll Rust back.
+      ...(edited ? { chunks: Array.from(this.chunks.values(), chunk => chunk.exportState()) } : {}),
+      ...(includeDefinitions ? { speciesDefinitions: SpeciesRegistry.getInstance().getAllSpecies(), faunaDefinitions: FAUNA, fungusDefinitions: FUNGI } : {})
     });
     this.projectionSignature = signature;
+    this.projectionEdited = false;
     this.runtimeMinutes = this.timePerTickMinutes;
   }
 
   private applyRuntimeResponse(response: RuntimeResponse): void {
     if (response.snapshot) {
       const snapshot = response.snapshot;
+      this.projectionDetailed = true;
       this.runtimeSnapshot = snapshot;
+      snapshot.hybrids?.forEach(hybrid => SpeciesRegistry.getInstance().addHybrid(hybrid));
       this.currentTick = snapshot.tick;
       this.simTimeDays = snapshot.simTimeDays;
+      this.projectionStale = false;
       const seen = new Set<string>();
       for (const state of snapshot.chunks) {
         seen.add(state.id);
-        let chunk = this.chunks.get(state.id);
+        let chunk = this.projection.get(state.id);
         if (!chunk) {
           chunk = new WorldChunk(state.x, state.y, state.rngSeed ?? 0);
-          this.chunks.set(state.id, chunk);
+          this.projection.set(state.id, chunk);
         }
-        chunk.importState({ species: [], hybrids: [], ritualResidues: [], seedBank: [], ...state });
-        for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'canopyLayers', 'groundLight']) {
+        chunk.importState({ species: [], ritualResidues: [], seedBank: [], ...state });
+        for (const key of ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight']) {
           if (key in state) (chunk as any)[key] = state[key];
         }
         (chunk as any).simTimeDays = snapshot.simTimeDays;
-        (chunk as any).__getChunk = (x: number, y: number) => this.getChunk(x, y);
+        (chunk as any).__getChunk = (x: number, y: number) => this.chunkAt(x, y);
         (chunk as any).__emitEvent = (type: EventType, data: unknown) => this.emitEvent(type, data, chunk!.id);
       }
-      for (const id of this.chunks.keys()) if (!seen.has(id)) this.chunks.delete(id);
-      this.eventJournal.setCurrentTick(this.currentTick);
-      this.projectionSignature = encodeSimulationState(Array.from(this.chunks.values(), chunk => chunk.exportState()));
+      for (const id of this.projection.keys()) if (!seen.has(id)) this.projection.delete(id);
+      this.projectionSignature = this.mutableAccess ? this.signature() : '';
       this.runtimeMinutes = this.timePerTickMinutes;
+    } else if (response.tick !== undefined) {
+      this.currentTick = response.tick;
+      this.simTimeDays = response.simTimeDays ?? this.simTimeDays;
+      this.projectionStale = true;
     }
+    this.eventJournal.setCurrentTick(this.currentTick);
     for (const event of response.events ?? []) {
       const action = event.data as Partial<PlayerIntervention> | undefined;
       const type = event.type === 'player_intervention' && action?.type ? `player_${action.type}` : event.type;
@@ -1242,11 +1063,11 @@ export class SimulationEngine {
 
   getEventJournal(): EventJournal { return this.eventJournal; }
 
-  getActiveWeatherEvents(): any[] { return this.runtimeSnapshot?.weatherEvents ?? []; }
-
-  getHybridizationStatistics(): { totalHybrids: number; hybridizationEvents: number } {
-    return { totalHybrids: this.getStatistics().totalHybrids, hybridizationEvents: this.runtimeSnapshot?.hybridizationEvents ?? 0 };
+  getActiveWeatherEvents(): any[] {
+    this.refreshProjection();
+    return this.runtimeSnapshot?.weatherEvents ?? [];
   }
+
 
   /** Reproducibility fingerprint excludes UI pacing and diagnostic timing. */
   getDeterministicStateHash(): string {
@@ -1254,11 +1075,6 @@ export class SimulationEngine {
     const text = encodeSimulationState({
       rustState: this.runtime.request({ op: 'export' }).state,
       rngState: this.rngManager.exportState(),
-      masterGenomes: this.masterGenomes,
-      pendingMasterGenomes: this.pendingMasterGenomes,
-      selectedSeeds: this.selectedSeeds,
-      currentYearIndex: this.currentYearIndex,
-      lastYearEndCheck: this.lastYearEndCheck
     });
     let hash = 2166136261;
     for (let index = 0; index < text.length; index++) hash = Math.imul(hash ^ text.charCodeAt(index), 16777619);

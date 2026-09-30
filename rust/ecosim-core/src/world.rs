@@ -1,9 +1,29 @@
-use crate::model::*;
+use crate::{genetics::origin_of, model::*};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// Bump when a saved world can no longer be read with serde defaults for the new fields; the game then opens
+/// the site afresh with a message instead of loading an older save.
 pub const SAVE_VERSION: u32 = 1;
+/// Seed a fruiting plant has ripened since it last dropped or gave seed; about ten days' worth for a grass.
+pub const RIPE_RESERVE: f64 = 0.1;
+
+/// Seed taken early is often not viable: from about 0.4 at the first ripe seed to 0.95 when fully ripe.
+pub fn seed_viability(reserve: f64) -> f64 {
+    0.35 + 0.6 * reserve.min(1.0)
+}
+
+fn pouch_seed(species_id: String, extra: BTreeMap<String, Value>) -> Seed {
+    Seed {
+        species_id,
+        x: 0.5,
+        y: 0.5,
+        viability: 0.95,
+        maturity_ticks: 0,
+        extra,
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +37,50 @@ pub struct World {
     pub rng: Rng,
     pub components: Components,
     pub definitions: BTreeMap<String, SpeciesDefinition>,
+    #[serde(default)]
+    pub fauna_definitions: BTreeMap<String, FaunaDefinition>,
+    #[serde(default)]
+    pub fungus_definitions: BTreeMap<String, FungusDefinition>,
+    /// Mycelium per hex per fungus [0-1].
+    #[serde(default)]
+    pub fungi: BTreeMap<Entity, BTreeMap<String, f64>>,
+    /// Fauna species seen anywhere so far, for first sightings.
+    #[serde(default)]
+    pub fauna_seen: BTreeSet<String>,
+    /// (habitat, animal, plant) interactions already reported this season, and which season that is.
+    #[serde(default)]
+    pub interactions_seen: BTreeSet<(Entity, String, String)>,
+    #[serde(default)]
+    pub interactions_season: u64,
     pub pending_commands: Vec<QueuedCommand>,
+    /// Seeds the player holds, oldest first; each keeps its parent's genetics.
+    #[serde(default)]
+    pub inventory: Vec<Seed>,
+    /// Which patch of plant cover each planted hex belonged to last tick, to notice corridors forming.
+    #[serde(default)]
+    pub patch_labels: BTreeMap<Entity, usize>,
+    /// Rare events' lasting effects, and the season last rolled for one.
+    #[serde(default)]
+    pub rare_effects: Vec<RareEffect>,
+    #[serde(default)]
+    pub rare_season: u64,
+    /// Plants the player follows, by instance id, and the number behind the last label given.
+    #[serde(default)]
+    pub tags: BTreeMap<String, Tag>,
+    #[serde(default)]
+    pub next_tag: u32,
+    /// The player's crosses, oldest first, with what was expected and the seedlings that came of them.
+    #[serde(default)]
+    pub crosses: Vec<Cross>,
+    /// The latest soil and water sample of each hex, by hex id.
+    #[serde(default)]
+    pub samples: BTreeMap<String, Sample>,
+    /// Water that moved between neighbouring hexes last tick, per day: (from, to) → amount. Recomputed each tick.
+    #[serde(skip)]
+    pub flows: BTreeMap<(Entity, Entity), f64>,
+    /// Each species' trait spread when first recorded here.
+    #[serde(default)]
+    pub baselines: BTreeMap<String, Baseline>,
     #[serde(default)]
     pub weather: Vec<Weather>,
     #[serde(skip)]
@@ -41,7 +104,23 @@ impl World {
             next_command_sequence: 0,
             components: Components::default(),
             definitions: BTreeMap::new(),
+            fauna_definitions: BTreeMap::new(),
+            fungus_definitions: BTreeMap::new(),
+            fungi: BTreeMap::new(),
+            fauna_seen: BTreeSet::new(),
+            interactions_seen: BTreeSet::new(),
+            interactions_season: 0,
             pending_commands: vec![],
+            inventory: vec![],
+            patch_labels: BTreeMap::new(),
+            rare_effects: vec![],
+            rare_season: 0,
+            tags: BTreeMap::new(),
+            next_tag: 0,
+            crosses: vec![],
+            samples: BTreeMap::new(),
+            flows: BTreeMap::new(),
+            baselines: BTreeMap::new(),
             weather: vec![],
             events: vec![],
         };
@@ -52,6 +131,45 @@ impl World {
             world.sync(chunks)?;
         }
         Ok(world)
+    }
+
+    pub fn set_fauna_definitions(
+        &mut self,
+        definitions: Vec<FaunaDefinition>,
+    ) -> Result<(), String> {
+        for def in &definitions {
+            if def.id.is_empty()
+                || !def.capacity_per_forage.is_finite()
+                || def.capacity_per_forage < 0.0
+                || def.temperature_range.min > def.temperature_range.max
+                || def
+                    .forage
+                    .iter()
+                    .any(|link| !(0.0..=1.0).contains(&link.strength))
+            {
+                return Err(format!("Invalid fauna definition: {}", def.id));
+            }
+        }
+        self.fauna_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
+        self.feed_on_hybrids();
+        Ok(())
+    }
+
+    pub fn set_fungus_definitions(
+        &mut self,
+        definitions: Vec<FungusDefinition>,
+    ) -> Result<(), String> {
+        if let Some(def) = definitions.iter().find(|d| {
+            d.id.is_empty()
+                || !matches!(
+                    d.lifestyle.as_str(),
+                    "mycorrhizal" | "parasite" | "saprotroph"
+                )
+        }) {
+            return Err(format!("Invalid fungus definition: {}", def.id));
+        }
+        self.fungus_definitions = definitions.into_iter().map(|d| (d.id.clone(), d)).collect();
+        Ok(())
     }
 
     pub fn set_definitions(&mut self, definitions: Vec<SpeciesDefinition>) -> Result<(), String> {
@@ -73,6 +191,7 @@ impl World {
         for def in definitions {
             self.definitions.insert(def.id.clone(), def);
         }
+        self.feed_on_hybrids();
         Ok(())
     }
 
@@ -99,9 +218,9 @@ impl World {
                     climate_state: Climate::default(),
                     last_update_tick: 0,
                     species: vec![],
-                    hybrids: vec![],
                     ritual_residues: vec![],
                     seed_bank: vec![],
+                    elevation: flat(),
                     extra: BTreeMap::new(),
                 });
             }
@@ -121,7 +240,9 @@ impl World {
             for _ in 0..3 {
                 let x = self.rng.sample();
                 let y = self.rng.sample();
-                self.spawn(entity, &species, x, y, 0.15);
+                let id = self.spawn(entity, &species, x, y, 0.15);
+                let extra = self.seed_record(BTreeMap::new());
+                self.components.organisms.get_mut(&id).unwrap().extra = extra;
             }
         }
         Ok(())
@@ -144,9 +265,8 @@ impl World {
                 return Err("Chunk coordinates outside world".into());
             }
             if chunk
-                .hybrids
+                .ritual_residues
                 .iter()
-                .chain(chunk.ritual_residues.iter())
                 .any(|(_, value)| !value.is_object())
             {
                 return Err("Effect records must be objects".into());
@@ -202,8 +322,58 @@ impl World {
                 .filter(|(_, p)| p.chunk == entity)
                 .map(|(e, _)| *e)
                 .collect();
+            // What a summary projection leaves out of each plant (place, pollen, genetics) is kept from before.
+            let mut before = BTreeMap::new();
             for id in removals {
+                let organism = &self.components.organisms[&id];
+                before.insert(
+                    organism.id.clone(),
+                    (
+                        self.components.positions[&id].clone(),
+                        self.components.reproduction[&id].clone(),
+                        organism.extra.clone(),
+                    ),
+                );
                 self.despawn(id);
+            }
+            // Flow and samples are the engine's own, projected for reading; copies must not settle into the hex.
+            let mut extra = chunk.extra;
+            extra.remove("outflow");
+            extra.remove("sample");
+            extra.remove("fungi");
+            extra.remove("fruiting");
+            // Projected seeds carry no genetics (nor, in a summary, their place): a seed coming back without them is
+            // matched, in order, to the hex's stored seeds of its species. The host only adds or removes seeds.
+            let mut kept = BTreeMap::<String, VecDeque<Seed>>::new();
+            for seed in self
+                .components
+                .habitats
+                .get_mut(&entity)
+                .map(|h| std::mem::take(&mut h.seeds))
+                .unwrap_or_default()
+            {
+                kept.entry(seed.species_id.clone())
+                    .or_default()
+                    .push_back(seed);
+            }
+            let mut seeds = chunk.seed_bank;
+            for seed in seeds
+                .iter_mut()
+                .filter(|s| !s.extra.contains_key("genetics"))
+            {
+                if let Some(stored) = kept.get_mut(&seed.species_id).and_then(VecDeque::pop_front) {
+                    // The host sees and edits viability only; the rest is the stored seed's.
+                    *seed = Seed {
+                        viability: seed.viability,
+                        ..stored
+                    };
+                }
+            }
+            // A seed the host added without a place lies in the middle of the hex.
+            for seed in &mut seeds {
+                if seed.x.is_nan() || seed.y.is_nan() {
+                    (seed.x, seed.y) = (0.5, 0.5);
+                }
             }
             let mut biome = chunk.biome_state;
             biome.normalize();
@@ -215,22 +385,40 @@ impl World {
                     id: chunk.id,
                     x: chunk.x,
                     y: chunk.y,
-                    seeds: chunk.seed_bank,
-                    hybrids: chunk.hybrids,
+                    seeds,
                     residues: chunk.ritual_residues,
-                    extra: chunk.extra,
+                    elevation: chunk.elevation.clamp(0.0, 1.0),
+                    extra,
                 },
             );
             let mut plants = chunk.species;
             plants.sort_by(|a, b| a.1.id.cmp(&b.1.id));
-            for (_, plant) in plants {
+            for (_, mut plant) in plants {
+                let (place, kept_bloom, kept) = before.remove(&plant.id).map_or(
+                    (None, None, BTreeMap::new()),
+                    |(p, bloom, extra): (Position, Reproduction, _)| (Some(p), Some(bloom), extra),
+                );
+                // Pollen rides in the projection's plant record; it belongs to the reproduction component.
+                let pollen = match plant.extra.remove("pollen") {
+                    Some(value) => serde_json::from_value(value).ok(),
+                    None => kept_bloom.as_ref().and_then(|b| b.pollen.clone()),
+                };
+                for (key, value) in kept {
+                    plant.extra.entry(key).or_insert(value);
+                }
+                // Derived each tick, or the projection's copy of a component: none settles into the record.
+                for key in ["limit", "reproductiveUrge"] {
+                    plant.extra.remove(key);
+                }
                 let age_days = plant
                     .extra
-                    .get("ageDays")
-                    .and_then(Value::as_f64)
+                    .remove("ageDays")
+                    .and_then(|v| v.as_f64())
                     .unwrap_or(
                         plant.age as f64 * self.config.time_per_tick_minutes as f64 / 1440.0,
                     );
+                // Plants the host adds (a site's starting plants) are founders.
+                let extra = self.seed_record(std::mem::take(&mut plant.extra));
                 let id = plant_lookup
                     .get(&plant.id)
                     .copied()
@@ -239,8 +427,16 @@ impl World {
                     id,
                     Position {
                         chunk: entity,
-                        x: plant.x.clamp(0.0, 1.0),
-                        y: plant.y.clamp(0.0, 1.0),
+                        x: plant
+                            .x
+                            .or(place.as_ref().map(|p| p.x))
+                            .unwrap_or(0.5)
+                            .clamp(0.0, 1.0),
+                        y: plant
+                            .y
+                            .or(place.as_ref().map(|p| p.y))
+                            .unwrap_or(0.5)
+                            .clamp(0.0, 1.0),
                     },
                 );
                 self.components.organisms.insert(
@@ -248,7 +444,7 @@ impl World {
                     Organism {
                         id: plant.id,
                         species_id: plant.species_id,
-                        extra: plant.extra,
+                        extra,
                     },
                 );
                 self.components.growth.insert(
@@ -258,6 +454,7 @@ impl World {
                         age_days,
                         biomass: plant.biomass.max(0.0),
                         health: plant.health.clamp(0.0, 1.0),
+                        limit: None,
                     },
                 );
                 self.components.reproduction.insert(
@@ -265,10 +462,14 @@ impl World {
                     Reproduction {
                         stage: plant.phenology_stage,
                         reserve: plant.reproductive_output.max(0.0),
+                        pollinated: kept_bloom.map_or(0.0, |b| b.pollinated),
+                        pollen,
                     },
                 );
             }
         }
+        // Plants and seeds from the host or an old save may carry the older genetics format.
+        self.compact_genetics();
         Ok(())
     }
 
@@ -308,6 +509,7 @@ impl World {
                 health: 0.9,
                 age: 0,
                 age_days: 0.0,
+                limit: None,
             },
         );
         self.components.reproduction.insert(
@@ -315,6 +517,8 @@ impl World {
             Reproduction {
                 stage: "vegetative".into(),
                 reserve: 0.0,
+                pollinated: 0.0,
+                pollen: None,
             },
         );
         id
@@ -368,7 +572,10 @@ impl World {
         {
             return Err("Unknown chunk".into());
         }
-        if !["plant", "irrigate", "cleanse", "ritual", "hybridize"].contains(&command.kind.as_str())
+        if ![
+            "plant", "collect", "cross", "tag", "sample", "irrigate", "cleanse", "ritual",
+        ]
+        .contains(&command.kind.as_str())
         {
             return Err("Unknown intervention type".into());
         }
@@ -414,7 +621,74 @@ impl World {
                 let species = command.data["speciesId"]
                     .as_str()
                     .ok_or("Missing speciesId")?;
-                self.spawn(chunk, species, command.x, command.y, 0.2);
+                // Seed from a chosen site, when the player picks one: "" is packet seed.
+                let origin = command.data.get("origin").and_then(Value::as_str);
+                let index = self
+                    .inventory
+                    .iter()
+                    .position(|seed| {
+                        seed.species_id == species
+                            && origin.is_none_or(|o| origin_of(&seed.extra) == o)
+                    })
+                    .ok_or("No seeds of that species")?;
+                let seed = self.inventory.remove(index);
+                // A seed that is not viable is spent without coming up.
+                if self.rng.sample() < seed.viability {
+                    let id = self.spawn(chunk, species, command.x, command.y, 0.2);
+                    let extra = self.seed_record(seed.extra);
+                    self.components.organisms.get_mut(&id).unwrap().extra = extra;
+                    self.tag(id, "planted");
+                } else {
+                    self.emit("seed_failed", chunk, json!({ "speciesId": species }));
+                }
+            }
+            "collect" => {
+                // Seed is taken from the plants the player chose, each giving the seed it has been ripening.
+                let ids: BTreeSet<&str> = command.data["instanceIds"]
+                    .as_array()
+                    .ok_or("Missing instanceIds")?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect();
+                let picked: Vec<Entity> = self
+                    .components
+                    .organisms
+                    .iter()
+                    .filter(|(entity, organism)| {
+                        let reproduction = &self.components.reproduction[entity];
+                        ids.contains(organism.id.as_str())
+                            && self.components.positions[entity].chunk == chunk
+                            && reproduction.stage == "fruiting"
+                            && reproduction.reserve >= RIPE_RESERVE
+                    })
+                    .map(|(entity, _)| *entity)
+                    .collect();
+                if picked.is_empty() {
+                    return Err("Nothing ripe to collect here".into());
+                }
+                // Counted by what the seed is, which differs from the plant for hand-pollinated blooms.
+                let mut counts = BTreeMap::<String, usize>::new();
+                for entity in picked {
+                    let bloom = self.components.reproduction.get_mut(&entity).unwrap();
+                    let viability = seed_viability(bloom.reserve);
+                    bloom.reserve = 0.0;
+                    let pollen = bloom.pollen.clone();
+                    let organism = &self.components.organisms[&entity];
+                    let (mother, mother_id, parent) = (
+                        organism.species_id.clone(),
+                        organism.id.clone(),
+                        organism.extra.clone(),
+                    );
+                    let (species, genetics) =
+                        self.seed_of(&mother, &mother_id, &parent, pollen.as_ref());
+                    self.count_seed(&mother_id);
+                    *counts.entry(species.clone()).or_default() += 1;
+                    self.inventory.push(Seed {
+                        viability,
+                        ..pouch_seed(species, [("genetics".into(), genetics)].into())
+                    });
+                }
+                self.emit("seeds_collected", chunk, json!({ "counts": counts }));
             }
             "irrigate" => self
                 .components
@@ -434,15 +708,9 @@ impl World {
                 biome.apply("moisture", 0.1);
                 biome.apply("pollution", -0.1);
             }
-            "hybridize" => {
-                let hybrid_id = command
-                    .data
-                    .get("hybridId")
-                    .and_then(Value::as_str)
-                    .unwrap_or("growth_bloom");
-                let id = format!("hybrid_{}", self.allocate());
-                self.components.habitats.get_mut(&chunk).unwrap().hybrids.push((id.clone(), json!({"id":id,"hybridId":hybrid_id,"x":command.x,"y":command.y,"parentA":command.data.get("parentA").cloned().unwrap_or(json!("common_grass")),"parentB":command.data.get("parentB").cloned().unwrap_or(json!("healing_fern")),"effectRadius":1,"strength":0.8,"duration":90})));
-            }
+            "tag" => self.tag_command(chunk, &command.data)?,
+            "sample" => self.sample_command(chunk),
+            "cross" => self.cross_command(chunk, &command.data)?,
             _ => return Err("Unknown intervention type".into()),
         }
         self.emit(
@@ -450,6 +718,30 @@ impl World {
             chunk,
             serde_json::to_value(&command).map_err(|error| error.to_string())?,
         );
+        Ok(())
+    }
+
+    /// Replace the pouch, as when the player arrives from another site carrying it.
+    pub fn set_inventory(&mut self, seeds: Vec<Seed>) -> Result<(), String> {
+        if let Some(seed) = seeds
+            .iter()
+            .find(|s| !self.definitions.contains_key(&s.species_id))
+        {
+            return Err(format!("Unknown species: {}", seed.species_id));
+        }
+        self.inventory = seeds;
+        Ok(())
+    }
+
+    /// Fresh seeds with no inherited genetics, for starter packets and rewards.
+    pub fn add_seeds(&mut self, counts: BTreeMap<String, usize>) -> Result<(), String> {
+        if let Some(species) = counts.keys().find(|s| !self.definitions.contains_key(*s)) {
+            return Err(format!("Unknown species: {species}"));
+        }
+        for (species, count) in counts {
+            self.inventory
+                .extend((0..count).map(|_| pouch_seed(species.clone(), BTreeMap::new())));
+        }
         Ok(())
     }
 
@@ -489,14 +781,21 @@ impl World {
             self.growth_system();
             self.reproduction_system();
             self.germination_system();
+            self.clonal_system();
+            self.landscape_system();
             self.diffusion_system();
             self.ecosystem_system();
+            self.fauna_system();
+            self.fungus_system();
+            self.rare_event_system();
+            self.baseline_system();
+            self.tray_system();
         }
         Ok(())
     }
 
     pub fn snapshot(&self) -> Value {
-        serde_json::to_value(self.snapshot_view())
+        serde_json::to_value(self.snapshot_view(true))
             .expect("ECS projections contain only JSON values")
     }
 
@@ -528,6 +827,11 @@ impl World {
         }
         if habitats != c.biomes.keys().collect() || habitats != c.climates.keys().collect() {
             return Err("Incomplete habitat components".into());
+        }
+        if self.fungi.iter().any(|(hex, present)| {
+            !c.habitats.contains_key(hex) || present.values().any(|e| !(0.0..=1.0).contains(e))
+        }) {
+            return Err("Invalid fungal mycelium".into());
         }
         if c.positions
             .values()
@@ -580,11 +884,7 @@ impl World {
                 || habitat.x as u32 >= self.config.world_width
                 || habitat.y as u32 >= self.config.world_height
                 || habitat.seeds.len() > 4096
-                || habitat
-                    .hybrids
-                    .iter()
-                    .chain(habitat.residues.iter())
-                    .any(|(_, value)| !value.is_object())
+                || habitat.residues.iter().any(|(_, value)| !value.is_object())
             {
                 return Err("Invalid habitat component".into());
             }
@@ -598,6 +898,13 @@ impl World {
                 || d.moisture_range.min > d.moisture_range.max
         }) {
             return Err("Invalid species definition".into());
+        }
+        if self
+            .inventory
+            .iter()
+            .any(|seed| !self.definitions.contains_key(&seed.species_id))
+        {
+            return Err("Inventory holds an unknown species".into());
         }
         let mut previous = None;
         for queued in &self.pending_commands {

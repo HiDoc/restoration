@@ -1,7 +1,15 @@
 //! Authoritative, deterministic ECS kernel. The browser only schedules whole ticks and projects snapshots.
+mod adaptation;
+mod connectivity;
+mod crossing;
+mod fieldwork;
+mod fungi;
+pub mod genetics;
 pub mod model;
 mod projection;
+mod rare_events;
 mod systems;
+mod tags;
 pub mod world;
 
 use model::*;
@@ -28,6 +36,16 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
         let mut initialized = World::new(config, chunks, definitions)?;
+        if let Some(fauna) = request.get("faunaDefinitions") {
+            initialized.set_fauna_definitions(
+                serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+            )?;
+        }
+        if let Some(fungi) = request.get("fungusDefinitions") {
+            initialized.set_fungus_definitions(
+                serde_json::from_value(fungi.clone()).map_err(|e| e.to_string())?,
+            )?;
+        }
         initialized.tick = request.get("tick").and_then(Value::as_u64).unwrap_or(0);
         initialized.elapsed_minutes = request
             .get("simTimeDays")
@@ -36,8 +54,9 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
             .unwrap_or(initialized.tick * initialized.config.time_per_tick_minutes);
         *world = Some(initialized);
     } else if op == "import" {
-        let imported: World =
+        let mut imported: World =
             serde_json::from_value(request["state"].clone()).map_err(|e| e.to_string())?;
+        imported.compact_genetics();
         imported.validate_state()?;
         *world = Some(imported);
     }
@@ -72,10 +91,29 @@ fn execute(world: &mut Option<World>, request: Value) -> Result<(), String> {
                     candidate.config.time_per_tick_minutes = minutes;
                 }
             }
+            if let Some(fauna) = request.get("faunaDefinitions") {
+                candidate.set_fauna_definitions(
+                    serde_json::from_value(fauna.clone()).map_err(|e| e.to_string())?,
+                )?;
+            }
+            if let Some(fungi) = request.get("fungusDefinitions") {
+                candidate.set_fungus_definitions(
+                    serde_json::from_value(fungi.clone()).map_err(|e| e.to_string())?,
+                )?;
+            }
             if let Some(definitions) = request.get("speciesDefinitions") {
                 candidate.set_definitions(
                     serde_json::from_value(definitions.clone()).map_err(|e| e.to_string())?,
                 )?;
+            }
+            if let Some(seeds) = request.get("inventory") {
+                candidate.set_inventory(
+                    serde_json::from_value(seeds.clone()).map_err(|e| e.to_string())?,
+                )?;
+            }
+            if let Some(seeds) = request.get("addSeeds") {
+                candidate
+                    .add_seeds(serde_json::from_value(seeds.clone()).map_err(|e| e.to_string())?)?;
             }
             if let Some(chunks) = request.get("chunks") {
                 candidate
@@ -95,6 +133,16 @@ struct SnapshotResponse<'a> {
     events: &'a [Event],
 }
 
+/// Step result without the world projection, for callers that read chunks only occasionally.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StepResponse<'a> {
+    ok: bool,
+    tick: u64,
+    sim_time_days: f64,
+    events: &'a [Event],
+}
+
 #[derive(Serialize)]
 struct ExportResponse<'a> {
     ok: bool,
@@ -111,6 +159,15 @@ pub fn dispatch_bytes(
         .as_str()
         .ok_or("Request requires an op")?
         .to_owned();
+    let with_snapshot = request
+        .get("snapshot")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    // The per-tick summary leaves out plants' places, pollen and genetics; a detailed read includes them.
+    let detail = request
+        .get("detail")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     execute(world, request)?;
     buffer.clear();
     let world = world
@@ -130,14 +187,26 @@ pub fn dispatch_bytes(
         )
         .map_err(|error| error.to_string());
     }
-    let result = serde_json::to_writer(
-        buffer,
-        &SnapshotResponse {
-            ok: true,
-            snapshot: world.snapshot_view(),
-            events: &world.events,
-        },
-    )
+    let result = if op == "step" && !with_snapshot {
+        serde_json::to_writer(
+            buffer,
+            &StepResponse {
+                ok: true,
+                tick: world.tick,
+                sim_time_days: world.sim_time_days(),
+                events: &world.events,
+            },
+        )
+    } else {
+        serde_json::to_writer(
+            buffer,
+            &SnapshotResponse {
+                ok: true,
+                snapshot: world.snapshot_view(detail),
+                events: &world.events,
+            },
+        )
+    }
     .map_err(|error| error.to_string());
     world.events.clear();
     result

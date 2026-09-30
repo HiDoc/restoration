@@ -23,7 +23,8 @@ export default defineConfig({
     alias: {
       '@/': './src/'
     },
-    include: ['src/tests/**/*.spec.ts'],
+    // Balance analyses run 1000 simulations each, so they're opt-in: `npm run test:balance`.
+    include: [process.env.BALANCE ? 'src/tests/**/*.balance.ts' : 'src/tests/**/*.spec.ts'],
     pool: 'threads',
     poolOptions: {
       threads: { minThreads: 1, maxThreads: 4 }

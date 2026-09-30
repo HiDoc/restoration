@@ -51,6 +51,7 @@ export interface VegetalSpecies {
   // Ecological attributes
   pollution_tolerance: number
   drought_resistance: number
+  flood_tolerance?: number
   cold_hardiness: number
   wind_resistance: number
   
@@ -59,6 +60,8 @@ export interface VegetalSpecies {
   seed_dispersal: 'wind' | 'animal' | 'water' | 'gravity' | 'ballistic'
   flowering_season?: string
   fruit_season?: string
+  dormant_season?: string
+  clonal_method?: 'rhizome' | 'stolon' | 'bulb' | 'tiller'
   
   // Interaction factors
   allelopathy: number
@@ -82,6 +85,7 @@ export interface VegetalSpecies {
 export interface BirdSpecies {
   id: string
   name: string
+  created_at?: string // Row bookkeeping from SQLite
   common_name?: string
   family: string
   order_name?: string
@@ -127,13 +131,34 @@ export interface BirdSpecies {
   foraging_time?: string
 }
 
+export interface PollinatorSpecies {
+  id: string
+  name: string
+  common_name?: string
+  pollinator_group: 'bee' | 'butterfly' | 'moth' | 'hoverfly' | 'beetle'
+  flight_seasons: string // JSON array of seasons
+  temp_min: number
+  temp_max: number
+  pollution_tolerance: number
+  foraging_range: number
+}
+
+export interface FungalSpecies {
+  id: string
+  name: string
+  common_name: string
+  lifestyle: 'mycorrhizal' | 'parasite' | 'saprotroph'
+  fruiting_seasons: string // JSON array of seasons
+  description: string
+}
+
 export interface SpeciesInteraction {
   id: number
   species_a_id: string
-  species_a_type: 'vegetal' | 'bird'
+  species_a_type: 'vegetal' | 'bird' | 'pollinator'
   species_b_id: string
-  species_b_type: 'vegetal' | 'bird'
-  interaction_type: 'pollination' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral'
+  species_b_type: 'vegetal' | 'bird' | 'pollinator' | 'fungus'
+  interaction_type: 'pollination' | 'larval_host' | 'seed_dispersal' | 'nesting' | 'feeding' | 'competition' | 'facilitation' | 'neutral' | 'mycorrhiza' | 'parasitism' | 'decomposition'
   interaction_strength: number
   seasonal_modifier?: string
   notes?: string
@@ -291,6 +316,34 @@ export class SpeciesDatabase {
           return
         }
         resolve(rows as BirdSpecies[])
+      })
+    })
+  }
+
+  async getFungalSpecies(): Promise<FungalSpecies[]> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return new Promise((resolve, reject) => {
+      this.db!.all('SELECT * FROM fungal_species ORDER BY name', (err, rows) => {
+        if (err) {
+          reject(new Error(`Failed to get fungal species: ${err.message}`))
+          return
+        }
+        resolve(rows as FungalSpecies[])
+      })
+    })
+  }
+
+  async getPollinatorSpecies(): Promise<PollinatorSpecies[]> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return new Promise((resolve, reject) => {
+      this.db!.all('SELECT * FROM pollinator_species ORDER BY name', (err, rows) => {
+        if (err) {
+          reject(new Error(`Failed to get pollinator species: ${err.message}`))
+          return
+        }
+        resolve(rows as PollinatorSpecies[])
       })
     })
   }

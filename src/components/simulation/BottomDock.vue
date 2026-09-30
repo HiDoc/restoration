@@ -1,35 +1,32 @@
 <template>
-  <div class="fixed left-1/2 bottom-3 z-30 -translate-x-1/2">
-    <nav class="rounded-2xl border border-emerald-400/20 bg-gradient-to-r from-slate-950/85 via-emerald-950/60 to-slate-950/85 px-4 py-2 text-slate-100 shadow-xl backdrop-blur">
-      <ul class="flex items-center gap-5">
-        <li v-for="item in items" :key="item.key">
-          <button class="flex flex-col items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors hover:bg-emerald-900/40"
-                  :class="active===item.key ? 'text-emerald-300' : 'text-slate-300/80'"
-                  @click="$emit('select', item.key)">
-            <span class="text-base">{{ item.icon }}</span>
-            <span class="leading-none">{{ item.label }}</span>
-          </button>
-        </li>
-      </ul>
-    </nav>
-  </div>
-  
+  <nav class="flex max-w-full items-end justify-start gap-1 overflow-x-auto px-1.5 pt-2 sm:gap-1.5 sm:px-3 lg:justify-center" aria-label="Ecosystem sections">
+    <button
+      v-for="item in items"
+      :key="item.key"
+      type="button"
+      class="nv-dock-tab nv-serif"
+      :aria-selected="active === item.key"
+      @click="$emit('select', item.key)"
+    >
+      <span class="nv-glyph" :style="{ '--glyph': 'line' in item ? lineIconMask(item.line) : `url(${nv(item.glyph)})` }" aria-hidden="true"></span>
+      <span class="leading-none">{{ item.label }}</span>
+    </button>
+  </nav>
 </template>
 
 <script setup lang="ts">
+import { nv } from './nouveauAssets'
+import { lineIconMask, type LineIconName } from './lineIcons'
+
 defineProps<{ active: string }>()
 defineEmits<{ select: [value: string] }>()
 
-const items = [
-  { key: 'overview', icon: '📊', label: 'Overview' },
-  { key: 'goals', icon: '🎯', label: 'Goals' },
-  { key: 'species', icon: '🌱', label: 'Species' },
-  { key: 'climate', icon: '🌤️', label: 'Climate' },
-  { key: 'hydro', icon: '💧', label: 'Hydrology' },
-  { key: 'canopy', icon: '🌳', label: 'Canopy' },
-  { key: 'pollinators', icon: '🐝', label: 'Pollinators' },
-  { key: 'interactions', icon: '🔗', label: 'Interactions' },
-  { key: 'events', icon: '🧾', label: 'Events' },
-  { key: 'settings', icon: '⚙️', label: 'Settings' },
+const items: Array<{ key: string; label: string } & ({ glyph: string } | { line: LineIconName })> = [
+  { key: 'overview', glyph: 'icon-leaf', label: 'Overview' },
+  { key: 'species', glyph: 'glyph-species', label: 'Codex' },
+  { key: 'seeds', line: 'seeds', label: 'Seeds' },
+  { key: 'journal', glyph: 'icon-journal', label: 'Journal' },
+  { key: 'sites', line: 'sites', label: 'Sites' },
+  { key: 'settings', glyph: 'glyph-settings', label: 'Settings' },
 ]
 </script>

@@ -559,14 +559,20 @@ reveals knowledge the player then holds (estimates and words), not the engine's 
   predictions appears in the notebook, waiting for its seed.
 
 ### C4. Measuring the land
-- [ ] **Soil & water samples ★:** the Measurements toggle goes; a hex's pH class, moisture, nutrients,
-      pollution and groundwater are known once sampled, shown as the sample's reading until conditions change
-      materially (then "changed since sampling"). Needs a soil pH per hex in Rust (the catalogue already has
-      pH ranges per species).
-- [ ] **Water tracing ★:** release a marker in a hex and watch it follow the water's flow; reveals which hexes
-      drain into which. Rust projects the net flow between neighbours.
-- [ ] **Seed germination tray ★:** a soil sample from a hex, grown on under good conditions, shows which
-      species lie dormant in its seed bank (without the counts).
+- [x] **Soil & water samples ★:** the Measurements toggle and its overlays are gone (the Climate and Hydrology
+      tabs keep theirs; the overview shows bars only). "Take a soil & water sample" on the hex card reads pH (with
+      its class), moisture, nutrients, pollution and standing water, shown as that reading with its day, and
+      "changed since sampling" once any moved by more than 0.15 (pH 0.3). Rust: `Biome.ph`, set per hex from the
+      site (meadow 6.5, woodland 5.6, wetland 6.8, ±0.3 by hex); species' catalogue `pHRange` now stresses
+      plants off it (0.3 per pH unit, limit `soil_ph`, "the wrong soil"). Existing worlds default to 6.5, inside
+      every catalogue range.
+- [x] **Water tracing ★:** "Trace the water" follows the strongest outflow hex by hex until the water stops,
+      drawn on the map with a moving marker and told in words. Rust projects each hex's `outflow` (per day, to
+      each neighbour) from the diffusion step.
+- [x] **Seed germination tray ★:** each sample starts a tray of the hex's soil; every buried seed comes up in it
+      as often as it is viable. After 14 days the card lists the species (no counts) and a toast says so.
+- Done: 46 Rust and 198 TS tests pass. In the browser: a sample of (3, 3) read pH 6.8, neutral; its tray came
+  up after two weeks with a toast; a trace from (1, 2) ran to (1, 1) on the map.
 
 ### C5. Watching
 - [ ] **Follow a pollinator ★:** keep a bee or butterfly in view as it moves between flowers across hexes;

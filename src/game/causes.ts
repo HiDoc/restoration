@@ -9,6 +9,7 @@ export const CAUSES: Record<string, { noun: string; state: string }> = {
   heat: { noun: 'heat', state: 'too hot' },
   shade: { noun: 'shade', state: 'too shaded' },
   pollution: { noun: 'pollution', state: 'polluted' },
+  soil_ph: { noun: 'the wrong soil', state: 'wrong soil pH' },
   crowding: { noun: 'crowding', state: 'crowded' },
   no_pollinator: { noun: 'a lack of pollinators', state: 'no pollinator visits' },
   old_age: { noun: 'old age', state: 'ageing' },

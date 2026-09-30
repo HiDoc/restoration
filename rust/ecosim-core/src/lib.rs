@@ -2,6 +2,7 @@
 mod adaptation;
 mod connectivity;
 mod crossing;
+mod fieldwork;
 pub mod genetics;
 pub mod model;
 mod projection;

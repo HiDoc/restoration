@@ -65,6 +65,12 @@ pub struct World {
     /// The player's crosses, oldest first, with what was expected and the seedlings that came of them.
     #[serde(default)]
     pub crosses: Vec<Cross>,
+    /// The latest soil and water sample of each hex, by hex id.
+    #[serde(default)]
+    pub samples: BTreeMap<String, Sample>,
+    /// Water that moved between neighbouring hexes last tick, per day: (from, to) → amount. Recomputed each tick.
+    #[serde(skip)]
+    pub flows: BTreeMap<(Entity, Entity), f64>,
     /// Each species' trait spread when first recorded here.
     #[serde(default)]
     pub baselines: BTreeMap<String, Baseline>,
@@ -103,6 +109,8 @@ impl World {
             tags: BTreeMap::new(),
             next_tag: 0,
             crosses: vec![],
+            samples: BTreeMap::new(),
+            flows: BTreeMap::new(),
             baselines: BTreeMap::new(),
             weather: vec![],
             events: vec![],
@@ -291,6 +299,10 @@ impl World {
             for id in removals {
                 self.despawn(id);
             }
+            // Flow and samples are the engine's own, projected for reading; copies must not settle into the hex.
+            let mut extra = chunk.extra;
+            extra.remove("outflow");
+            extra.remove("sample");
             let mut biome = chunk.biome_state;
             biome.normalize();
             self.components.biomes.insert(entity, biome);
@@ -304,7 +316,7 @@ impl World {
                     seeds: chunk.seed_bank,
                     residues: chunk.ritual_residues,
                     elevation: chunk.elevation.clamp(0.0, 1.0),
-                    extra: chunk.extra,
+                    extra,
                 },
             );
             let mut plants = chunk.species;
@@ -472,7 +484,7 @@ impl World {
             return Err("Unknown chunk".into());
         }
         if ![
-            "plant", "collect", "cross", "tag", "irrigate", "cleanse", "ritual",
+            "plant", "collect", "cross", "tag", "sample", "irrigate", "cleanse", "ritual",
         ]
         .contains(&command.kind.as_str())
         {
@@ -603,6 +615,7 @@ impl World {
                 biome.apply("pollution", -0.1);
             }
             "tag" => self.tag_command(chunk, &command.data)?,
+            "sample" => self.sample_command(chunk),
             "cross" => self.cross_command(chunk, &command.data)?,
             _ => return Err("Unknown intervention type".into()),
         }
@@ -681,6 +694,7 @@ impl World {
             self.fauna_system();
             self.rare_event_system();
             self.baseline_system();
+            self.tray_system();
         }
         Ok(())
     }

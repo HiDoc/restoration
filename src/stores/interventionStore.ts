@@ -120,6 +120,7 @@ export const useInterventionStore = defineStore('intervention', () => {
       intervention.type === 'collect' ? collectedMessage(before)
       : intervention.type === 'plant' ? plantedMessage(intervention.data.speciesId, tagsBefore)
       : intervention.type === 'tag' ? taggedMessage(intervention.data.instanceId)
+      : intervention.type === 'sample' ? 'Sampled the soil and water. A tray of the soil will show in two weeks what seed it holds.'
       : intervention.type === 'cross' ? crossedMessage()
       : `${manager.value.getDefinition(intervention.type)?.name ?? 'Intervention'} applied.`;
     return true;

@@ -19,6 +19,8 @@ export interface Site {
   world: { width: number; height: number; seed: number; terrain?: 'basin' }
   /** Starting ground, applied to every hex. */
   conditions?: { moisture?: number; pollution?: number; nutrients?: number }
+  /** The ground's typical soil pH; hexes vary a little around it. */
+  soilPh: number
   /** Plants already growing in the centre when the site is founded. */
   established: string[]
   /** Seeds the player gets the first time they arrive. */
@@ -33,6 +35,7 @@ export const SITES: Site[] = [
     name: 'The Old Meadow',
     blurb: 'A grazed-out pasture with one surviving patch of grass, clover and bluebells under a few hawthorns.',
     world: { width: 6, height: 6, seed: 12345 },
+    soilPh: 6.5,
     established: STARTING_MEADOW,
     starterSeeds: STARTER_SEEDS,
     targets: { cover: 0.5, plantKinds: 8, pollinatorKinds: 2, birdKinds: 2 },
@@ -44,6 +47,8 @@ export const SITES: Site[] = [
     blurb: 'Clear-felled twenty years ago. Bracken took the ground; a few old oaks and birches still stand.',
     world: { width: 6, height: 6, seed: 2718 },
     conditions: { moisture: 0.55, nutrients: 0.4 },
+    // Oak and bracken litter over sandy ground keeps it acid.
+    soilPh: 5.6,
     established: ['bracken_fern', 'english_oak', 'silver_birch', 'hazel'],
     starterSeeds: { sessile_oak: 2, primrose: 3, wood_anemone: 3, bramble: 3 },
     targets: { cover: 0.6, plantKinds: 10, pollinatorKinds: 2, birdKinds: 4 },
@@ -55,6 +60,8 @@ export const SITES: Site[] = [
     blurb: 'A basin drained for grazing. Ditches choked long ago, and rain gathers on its floor again each winter.',
     world: { width: 6, height: 6, seed: 1618, terrain: 'basin' },
     conditions: { moisture: 0.35, nutrients: 0.55 },
+    // Groundwater through the basin's clay keeps the floor near neutral.
+    soilPh: 6.8,
     established: ['grey_willow', 'downy_birch', 'meadowsweet', 'marsh_marigold', 'common_grass'],
     starterSeeds: { yellow_flag: 3, alder: 2, purple_loosestrife: 3, cuckooflower: 3 },
     targets: { cover: 0.5, plantKinds: 8, pollinatorKinds: 2, birdKinds: 3 },
@@ -71,6 +78,17 @@ export function elevationOf(site: Site): ((x: number, y: number) => number) | un
   const floor = distance(Math.floor(cx), Math.floor(cy))
   const rim = distance(0, 0)
   return (x, y) => (distance(x, y) - floor) / (rim - floor)
+}
+
+/** Hexes' soil pH: the site's own, each hex off it by up to PH_SPREAD, the same every time the site is founded. */
+const PH_SPREAD = 0.3
+export function phOf(site: Site): (x: number, y: number) => number {
+  return (x, y) => {
+    // A small integer hash of the site seed and the hex, mapped to [-1, 1].
+    let h = (site.world.seed ^ Math.imul(x + 1, 73856093) ^ Math.imul(y + 1, 19349663)) >>> 0
+    h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0
+    return Math.round((site.soilPh + ((h % 2001) / 1000 - 1) * PH_SPREAD) * 10) / 10
+  }
 }
 
 export const siteById = (id: string) => SITES.find(site => site.id === id)

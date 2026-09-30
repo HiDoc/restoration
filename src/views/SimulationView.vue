@@ -92,27 +92,6 @@
           </section>
 
           <section class="nv-panel p-3">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="nv-subheading">Measurements</h3>
-              <button type="button" role="switch" class="nv-toggle" :aria-checked="showMeasurements" aria-label="Show measurements" @click="toggleMeasurements" />
-            </div>
-            <p v-if="!showMeasurements" class="nv-small nv-muted mt-1">Soil, water and pollution readings, and map overlays.</p>
-            <ul v-else class="mt-1 grid gap-1">
-              <li v-for="overlay in overlayOptions" :key="overlay.id" class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-2 text-sm"><img :src="nv(overlay.icon)" alt="" class="h-5 w-5 object-contain" />{{ overlay.label }}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  class="nv-toggle"
-                  :aria-checked="options.vizMode === overlay.id"
-                  :aria-label="`${overlay.label} overlay`"
-                  @click="setOverlay(overlay.id)"
-                />
-              </li>
-            </ul>
-          </section>
-
-          <section class="nv-panel p-3">
             <h3 class="nv-subheading">Time</h3>
             <div class="mt-1 grid grid-cols-3 gap-1">
               <button
@@ -179,6 +158,7 @@
               :viz-mode="options.vizMode"
               :engine="engine"
               :selected="selected"
+              :trace="trace"
               :season-name="(stats as any).seasonName ?? 'Spring'"
               tessellated
               @select="onSelectChunk"
@@ -208,15 +188,23 @@
                 <span class="nv-small nv-nums opacity-80">{{ animal.count }}</span>
               </li>
             </ul>
-            <dl v-if="showMeasurements" class="nv-nums mt-2 grid gap-1 border-t border-[#c9a227]/30 pt-2 text-sm">
-              <div v-for="row in tooltipRows" :key="row.label" class="nv-tooltip-row">
-                <dt class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-4 w-4 object-contain" />{{ row.label }}</dt>
-                <dd class="flex items-center gap-2">
-                  <span>{{ row.value }}</span>
-                  <span v-if="row.bar !== undefined" class="nv-bar inline-block w-16" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
-                </dd>
-              </div>
-            </dl>
+            <div class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
+              <template v-if="hexSample">
+                <p class="opacity-80">Sampled on day {{ hexSample.day }}<template v-if="hexSample.changed">; <span class="font-bold text-[#f0b48a]">changed since sampling</span></template></p>
+                <dl class="nv-nums mt-0.5 grid gap-0.5">
+                  <div v-for="row in hexSample.rows" :key="row.label" class="nv-tooltip-row">
+                    <dt>{{ row.label }}</dt>
+                    <dd>{{ row.value }}</dd>
+                  </div>
+                </dl>
+                <p class="mt-0.5">{{ hexSample.tray }}</p>
+              </template>
+              <p v-if="traceText" class="mt-0.5">{{ traceText }}</p>
+              <p class="mt-1 flex flex-wrap gap-x-3">
+                <button type="button" class="nv-link" @click="applyToSelected('sample')">{{ hexSample ? 'Sample again' : 'Take a soil & water sample' }}</button>
+                <button type="button" class="nv-link" @click="traceFromSelected">Trace the water</button>
+              </p>
+            </div>
             <p v-if="plantFit" class="nv-small mt-2 border-t border-[#c9a227]/30 pt-2">
               {{ speciesInfo(interventionStore.selectedPlantSpecies).name }}: <span class="font-bold">{{ plantFit.words }}</span>
             </p>
@@ -242,7 +230,7 @@
                 <span class="flex items-center gap-2"><img :src="nv(row.icon)" alt="" class="h-5 w-5 object-contain" />{{ row.label }}</span>
                 <span class="flex items-center gap-2">
                   <span v-if="row.bar !== undefined" class="nv-bar inline-block w-20" :class="row.barClass"><span :style="{ width: `${Math.round(row.bar * 100)}%` }"></span></span>
-                  <strong v-if="showMeasurements || row.bar === undefined" class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
+                  <strong v-if="row.bar === undefined" class="min-w-[2.25rem] text-right text-base font-normal">{{ row.value }}</strong>
                 </span>
               </div>
             </div>
@@ -422,7 +410,8 @@ import FloatingControls from "@/components/simulation/FloatingControls.vue";
 import BottomDock from "@/components/simulation/BottomDock.vue";
 import { nv } from "@/components/simulation/nouveauAssets";
 import { buildDigest, type DigestLine } from "@/game/digest";
-import { elevationOf, siteById, STAGES, surveySite } from "@/game/sites";
+import { elevationOf, phOf, siteById, STAGES, surveySite } from "@/game/sites";
+import { sampleReadings, traceWater, traceWords, trayWords, type Sample } from "@/game/fieldwork";
 import { habitatFit, rewardSpecies, REWARD_SEEDS } from "@/game/seeds";
 import { explainShift, type ShiftCause } from "@/game/shift";
 import { MYSTERIES } from "@/game/mysteries";
@@ -589,7 +578,7 @@ function initializeWorld(carriedPouch?: unknown[]) {
     site: site.id,
   };
   engine.value = new SimulationEngine(config);
-  engine.value.applyScenarioConditions({ biomeStates: site.conditions, elevation: elevationOf(site), establishedSpecies: site.established, initialSpecies: site.established });
+  engine.value.applyScenarioConditions({ biomeStates: site.conditions, elevation: elevationOf(site), ph: phOf(site), establishedSpecies: site.established, initialSpecies: site.established });
 
   historyFrames.value = [];
   selectedHistoryIndex.value = -1;
@@ -845,7 +834,7 @@ function onSelectChunk(payload: { x: number; y: number }) {
   }
 }
 
-const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', tag: 'icon-journal', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
+const INTERVENTION_ICONS: Partial<Record<InterventionType, string>> = { plant: 'icon-plants', collect: 'icon-plants', tag: 'icon-journal', sample: 'icon-moisture', cross: 'icon-modify', irrigate: 'icon-moisture', cleanse: 'icon-clean' };
 
 function applyIntervention(type: InterventionType, at: { x: number; y: number }, data?: Record<string, unknown>) {
   if (!engine.value) return;
@@ -1056,6 +1045,12 @@ function readJournal(sim: SimulationEngine) {
     } else if (event.type === EventType.TAGGED_DIED) {
       const tag = sim.getTags()[event.data.instanceId];
       if (tag) notify('icon-journal', deathNote(tag, speciesInfo(tag.speciesId).name, event.data.cause, event.data.ageDays), 'journal');
+    } else if (event.type === EventType.TRAY_READY) {
+      const species: string[] = event.data?.species ?? [];
+      const from = `the germination tray of soil from (${event.chunkId?.split('_').slice(1).join(', ')})`;
+      notify('icon-plants', species.length
+        ? `In ${from}, ${species.map(id => speciesInfo(id).name).join(', ')} came up.`
+        : `Nothing came up in ${from}.`);
     } else if (event.type === EventType.RARE_EVENT) {
       notify('icon-vitality', describeRareEvent(event.data, id => speciesInfo(id).name));
     }
@@ -1271,14 +1266,6 @@ const workflowSteps = [
 // Selecting a hex means the player is forming a plan; arming an intervention means they are testing it.
 const activeStep = computed(() => (interventionStore.selectedIntervention ? 2 : selected.value ? 1 : 0));
 
-const overlayOptions: Array<{ id: VizMode; label: string; icon: string }> = [
-  { id: 'vitality', label: 'Vitality', icon: 'icon-vitality' },
-  { id: 'moisture', label: 'Moisture', icon: 'icon-moisture' },
-  { id: 'pollution', label: 'Pollution', icon: 'icon-pollution' },
-  { id: 'temperature', label: 'Temperature', icon: 'icon-temperature' },
-  { id: 'diversity', label: 'Diversity', icon: 'icon-diversity' },
-  { id: 'species', label: 'Species', icon: 'icon-species' },
-];
 
 const interventionActions = [
   { id: 'plant' as const, label: 'Plant', icon: 'icon-plants', hint: 'Plant the selected species in a hex' },
@@ -1294,17 +1281,6 @@ function eventIcon(message: string): string {
   if (/pollinat|bee/i.test(message)) return 'icon-pollinators';
   if (/pollut|died|death|collapse|extinct/i.test(message)) return 'icon-pollution';
   return 'icon-leaf';
-}
-
-// Measurements (soil, water, pollution readings and overlays) stay out of the way until asked for.
-const showMeasurements = ref(false);
-function toggleMeasurements() {
-  showMeasurements.value = !showMeasurements.value;
-  if (!showMeasurements.value) options.vizMode = 'rgb';
-}
-
-function setOverlay(mode: VizMode) {
-  options.vizMode = options.vizMode === mode ? 'rgb' : mode;
 }
 
 function toggleIntervention(type: (typeof interventionActions)[number]['id']) {
@@ -1370,20 +1346,28 @@ const hexStory = computed(() => (tooltipChunk.value ? describeHex(tooltipChunk.v
 const ACTIVITY_WORDS: Record<PlantActivity, string> = { flowering: 'in flower', fruiting: 'fruiting', dormant: 'resting', growing: 'growing' };
 const ACTIVITY_ICONS: Record<PlantActivity, string> = { flowering: 'icon-plants', fruiting: 'icon-diversity', dormant: 'icon-leaf', growing: 'icon-vitality' };
 
-/** Measurements shown with the lens on; plants and animals are in the description above them. */
-const tooltipRows = computed<StatRow[]>(() => {
+// Fieldwork in the selected hex: its latest sample, and the path of a traced marker.
+const hexSample = computed(() => {
   const chunk = tooltipChunk.value;
-  const { vitality = 0, moisture = 0, pollution = 0 } = chunk?.biomeState ?? {};
-  const temperature = chunk?.climateState?.temperature;
-  return [
-    { label: 'Vitality', icon: 'icon-vitality', value: fmt01(vitality), bar: vitality, barClass: 'nv-bar-leaf' },
-    { label: 'Moisture', icon: 'icon-moisture', value: fmt01(moisture), bar: moisture, barClass: 'nv-bar-water' },
-    { label: 'Pollution', icon: 'icon-pollution', value: fmt01(pollution), bar: pollution, barClass: 'nv-bar-stone' },
-    Number.isFinite(temperature)
-      ? { label: 'Temperature', icon: 'icon-temperature', value: `${Math.round(temperature)}°C`, bar: Math.max(0, Math.min(1, temperature / 35)), barClass: 'nv-bar-gold' }
-      : { label: 'Temperature', icon: 'icon-temperature', value: '—' },
-  ];
+  const sample: Sample | undefined = chunk?.sample;
+  if (!sample) return null;
+  const { rows, changed } = sampleReadings(sample, chunk.biomeState ?? {});
+  const dayTicks = 1440 / (engine.value?.getConfig().timePerTickMinutes ?? 1440);
+  return {
+    day: Math.floor(sample.tick / dayTicks),
+    rows,
+    changed,
+    tray: trayWords(sample, stats.currentTick, id => speciesInfo(id).name, dayTicks),
+  };
 });
+const trace = ref<Array<{ x: number; y: number }>>([]);
+const traceText = computed(() => (trace.value.length && selected.value && trace.value[0].x === selected.value.x && trace.value[0].y === selected.value.y ? traceWords(trace.value) : ''));
+watch(selected, () => { trace.value = []; });
+function traceFromSelected() {
+  const sim = engine.value;
+  if (!sim || !selected.value) return;
+  trace.value = traceWater(sim.readChunks().values(), `chunk_${selected.value.x}_${selected.value.y}`);
+}
 
 const overviewRows = computed<StatRow[]>(() => [
   { label: 'Vitality', icon: 'icon-vitality', value: fmt01(stats.avgVitality), bar: stats.avgVitality, barClass: 'nv-bar-leaf' },

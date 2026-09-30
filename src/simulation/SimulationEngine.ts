@@ -731,10 +731,13 @@ export class SimulationEngine {
     establishedSpecies?: string[];
     /** The lie of the land: each hex's height, 0 (hollow) to 1 (rise). */
     elevation?: (x: number, y: number) => number;
+    /** Each hex's soil pH. */
+    ph?: (x: number, y: number) => number;
   }): void {
-    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies, elevation } = conditions;
+    const { biomeStates, clearSpecies, initialSpecies, establishedSpecies, elevation, ph } = conditions;
     this.projectionEdited = true;
     if (elevation) this.chunks.forEach(chunk => { chunk.elevation = elevation(chunk.x, chunk.y); });
+    if (ph) this.chunks.forEach(chunk => { chunk.biomeState.ph = ph(chunk.x, chunk.y); });
 
     // Apply biome states to all chunks
     if (biomeStates) {

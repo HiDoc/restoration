@@ -28,6 +28,7 @@ export interface BiomeState {
   invasion: number;      // [0-1] Invasive species pressure
   succession: number;    // [0-1] Ecological succession stage (0=pioneer, 1=climax)
   standingWater?: number; // [0-1] Water standing above saturated ground (pond depth)
+  ph?: number; // Soil pH, set by the site's ground
 }
 
 /**
@@ -112,7 +113,7 @@ export interface SeedRecord {
  * Individual world chunk
  */
 export class WorldChunk {
-  private static readonly projectionFields = ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight', 'isRaining', 'weatherType'] as const;
+  private static readonly projectionFields = ['canopyState', 'hydrologyState', 'pollinatorFlow', 'pollinatorDensity', 'birds', 'birdsTotal', 'birdsActivity', 'fauna', 'canopyLayers', 'groundLight', 'isRaining', 'weatherType', 'outflow', 'sample'] as const;
   public readonly id: string;
   public readonly x: number;
   public readonly y: number;

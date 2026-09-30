@@ -10,6 +10,14 @@
         @unhover="clearHovered"
         @select="$emit('select', $event)"
       />
+      <!-- A traced marker's path along the water's flow -->
+      <svg v-if="tracePath" class="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+        <path :d="tracePath.d" fill="none" stroke="#bfe3f5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 6" opacity="0.9" />
+        <circle :cx="tracePath.start.x" :cy="tracePath.start.y" r="5" fill="none" stroke="#bfe3f5" stroke-width="2" />
+        <circle r="6" fill="#3f8fc0" stroke="#fff" stroke-width="2">
+          <animateMotion :path="tracePath.d" :dur="`${tracePath.steps}s`" repeatCount="indefinite" />
+        </circle>
+      </svg>
     </section>
   </div>
   <section
@@ -65,6 +73,8 @@ const props = defineProps<{
   seasonName?: string;
   /** Pointy-top tessellation scaled to fill the parent (odd rows shifted right). */
   tessellated?: boolean;
+  /** Hexes a traced marker passes through, in order. */
+  trace?: Array<{ x: number; y: number }>;
 }>();
 
 defineEmits<{ (e: 'select', payload: { x: number; y: number }): void }>();
@@ -150,6 +160,18 @@ function tilePosition(chunk: ChunkGridEntry) {
     top: `${row * 0.75 * w * TILE_RATIO}px`,
   };
 }
+
+// The trace as a line through tile centres, one second per hex for the moving marker.
+const tracePath = computed(() => {
+  if (!props.trace || props.trace.length < 2) return null;
+  const w = tileWidth.value;
+  const centre = (hex: { x: number; y: number }) => {
+    const row = hex.y - bounds.value.minY;
+    return { x: (hex.x - bounds.value.minX + (row % 2) * 0.5 + 0.5) * w, y: (row * 0.75 + 0.5) * w * TILE_RATIO };
+  };
+  const points = props.trace.map(centre);
+  return { d: points.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' '), start: points[0], steps: points.length - 1 };
+});
 
 const hovered = ref<{ x: number; y: number } | null>(null);
 

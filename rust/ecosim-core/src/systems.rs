@@ -8,6 +8,8 @@ const RELIEF: f64 = 0.3;
 const RUNOFF: f64 = 0.8;
 /// Open water loses more to the air than soil does.
 const OPEN_WATER_EVAPORATION: f64 = 1.6;
+/// Stress per pH unit outside a species' range: a whole unit off is about as hard as moderate drought.
+const PH_STRESS: f64 = 0.3;
 
 impl World {
     fn days(&self) -> f64 {
@@ -207,6 +209,9 @@ impl World {
                 (def.temperature_range.min - climate.temperature - cold * 5.0).max(0.0) / 20.0;
             let heat = (climate.temperature - def.temperature_range.max).max(0.0) / 20.0;
             let temperature_stress = chill + heat;
+            // Soil outside the species' pH range, in pH units.
+            let soil_ph =
+                (def.ph_range.min - biome.ph).max(0.0) + (biome.ph - def.ph_range.max).max(0.0);
             let ground_light =
                 climate.light * (1.0 - biome.canopy * (1.0 - def.shade_tolerance_max));
             let light_stress = (def.light_requirement - ground_light).max(0.0);
@@ -218,7 +223,8 @@ impl World {
             let stress = (moisture_stress * 0.8
                 + temperature_stress * 0.7
                 + biome.pollution * 0.7
-                + light_stress * 0.4)
+                + light_stress * 0.4
+                + soil_ph * PH_STRESS)
                 * if dormant { 0.25 } else { 1.0 };
             let recovery = if biome.moisture < 0.04 { 0.0 } else { 0.006 };
             let crowding = (density - 0.8).max(0.0) * 0.025;
@@ -233,6 +239,7 @@ impl World {
                 ("heat", heat * 0.7 * scale),
                 ("pollution", biome.pollution * 0.7 * scale),
                 ("shade", light_stress * 0.4 * scale),
+                ("soil_ph", soil_ph * PH_STRESS * scale),
                 ("crowding", crowding),
             ];
             let (worst, cost) = costs
@@ -599,6 +606,7 @@ impl World {
             .map(|(id, h)| ((h.x, h.y), *id))
             .collect();
         let mut deltas = BTreeMap::<Entity, (f64, f64)>::new();
+        self.flows.clear();
         // Accumulate flux from the previous state, then commit simultaneously.
         for (entity, h) in &self.components.habitats {
             for offset in [(1, 0), (0, 1)] {
@@ -611,6 +619,12 @@ impl World {
                     let moisture = ((head(a, ea) - head(b, eb)) * 0.025 * days)
                         .clamp(-water(b) * 0.5, water(a) * 0.5);
                     let pollution = (a.pollution - b.pollution) * 0.01 * days;
+                    let (from, to) = if moisture >= 0.0 {
+                        (*entity, *neighbor)
+                    } else {
+                        (*neighbor, *entity)
+                    };
+                    self.flows.insert((from, to), moisture.abs() / days);
                     let d = deltas.entry(*entity).or_default();
                     d.0 -= moisture;
                     d.1 -= pollution;

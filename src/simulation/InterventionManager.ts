@@ -4,7 +4,7 @@
  * by cooldown.
  */
 
-export type InterventionType = 'plant' | 'collect' | 'cross' | 'tag' | 'irrigate' | 'cleanse' | 'ritual';
+export type InterventionType = 'plant' | 'collect' | 'cross' | 'tag' | 'sample' | 'irrigate' | 'cleanse' | 'ritual';
 
 export interface InterventionDefinition {
   id: InterventionType;
@@ -28,6 +28,7 @@ export const INTERVENTION_DEFINITIONS: Record<InterventionType, InterventionDefi
   plant: { id: 'plant', name: 'Plant', description: 'Sow a seed from your pouch in the selected hex', cooldownTicks: 0 },
   collect: { id: 'collect', name: 'Collect seeds', description: 'Gather seed from ripe plants in the selected hex', cooldownTicks: 0 },
   tag: { id: 'tag', name: 'Tag', description: 'Follow a plant in the Journal', cooldownTicks: 0 },
+  sample: { id: 'sample', name: 'Sample', description: 'Read the soil and water, and grow on a tray of the soil', cooldownTicks: 0 },
   cross: { id: 'cross', name: 'Cross-pollinate', description: 'Carry pollen between two flowering plants of one genus', cooldownTicks: 0 },
   irrigate: { id: 'irrigate', name: 'Irrigate', description: 'Increase moisture level in the selected chunk', cooldownTicks: 5 },
   cleanse: { id: 'cleanse', name: 'Cleanse Pollution', description: 'Reduce pollution level in the selected chunk', cooldownTicks: 8 },

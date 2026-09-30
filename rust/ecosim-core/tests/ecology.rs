@@ -1440,3 +1440,111 @@ fn the_notebook_keeps_a_cross_its_prediction_and_its_seedlings() {
         assert_eq!(patch.tags[&seedling.id].reason, "crossed");
     }
 }
+
+#[test]
+fn plants_on_soil_outside_their_ph_range_are_limited_by_it() {
+    let lime_lover = SpeciesDefinition {
+        ph_range: Range { min: 7.0, max: 8.5 },
+        ..SpeciesDefinition::default()
+    };
+    let mut acid = world_with(4, lime_lover.clone());
+    let mut chalk = world_with(4, lime_lover);
+    for biome in acid.components.biomes.values_mut() {
+        biome.ph = 4.5;
+    }
+    for biome in chalk.components.biomes.values_mut() {
+        biome.ph = 7.5;
+    }
+    acid.step(20).unwrap();
+    chalk.step(20).unwrap();
+    let limited = |w: &World| {
+        w.components
+            .growth
+            .values()
+            .filter(|g| g.limit.as_deref() == Some("soil_ph"))
+            .count()
+    };
+    assert!(limited(&acid) > 0);
+    assert_eq!(limited(&chalk), 0);
+    acid.step(100).unwrap();
+    chalk.step(100).unwrap();
+    assert!(death_causes(&acid).contains("soil_ph"));
+    assert!(
+        acid.components.organisms.len() < chalk.components.organisms.len(),
+        "{} on acid soil vs {} on chalk",
+        acid.components.organisms.len(),
+        chalk.components.organisms.len()
+    );
+}
+
+#[test]
+fn a_sample_reads_the_hex_and_its_tray_shows_the_buried_seed() {
+    let mut meadow = world(6);
+    let (&chunk, habitat) = meadow.components.habitats.iter().next().unwrap();
+    let id = habitat.id.clone();
+    let buried = |species: &str, viability: f64| Seed {
+        species_id: species.into(),
+        x: 0.5,
+        y: 0.5,
+        viability,
+        maturity_ticks: 0,
+        extra: Default::default(),
+    };
+    let habitat = meadow.components.habitats.get_mut(&chunk).unwrap();
+    habitat.seeds = vec![buried("violet", 1.0), buried("dead", 0.0)];
+    meadow.components.biomes.get_mut(&chunk).unwrap().ph = 5.2;
+    meadow
+        .submit(command(json!({"type":"sample","chunkId":id,"data":{}})))
+        .unwrap();
+    let sample = meadow.samples[&id].clone();
+    assert_eq!(sample.ph, 5.2);
+    assert_eq!(sample.tray, ["violet"], "only viable seed comes up");
+    let projected = meadow.snapshot();
+    let hex = projected["chunks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == id.as_str())
+        .unwrap();
+    assert_eq!(hex["sample"]["ph"], 5.2);
+
+    meadow.step(13).unwrap();
+    assert!(!meadow.events.iter().any(|e| e.kind == "tray_ready"));
+    meadow.step(2).unwrap();
+    let ready: Vec<_> = meadow
+        .events
+        .iter()
+        .filter(|e| e.kind == "tray_ready")
+        .collect();
+    assert_eq!(ready.len(), 1, "announced once, after two weeks");
+    assert_eq!(ready[0].data["species"], json!(["violet"]));
+}
+
+#[test]
+fn water_is_projected_flowing_downhill() {
+    let mut slope = World::new(
+        Config {
+            master_seed: 8,
+            world_width: 3,
+            world_height: 1,
+            rare_events: false,
+            ..Config::default()
+        },
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    shape(&mut slope, |x, _| 1.0 - x as f64 * 0.5);
+    for biome in slope.components.biomes.values_mut() {
+        biome.moisture = 0.5;
+    }
+    slope.step(1).unwrap();
+    let chunks = slope.snapshot()["chunks"].clone();
+    let outflow = |x: usize| chunks[x]["outflow"].clone();
+    assert!(outflow(0)["chunk_1_0"].as_f64().unwrap() > 0.0);
+    assert!(outflow(1)["chunk_2_0"].as_f64().unwrap() > 0.0);
+    assert!(
+        outflow(2).as_object().unwrap().is_empty(),
+        "the foot of the slope"
+    );
+}

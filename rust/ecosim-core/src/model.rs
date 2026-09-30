@@ -68,6 +68,8 @@ pub struct Biome {
     pub succession: f64,
     /// Water standing above saturated ground, as a pond's depth [0-1].
     pub standing_water: f64,
+    /// Soil pH, set by the site's ground.
+    pub ph: f64,
 }
 impl Default for Biome {
     fn default() -> Self {
@@ -81,6 +83,7 @@ impl Default for Biome {
             invasion: 0.1,
             succession: 0.2,
             standing_water: 0.0,
+            ph: 6.5,
         }
     }
 }
@@ -105,6 +108,11 @@ impl Biome {
         ] {
             *value = value.clamp(0.0, 1.0);
         }
+        self.ph = if self.ph.is_finite() {
+            self.ph.clamp(3.0, 10.0)
+        } else {
+            6.5
+        };
     }
     pub fn apply(&mut self, name: &str, amount: f64) {
         let field = match name {
@@ -236,6 +244,9 @@ pub struct SpeciesDefinition {
     pub hybrid_of: Vec<String>,
     /// How well roots stand standing water [0-1]: 0 drowns, 1 is a marsh plant.
     pub flood_tolerance: f64,
+    /// Soil pH the species grows in without stress.
+    #[serde(rename = "pHRange")]
+    pub ph_range: Range,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -273,6 +284,10 @@ impl Default for SpeciesDefinition {
             ecology: None,
             genus: String::new(),
             hybrid_of: vec![],
+            ph_range: Range {
+                min: 0.0,
+                max: 14.0,
+            },
             flood_tolerance: 0.0,
         }
     }
@@ -509,4 +524,19 @@ pub struct Cross {
 pub struct CrossSeedling {
     pub id: String,
     pub traits: BTreeMap<String, f64>,
+}
+
+/// A soil and water sample from a hex: its readings when taken, and the species a germination tray of its soil
+/// brings up, known once the tray is ready.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sample {
+    pub tick: u64,
+    pub ph: f64,
+    pub moisture: f64,
+    pub nutrients: f64,
+    pub pollution: f64,
+    pub standing_water: f64,
+    pub tray: Vec<String>,
+    pub tray_ready: u64,
 }

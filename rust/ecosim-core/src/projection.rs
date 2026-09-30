@@ -38,6 +38,11 @@ struct Chunk<'a> {
     ritual_residues: &'a [(String, Value)],
     seed_bank: &'a [Seed],
     elevation: f64,
+    /// Water running to each neighbouring hex, per day.
+    outflow: BTreeMap<&'a str, f64>,
+    /// The hex's latest soil and water sample.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sample: Option<&'a Sample>,
     #[serde(flatten)]
     extra: &'a BTreeMap<String, Value>,
 }
@@ -137,6 +142,12 @@ impl World {
                 ritual_residues: &habitat.residues,
                 seed_bank: &habitat.seeds,
                 elevation: habitat.elevation,
+                outflow: self
+                    .flows
+                    .range((*entity, 0)..=(*entity, Entity::MAX))
+                    .map(|((_, to), amount)| (self.components.habitats[to].id.as_str(), *amount))
+                    .collect(),
+                sample: self.samples.get(&habitat.id),
                 extra: &habitat.extra,
             })
             .collect();

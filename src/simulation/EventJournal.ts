@@ -34,6 +34,7 @@ export enum EventType {
   CORRIDOR_FORMED = 'corridor_formed',
   RARE_EVENT = 'rare_event',
   TAGGED_DIED = 'tagged_died',
+  TRAY_READY = 'tray_ready',
   FAUNA_LEFT = 'fauna_left',
   INTERACTION_OBSERVED = 'interaction_observed',
   SEED_SELECTION = 'seed_selection',
